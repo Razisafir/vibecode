@@ -17,12 +17,12 @@ const RISK_COLORS: Record<RiskLevel, { border: string; bg: string; text: string;
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  file_create: 'Create File',
+  file_create: 'New File',
   file_edit: 'Edit File',
-  file_delete: 'Delete File',
+  file_delete: 'Remove File',
   command: 'Run Command',
   code_generation: 'Generate Code',
-  diff_apply: 'Apply Diff',
+  diff_apply: 'Apply Changes',
   analysis: 'Analysis',
   plan: 'Plan',
   multi_step: 'Multi-Step Plan',
@@ -153,14 +153,14 @@ function DiffLineView({ line }: { line: DiffLine }) {
   // Collapsed context indicator
   if (line.lineNumber === -1 && line.type === 'context') {
     return (
-      <div className="px-2 py-0.5 text-text-muted text-[10px] italic bg-bg-hover/50 select-none">
+      <div className="px-2 py-0.5 text-text-muted text-2xs italic bg-bg-hover/50 select-none">
         {line.content}
       </div>
     );
   }
 
   return (
-    <div className={`flex font-mono text-[11px] leading-[18px] ${bgClass} hover:brightness-110 transition-colors`}>
+    <div className={`flex font-mono text-xs leading-[18px] ${bgClass} hover:brightness-110 transition-colors`}>
       <span className="w-10 text-right pr-2 text-text-muted/60 select-none flex-shrink-0">
         {line.oldLineNumber ?? ''}
       </span>
@@ -187,7 +187,7 @@ function RiskMeter({ level, riskLevel }: { level: RiskLevel; riskLevel: RiskLeve
       <div className="flex-1 h-1.5 bg-bg-hover rounded-full overflow-hidden">
         <div className={`h-full ${config.meter} rounded-full transition-all duration-300`} style={{ width: fillWidth }} />
       </div>
-      <span className={`text-[10px] font-medium ${config.text}`}>
+      <span className={`text-2xs font-medium ${config.text}`}>
         {level.toUpperCase()}
       </span>
     </div>
@@ -376,13 +376,13 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
 
   // Risk explanation text
   const riskExplanation: Record<RiskLevel, string> = {
-    low: 'This proposal makes minimal changes with low risk of unintended side effects.',
-    medium: 'This proposal modifies existing files or runs commands. Review the changes carefully before approving.',
-    high: 'This proposal involves significant changes that could affect multiple files or run destructive commands. Exercise caution.',
+    low: 'This change is straightforward and unlikely to cause issues. It creates new files or makes small, well-defined edits.',
+    medium: 'This change modifies existing files. Review the steps carefully — you can always roll back if needed.',
+    high: 'This change is significant and affects multiple files or runs commands. Take a moment to review each step before proceeding.',
   };
 
   return (
-    <div className={`proposal-card ${riskConfig.border} ${statusConfig.className}`}>
+    <div className={`proposal-card card-hover ${riskConfig.border} ${statusConfig.className}`}>
       {/* Header Row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
@@ -396,7 +396,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
             </span>
             {canRollback && (
               <span className="badge bg-info/10 text-info">
-                rollbackable
+                reversible
               </span>
             )}
           </div>
@@ -447,6 +447,23 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
           </div>
         )}
       </div>
+
+      {/* What Will Happen — trust-building summary for pending proposals */}
+      {proposal.status === 'pending' && steps.length > 0 && (
+        <div className="mt-2 rounded-md bg-bg-elevated px-3 py-2">
+          <p className="text-xs text-text-secondary">
+            {steps.length === 1
+              ? 'This will: ' + (steps[0].title || TYPE_LABELS[steps[0].type] || 'perform an action')
+              : `This will run ${steps.length} steps: ${steps.slice(0, 3).map(s => s.title || TYPE_LABELS[s.type] || 'step').join(', ')}${steps.length > 3 ? `, and ${steps.length - 3} more` : ''}`
+            }
+          </p>
+          {canRollback && (
+            <p className="mt-1 text-2xs text-text-muted">
+              You can undo all changes after they are applied.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Quick Summary Bar — show affected files count & steps count */}
       {(affectedFiles.length > 0 || steps.length > 0) && !isExpanded && (
@@ -575,18 +592,18 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-text-primary truncate text-xs">{step.title}</span>
-                              <span className={`badge text-[9px] px-1.5 py-0 ${stepRisk.bg} ${stepRisk.text}`}>
+                              <span className={`badge text-2xs px-1.5 py-0 ${stepRisk.bg} ${stepRisk.text}`}>
                                 {step.riskLevel}
                               </span>
-                              <span className="text-[10px] text-text-muted">
+                              <span className="text-2xs text-text-muted">
                                 {TYPE_LABELS[step.type] || step.type}
                               </span>
                             </div>
-                            <p className="text-text-muted mt-0.5 text-[11px]">{step.description}</p>
+                            <p className="text-text-muted mt-0.5 text-xs">{step.description}</p>
                             {/* Show step output for command steps when completed */}
                             {stepStatus === 'completed' && step.type === 'command' && (
                               <button
-                                className="text-[10px] text-accent hover:underline mt-0.5"
+                                className="text-2xs text-accent hover:underline mt-0.5"
                                 onClick={() => loadStepOutput(`${planId}-${index}`)}
                               >
                                 View output
@@ -604,18 +621,18 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                       const stepRisk = RISK_COLORS[step.riskLevel];
                       return (
                         <div key={index} className="flex items-start gap-2 py-1 border-b border-border/50 last:border-0">
-                          <span className="flex-shrink-0 w-5 h-5 rounded bg-bg-tertiary flex items-center justify-center text-text-muted text-[10px]">
+                          <span className="flex-shrink-0 w-5 h-5 rounded bg-bg-tertiary flex items-center justify-center text-text-muted text-2xs">
                             {index + 1}
                           </span>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-text-primary truncate">{step.title}</span>
-                              <span className={`badge text-[9px] px-1.5 py-0 ${stepRisk.bg} ${stepRisk.text}`}>
+                              <span className={`badge text-2xs px-1.5 py-0 ${stepRisk.bg} ${stepRisk.text}`}>
                                 {step.riskLevel}
                               </span>
                             </div>
                             <p className="text-text-muted mt-0.5">{step.description}</p>
-                            <span className="text-text-muted text-[10px]">{TYPE_LABELS[step.type] || step.type}</span>
+                            <span className="text-text-muted text-2xs">{TYPE_LABELS[step.type] || step.type}</span>
                           </div>
                         </div>
                       );
@@ -639,11 +656,11 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                         className="flex items-center gap-2 py-1 cursor-pointer hover:bg-bg-hover/50 rounded px-1 -mx-1 transition-colors"
                         onClick={() => toggleDiffExpand(stepKey)}
                       >
-                        <span className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold ${ACTION_COLORS[file.action]} ${ACTION_BG[file.action]}`}>
+                        <span className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-2xs font-bold ${ACTION_COLORS[file.action]} ${ACTION_BG[file.action]}`}>
                           {ACTION_ICONS[file.action]}
                         </span>
                         <span className="text-text-primary truncate flex-1 text-xs">{file.path}</span>
-                        <span className={`text-[10px] ${ACTION_COLORS[file.action]}`}>{file.action}</span>
+                        <span className={`text-2xs ${ACTION_COLORS[file.action]}`}>{file.action}</span>
                         <svg
                           width="10"
                           height="10"
@@ -661,10 +678,10 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                       {isDiffExpanded && (
                         <div className="ml-2 mt-1 mb-2 border border-border rounded overflow-hidden">
                           {diffLoading.has(stepKey) ? (
-                            <div className="p-2 text-text-muted text-[10px]">Loading diff...</div>
+                            <div className="p-2 text-text-muted text-2xs">Loading diff...</div>
                           ) : fileDiff ? (
                             <>
-                              <div className="px-2 py-1 bg-bg-hover text-[10px] flex items-center gap-2">
+                              <div className="px-2 py-1 bg-bg-hover text-2xs flex items-center gap-2">
                                 <span className="text-text-primary font-medium">{fileDiff.filePath}</span>
                                 <span className="text-success">+{fileDiff.additions}</span>
                                 <span className="text-error">-{fileDiff.deletions}</span>
@@ -676,7 +693,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                               </div>
                             </>
                           ) : (
-                            <div className="p-2 text-text-muted text-[10px]">
+                            <div className="p-2 text-text-muted text-2xs">
                               No diff available — file may not exist yet or content is not available
                             </div>
                           )}
@@ -715,24 +732,24 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                         >
                           <polyline points="3,1 7,5 3,9" />
                         </svg>
-                        <span className={`flex-shrink-0 w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold ${ACTION_COLORS[getFileActionFromStepType(step.type)]} ${ACTION_BG[getFileActionFromStepType(step.type)]}`}>
+                        <span className={`flex-shrink-0 w-4 h-4 rounded flex items-center justify-center text-2xs font-bold ${ACTION_COLORS[getFileActionFromStepType(step.type)]} ${ACTION_BG[getFileActionFromStepType(step.type)]}`}>
                           {ACTION_ICONS[getFileActionFromStepType(step.type)]}
                         </span>
                         <span className="text-text-primary truncate text-xs font-medium flex-1">{filePath}</span>
-                        <span className="text-[10px] text-text-muted">{TYPE_LABELS[step.type] || step.type}</span>
+                        <span className="text-2xs text-text-muted">{TYPE_LABELS[step.type] || step.type}</span>
                       </button>
 
                       {/* Expanded diff content */}
                       {isDiffExpanded && (
                         <div>
                           {diffLoading.has(`diff-${stepKey}`) ? (
-                            <div className="p-3 text-text-muted text-[10px] flex items-center gap-2">
+                            <div className="p-3 text-text-muted text-2xs flex items-center gap-2">
                               <span className="inline-block h-3 w-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
                               Loading diff...
                             </div>
                           ) : fileDiff ? (
                             <>
-                              <div className="px-2 py-1 bg-bg-tertiary text-[10px] flex items-center gap-3 border-b border-border">
+                              <div className="px-2 py-1 bg-bg-tertiary text-2xs flex items-center gap-3 border-b border-border">
                                 <span className="text-text-primary font-medium">{fileDiff.filePath}</span>
                                 <span className="text-success">+{fileDiff.additions} additions</span>
                                 <span className="text-error">-{fileDiff.deletions} deletions</span>
@@ -744,7 +761,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                               </div>
                             </>
                           ) : (
-                            <div className="p-3 text-text-muted text-[10px]">
+                            <div className="p-3 text-text-muted text-2xs">
                               Diff not available. The file may not exist yet or content could not be read.
                               <br />
                               <span className="text-text-secondary">Step type: {step.type}</span>
@@ -757,9 +774,8 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                 })}
 
                 {/* Summary */}
-                <div className="text-[10px] text-text-muted pt-1 border-t border-border/50">
-                  {fileSteps.length} file step{fileSteps.length !== 1 ? 's' : ''} with diff preview available.
-                  Click each file to expand its diff.
+                <div className="text-2xs text-text-muted pt-1 border-t border-border/50">
+                  {fileSteps.length} file{fileSteps.length !== 1 ? 's' : ''} with changes. Click to preview.
                 </div>
               </div>
             )}
@@ -784,7 +800,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
             <div className="mt-2 space-y-1">
               {Array.from(stepOutputs.entries()).map(([stepId, output]) => (
                 <div key={stepId} className="rounded border border-border overflow-hidden">
-                  <div className="px-2 py-1 bg-bg-hover text-[10px] flex items-center gap-2">
+                  <div className="px-2 py-1 bg-bg-hover text-2xs flex items-center gap-2">
                     <span className="text-text-primary font-medium">{output.title}</span>
                     <span className="text-text-muted">{output.type}</span>
                     {output.duration && (
@@ -792,12 +808,12 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                     )}
                   </div>
                   {output.stdout && (
-                    <pre className="p-2 text-[10px] font-mono text-text-secondary bg-bg-primary max-h-32 overflow-y-auto whitespace-pre-wrap">
+                    <pre className="p-2 text-2xs font-mono text-text-secondary bg-bg-primary max-h-32 overflow-y-auto whitespace-pre-wrap">
                       {output.stdout}
                     </pre>
                   )}
                   {output.stderr && (
-                    <pre className="p-2 text-[10px] font-mono text-error bg-error/5 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                    <pre className="p-2 text-2xs font-mono text-error bg-error/5 max-h-32 overflow-y-auto whitespace-pre-wrap">
                       {output.stderr}
                     </pre>
                   )}
@@ -818,7 +834,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <polyline points="2,6 5,9 10,3" />
             </svg>
-            Approve & Execute
+            Approve and Run
           </button>
           <button
             className="btn btn-secondary btn-sm rounded-md"
@@ -873,11 +889,11 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                 <path d="M1 4h7a3 3 0 0 1 0 6H6" />
                 <polyline points="3,2 1,4 3,6" />
               </svg>
-              Rollback Changes
+              Undo Changes
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-warning">Are you sure?</span>
+              <span className="text-xs text-warning">Undo these changes?</span>
               <button
                 className="btn btn-sm rounded-md bg-warning/10 text-warning hover:bg-warning/20"
                 onClick={handleRollback}
@@ -889,7 +905,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                     Rolling back...
                   </>
                 ) : (
-                  'Confirm Rollback'
+                  'Yes, Undo'
                 )}
               </button>
               <button
@@ -924,7 +940,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                   <path d="M11 6a5 5 0 0 1-9.3 2.5" />
                   <polyline points="10,1 11,4 8,4" />
                 </svg>
-                Retry Failed Step
+                Try Again
               </>
             )}
           </button>

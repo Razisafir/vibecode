@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Provider, ProviderType, ModelInfo, ChatOptions } from '../../types';
 import SkeletonCard from '../SkeletonCard';
+import Toggle from '../ui/Toggle';
+import SectionHeader from '../ui/SectionHeader';
 
 // ─── Provider Type Definitions ──────────────────────────────────────────────
 
@@ -204,9 +206,7 @@ const SettingsPanel: React.FC = () => {
       <div className="space-y-4 p-4">
         {/* ---- Provider Configuration ---- */}
         <section>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
-            AI Providers
-          </h3>
+          <SectionHeader title="AI Providers" />
 
           {isLoading ? (
             <div className="space-y-2">
@@ -421,48 +421,20 @@ const SettingsPanel: React.FC = () => {
                         </div>
 
                         {/* Streaming Toggle */}
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs text-text-primary">Streaming</p>
-                            <p className="text-[10px] text-text-muted">Stream responses token-by-token</p>
-                          </div>
-                          <button
-                            className={`relative h-5 w-9 rounded-full transition-colors ${
-                              chatOpts.streaming ? 'bg-accent' : 'bg-border'
-                            }`}
-                            onClick={() => handleChatOptionChange(provider.id, { streaming: !chatOpts.streaming })}
-                            role="switch"
-                            aria-checked={chatOpts.streaming}
-                          >
-                            <span
-                              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-                                chatOpts.streaming ? 'left-[18px]' : 'left-0.5'
-                              }`}
-                            />
-                          </button>
-                        </div>
+                        <Toggle
+                          enabled={chatOpts.streaming}
+                          onChange={(v) => handleChatOptionChange(provider.id, { streaming: v })}
+                          label="Streaming"
+                          description="Stream responses token-by-token"
+                        />
 
                         {/* Fallback toggle */}
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs text-text-primary">Fallback Provider</p>
-                            <p className="text-[10px] text-text-muted">Used when active provider fails</p>
-                          </div>
-                          <button
-                            className={`relative h-5 w-9 rounded-full transition-colors ${
-                              provider.isFallback ? 'bg-warning' : 'bg-border'
-                            }`}
-                            onClick={() => handleSetFallback(provider.id)}
-                            role="switch"
-                            aria-checked={provider.isFallback ?? false}
-                          >
-                            <span
-                              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-                                provider.isFallback ? 'left-[18px]' : 'left-0.5'
-                              }`}
-                            />
-                          </button>
-                        </div>
+                        <Toggle
+                          enabled={provider.isFallback ?? false}
+                          onChange={() => handleSetFallback(provider.id)}
+                          label="Fallback Provider"
+                          description="Used when active provider fails"
+                        />
 
                         {/* Base URL (for local/custom) */}
                         {(provider.type === 'ollama' || provider.type === 'lmstudio' || provider.type === 'custom') && (
@@ -606,9 +578,7 @@ const SettingsPanel: React.FC = () => {
 
         {/* ---- Workspace ---- */}
         <section>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
-            Workspace
-          </h3>
+          <SectionHeader title="Workspace" />
           <div className="card">
             <label className="mb-1 block text-xs font-medium text-text-secondary">
               Default Directory
@@ -635,33 +605,15 @@ const SettingsPanel: React.FC = () => {
 
         {/* ---- Memory Settings ---- */}
         <section>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
-            Memory
-          </h3>
+          <SectionHeader title="Memory" />
           <div className="space-y-3">
             <div className="card">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-primary">Auto-summarize</p>
-                  <p className="text-xs text-text-muted">
-                    Automatically generate project summaries
-                  </p>
-                </div>
-                <button
-                  className={`relative h-5 w-9 rounded-full transition-colors ${
-                    autoSummarize ? 'bg-accent' : 'bg-border'
-                  }`}
-                  onClick={() => setAutoSummarize(!autoSummarize)}
-                  role="switch"
-                  aria-checked={autoSummarize}
-                >
-                  <span
-                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-                      autoSummarize ? 'left-[18px]' : 'left-0.5'
-                    }`}
-                  />
-                </button>
-              </div>
+              <Toggle
+                enabled={autoSummarize}
+                onChange={setAutoSummarize}
+                label="Auto-summarize"
+                description="Automatically generate project summaries"
+              />
             </div>
 
             <div className="card">
@@ -692,9 +644,7 @@ const SettingsPanel: React.FC = () => {
 
         {/* ---- Session Settings ---- */}
         <section>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
-            Session
-          </h3>
+          <SectionHeader title="Session" />
           <div className="card">
             <label className="mb-1 block text-xs font-medium text-text-secondary">
               Auto-save Interval
@@ -723,9 +673,7 @@ const SettingsPanel: React.FC = () => {
 
         {/* ---- About ---- */}
         <section>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
-            About
-          </h3>
+          <SectionHeader title="About" />
           <div className="card">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">

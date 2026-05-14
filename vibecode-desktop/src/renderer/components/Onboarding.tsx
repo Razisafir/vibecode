@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import type { ProviderType } from '../types';
+import Toggle from './ui/Toggle';
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -18,14 +19,14 @@ const STEPS: OnboardingStep[] = [
     id: 'welcome',
     title: 'Welcome to VibeCode',
     description:
-      'Your AI-native desktop workspace. Build, iterate, and ship faster with an intelligent assistant that understands your codebase and executes complex tasks.',
+      'Your calm, intelligent engineering partner. Build with confidence — VibeCode understands your code, suggests changes, and lets you review everything before it happens.',
     gradient: 'from-accent/30 via-bg-tertiary to-bg-secondary',
   },
   {
     id: 'provider',
     title: 'Connect Your AI Provider',
     description:
-      'Choose your preferred AI provider and enter your API key. VibeCode supports OpenAI, Anthropic, Google, Ollama, and LM Studio.',
+      'Connect your AI provider to get started. Your key is stored securely on your device — never sent to our servers.',
     gradient: 'from-success/20 via-bg-tertiary to-bg-secondary',
   },
   {
@@ -46,7 +47,7 @@ const STEPS: OnboardingStep[] = [
     id: 'ready',
     title: "You're All Set!",
     description:
-      'Start by opening a project, asking the AI assistant, or exploring the workspace. Use Cmd+K anytime to open the command palette.',
+      'You are ready to build. Ask the AI assistant anything, open a project, or explore the workspace. Remember — you can always undo changes.',
     gradient: 'from-accent/30 via-success/20 to-bg-secondary',
   },
 ];
@@ -217,25 +218,13 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
       return (
         <div className="space-y-4">
           {/* Skip provider option */}
-          <div className="flex items-center justify-between rounded-lg bg-bg-primary px-3 py-2">
-            <div>
-              <p className="text-sm text-text-primary">Skip provider setup</p>
-              <p className="text-xs text-text-muted">Configure later in Settings</p>
-            </div>
-            <button
-              className={`relative h-5 w-9 rounded-full transition-colors ${
-                skipProvider ? 'bg-accent' : 'bg-border'
-              }`}
-              onClick={() => setSkipProvider(!skipProvider)}
-              role="switch"
-              aria-checked={skipProvider}
-            >
-              <span
-                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-                  skipProvider ? 'left-[18px]' : 'left-0.5'
-                }`}
-              />
-            </button>
+          <div className="rounded-lg bg-bg-primary px-3 py-2">
+            <Toggle
+              enabled={skipProvider}
+              onChange={setSkipProvider}
+              label="Skip provider setup"
+              description="Configure later in Settings"
+            />
           </div>
 
           {!skipProvider && (
@@ -381,26 +370,12 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
           </div>
 
           {/* Streaming */}
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-text-primary">Streaming</p>
-              <p className="text-xs text-text-muted">Stream responses token-by-token</p>
-            </div>
-            <button
-              className={`relative h-5 w-9 rounded-full transition-colors ${
-                streaming ? 'bg-accent' : 'bg-border'
-              }`}
-              onClick={() => setStreaming(!streaming)}
-              role="switch"
-              aria-checked={streaming}
-            >
-              <span
-                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-                  streaming ? 'left-[18px]' : 'left-0.5'
-                }`}
-              />
-            </button>
-          </div>
+          <Toggle
+            enabled={streaming}
+            onChange={setStreaming}
+            label="Streaming"
+            description="Stream responses token-by-token"
+          />
 
           {validationError && (
             <p className="text-xs text-error">{validationError}</p>
@@ -457,11 +432,10 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
           </p>
           <div className="space-y-2">
             {[
-              'Open a project from the file explorer',
-              'Ask the AI assistant to create something new',
-              'Use Cmd+K to open the command palette',
-              'Use Cmd+P to search for files',
-              'Browse your memory panel for context',
+              'Open a project and start coding',
+              'Ask the AI to help with anything',
+              'Use Cmd+K for quick actions',
+              'All changes can be undone — experiment freely',
             ].map((suggestion) => (
               <div
                 key={suggestion}
@@ -599,7 +573,13 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
         {/* Progress Dots & Actions */}
         <div className="border-t border-border px-8 py-4">
           <div className="flex items-center justify-between">
-            {/* Skip */}
+            {/* Trust message + Skip */}
+            <div className="flex items-center gap-3">
+              <p className="text-2xs text-text-tertiary mr-auto">
+                Your data stays on your device
+              </p>
+            </div>
+
             <button
               className="text-xs text-text-muted hover:text-text-secondary transition-colors"
               onClick={onSkip}

@@ -3,7 +3,6 @@ import type { ChatMessage, ProposalCard as ProposalCardType, ProposalCardData } 
 import { useAIChat } from '../hooks/useAIChat';
 import { useProposals } from '../hooks/useProposals';
 import ProposalCardComponent from './ProposalCard';
-import SkeletonCard from './SkeletonCard';
 
 interface AIPanelProps {
   isOpen: boolean;
@@ -187,10 +186,10 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle, width = 400 }) => {
 
   // Suggestion chips for empty state
   const suggestions = [
-    'Create a new React component',
-    'Explain this codebase',
-    'Refactor for better performance',
-    'Write unit tests',
+    'Help me understand this project',
+    'Add a new feature',
+    'Find and fix issues',
+    'Write tests for my code',
   ];
 
   if (!isOpen) return null;
@@ -330,9 +329,18 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle, width = 400 }) => {
               <div key={message.id} className="flex flex-col message-fade-in">
                 <div className={`ai-message ai-message-${message.role}`}>
                   {message.role === 'assistant' ? (
-                    <div className="whitespace-pre-wrap">
-                      {message.content}
-
+                    <div>
+                      {message.metadata?.proposalIds && message.metadata.proposalIds.length > 0 && (
+                        <div className="mb-1.5 flex items-center gap-1.5 text-2xs text-accent">
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 6h10M6 1v10" />
+                          </svg>
+                          Proposed {message.metadata.proposalIds.length} change{message.metadata.proposalIds.length !== 1 ? 's' : ''}
+                        </div>
+                      )}
+                      <div className="whitespace-pre-wrap">
+                        {message.content}
+                      </div>
                       {/* Render proposal cards inline after AI message */}
                       {renderProposalCards(message)}
                     </div>
@@ -362,8 +370,15 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle, width = 400 }) => {
 
             {/* Thinking Indicator — skeleton card while AI is thinking */}
             {isThinking && (
-              <div className="message-fade-in">
-                <SkeletonCard lines={3} showAvatar={false} />
+              <div className="message-fade-in ai-message ai-message-assistant">
+                <div className="flex items-center gap-2">
+                  <div className="thinking-dots">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <span className="text-xs text-text-muted">Thinking...</span>
+                </div>
               </div>
             )}
 
@@ -381,7 +396,10 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle, width = 400 }) => {
             {activeModel || 'No model selected'}
           </span>
           {isStreaming && (
-            <span className="ml-auto text-xs text-accent">Streaming...</span>
+            <span className="ml-auto flex items-center gap-1.5 text-xs text-accent">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+              Writing
+            </span>
           )}
         </div>
 
@@ -408,7 +426,7 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle, width = 400 }) => {
           </button>
 
           {/* Textarea */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 panel-focus-ring rounded-lg">
             <textarea
               ref={textareaRef}
               data-ai-input

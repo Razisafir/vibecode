@@ -697,3 +697,60 @@
   background-color: var(--border);
   margin: 4px 8px;
 }
+
+/* ---- Premium Microinteractions ---- */
+
+/* Gentle lift on hover for cards */
+.card-hover {
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Subtle scale on interactive items */
+.scale-hover {
+  transition: transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scale-hover:hover {
+  transform: scale(1.02);
+}
+
+.scale-hover:active {
+  transform: scale(0.98);
+}
+
+/* Smooth opacity transition for focus management */
+.focus-transition {
+  transition: opacity 200ms ease, transform 200ms ease, box-shadow 200ms ease;
+}
+
+/* Enhanced button press feedback */
+.btn-press {
+  transition: transform 75ms cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 75ms ease,
+              box-shadow 75ms ease;
+}
+
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* Gentle entrance for newly rendered items */
+.item-enter {
+  animation: slideUp 250ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Smooth panel border glow on focus-within */
+.panel-focus-ring {
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.panel-focus-ring:focus-within {
+  border-color: var(--accent-muted);
+  box-shadow: 0 0 0 1px var(--accent-muted);
+}

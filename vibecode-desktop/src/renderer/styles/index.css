@@ -289,6 +289,10 @@
     box-shadow: 0 0 0 1px var(--accent-hover);
   }
 
+  .btn-primary:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
   .btn-secondary {
     background-color: var(--bg-tertiary);
     color: var(--text-primary);
@@ -298,6 +302,10 @@
   .btn-secondary:hover:not(:disabled) {
     background-color: var(--bg-hover);
     border-color: var(--border-emphasis);
+  }
+
+  .btn-secondary:active:not(:disabled) {
+    transform: scale(0.97);
   }
 
   .btn-ghost {
