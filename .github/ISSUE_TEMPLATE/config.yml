@@ -1,0 +1,10 @@
+name: Config
+description: Issue template configuration
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability
+    url: mailto:security@vibecode.dev
+    about: Report security vulnerabilities via email. Do NOT file public issues for security problems.
+  - name: Documentation
+    url: https://github.com/Razisafir/vibecode/tree/main/docs
+    about: Check the documentation before opening an issue.

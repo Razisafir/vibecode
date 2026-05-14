@@ -1,0 +1,91 @@
+# =============================================================================
+# VibeCode — Root .gitignore
+# =============================================================================
+
+# --- Environment & Secrets (NEVER COMMIT) ---
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+secrets/
+credentials/
+
+# --- Dependencies ---
+node_modules/
+**/node_modules/
+
+# --- Build Outputs ---
+dist/
+dist-electron/
+out/
+build/
+.next/
+
+# --- IDE & Editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# --- Operating System ---
+.DS_Store
+.DS_Store?
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Coverage & Testing ---
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# --- Cache ---
+.cache/
+.parcel-cache/
+.vite/
+.eslintcache
+*.tsbuildinfo
+
+# --- Temporary & Generated ---
+*.tmp
+*.bak
+*.swp
+*~
+
+# --- Electron Distribution Artifacts ---
+*.dmg
+*.exe
+*.AppImage
+*.deb
+*.snap
+*.blockmap
+
+# --- Session & Development Artifacts ---
+agent-ctx/
+download/
+skills/
+
+# --- Nested Repo Clones (accidental) ---
+vibecode-repo/
+
+# --- Database Files ---
+*.db
+*.sqlite
+*.sqlite3

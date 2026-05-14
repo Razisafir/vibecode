@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "type": "module",
   "description": "VibeCode — AI-Native Desktop Operating Environment",
+  "license": "UNLICENSED",
   "main": "dist/main/main.js",
   "author": "VibeCode",
   "homepage": "https://vibecode.dev",

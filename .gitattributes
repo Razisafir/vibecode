@@ -1,0 +1,49 @@
+# Git Attributes — VibeCode
+# https://git-scm.com/docs/gitattributes
+
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Force LF for source code
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.svg text eol=lf
+
+# Force LF for config files
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.editorconfig text eol=lf
+.eslintrc* text eol=lf
+LICENSE text eol=lf
+
+# Binary files — don't diff or normalize
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.dmg binary
+*.exe binary
+*.AppImage binary
+*.deb binary
+*.zip binary
+*.tar.gz binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.db binary
+*.sqlite binary
+
+# Linguist overrides — classify correctly on GitHub
+vibecode-desktop/src/ linguist-vendored=false
+skills/ linguist-documentation
