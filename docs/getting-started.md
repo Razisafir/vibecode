@@ -1,5 +1,7 @@
 # Getting Started with VibeCode
 
+This guide is for **end users** installing and configuring VibeCode for the first time. If you are a developer who wants to contribute to the codebase, see [First 30 Minutes](first-30-minutes.md) and [Contributing](../CONTRIBUTING.md) instead.
+
 ## Installation
 
 ### Prerequisites
@@ -93,8 +95,22 @@ modify files outside your workspace without explicit configuration.
 | Cmd/Ctrl + Shift + P | Toggle AI panel |
 | Cmd/Ctrl + B | Toggle sidebar |
 
-## Getting Help
+## Next Steps
 
-- [Configuration Guide](configuration.md)
-- [Troubleshooting](troubleshooting.md)
+New to the codebase? Start with the guided walkthrough:
+- [First 30 Minutes](first-30-minutes.md) — Clone, build, run, diagnose, recover — in 30 minutes
+
+Understanding the system:
+- [Architecture Overview](architecture-overview.md) — System layers, data flow, and diagrams
+- [System Philosophy](system-philosophy.md) — Why VibeCode is designed this way
+- [Repository Map](repository-map.md) — Where everything lives in the codebase
+
+Operating VibeCode:
+- [Operational Guide](operational-guide.md) — Complete command reference and mode guide
+- [System Status](system-status.md) — Status command, failure categories, JSON schema
+- [Operational Safety](operational-safety.md) — Guardrails, mode compatibility, safety constraints
+- [Configuration Guide](configuration.md) — Environment variables and AI provider setup
+- [Troubleshooting](troubleshooting.md) — Common issues and solutions
+
+Community:
 - [GitHub Issues](https://github.com/Razisafir/vibecode/issues)

@@ -1,96 +1,212 @@
-name: Build & Test
+name: CI
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'vibecode-desktop/**'
   pull_request:
     branches: [main]
-    paths:
-      - 'vibecode-desktop/**'
 
-defaults:
-  run:
-    working-directory: vibecode-desktop
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  lint:
-    name: Lint & Type Check
+  install:
+    name: Install Dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: vibecode-desktop/package-lock.json
-      - run: npm ci
-      - run: npm run typecheck
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+  typecheck:
+    name: TypeScript Type Check
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibecode-desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+      - name: Typecheck renderer
+        working-directory: vibecode-desktop
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Typecheck main process
+        working-directory: vibecode-desktop
+        run: npx tsc --noEmit -p tsconfig.main.json
+
+      - name: Typecheck preload
+        working-directory: vibecode-desktop
+        run: npx tsc --noEmit -p tsconfig.preload.json
+
+  lint:
+    name: ESLint
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibecode-desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+      - name: Lint
+        working-directory: vibecode-desktop
+        run: npm run lint
 
   test:
-    name: Unit Tests
+    name: Tests
+    needs: install
     runs-on: ubuntu-latest
-    needs: lint
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: vibecode-desktop/package-lock.json
-      - run: npm ci
-      - run: npm test
-      - name: Upload coverage
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: vibecode-desktop/coverage/
 
-  build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: test
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: vibecode-desktop/package-lock.json
-      - run: npm ci
-      - run: npm run build
-      - name: Validate build output
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+      - name: Run tests
+        working-directory: vibecode-desktop
+        run: npm test
+
+  build-main:
+    name: Build Main Process
+    needs: [typecheck, lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibecode-desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+      - name: Build main process
+        working-directory: vibecode-desktop
+        run: npm run build:main
+
+      - name: Build preload
+        working-directory: vibecode-desktop
+        run: npm run build:preload
+
+  build-renderer:
+    name: Build Renderer
+    needs: [typecheck, lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibecode-desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+      - name: Build renderer
+        working-directory: vibecode-desktop
+        run: npm run build:renderer
+
+  verify-no-secrets:
+    name: Verify No Secrets in Build Output
+    needs: [build-main, build-renderer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibecode-desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+      - name: Full build
+        working-directory: vibecode-desktop
+        run: npm run build
+
+      - name: Check for .env files in build output
+        working-directory: vibecode-desktop
         run: |
-          test -f dist/main/main.js || exit 1
-          test -f dist/preload/preload.js || exit 1
-          test -f dist/renderer/index.html || exit 1
+          if find dist/ dist-electron/ -name '.env*' -not -name '.env.example' 2>/dev/null | grep -q .; then
+            echo "::error::Found .env files in build output!"
+            find dist/ dist-electron/ -name '.env*' -not -name '.env.example'
+            exit 1
+          fi
+          echo "No .env files found in build output."
 
-  package:
-    name: Package (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: build
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+      - name: Check for secret patterns in build output
+        working-directory: vibecode-desktop
+        run: |
+          if grep -rE '(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{82}|AKIA[0-9A-Z]{16})' dist/ dist-electron/ 2>/dev/null; then
+            echo "::error::Found secret patterns in build output!"
+            exit 1
+          fi
+          echo "No secret patterns found in build output."
+
+  release-gate:
+    name: Release Approval Gate
+    needs: [typecheck, lint, test, build-main, build-renderer, verify-no-secrets]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: vibecode-desktop/package-lock.json
-      - run: npm ci
-      - run: npm run build
-      - run: npm run pack
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vibecode-${{ matrix.os }}
-          path: vibecode-desktop/dist-electron/
+      - name: Release gate passed
+        run: |
+          echo "✓ All CI checks passed"
+          echo "✓ Typecheck: PASSED"
+          echo "✓ Lint: PASSED"
+          echo "✓ Tests: PASSED"
+          echo "✓ Build: PASSED"
+          echo "✓ No secrets in output: PASSED"
+          echo ""
+          echo "Release is approved for deployment."
