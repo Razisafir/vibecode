@@ -754,3 +754,39 @@
   border-color: var(--accent-muted);
   box-shadow: 0 0 0 1px var(--accent-muted);
 }
+
+/* ---- Performance Hints ---- */
+
+/* Elements that frequently animate should hint the browser */
+.sidebar-panel,
+.ai-panel {
+  will-change: width, opacity;
+}
+
+.ai-message {
+  will-change: transform, opacity;
+}
+
+.proposal-card {
+  will-change: transform;
+}
+
+.command-palette {
+  will-change: transform, opacity;
+}
+
+.thinking-dots span {
+  will-change: transform, opacity;
+}
+
+.spinner {
+  will-change: transform;
+}
+
+/* Reduce paint on scrollable areas */
+.ai-messages,
+.terminal-container,
+.scrollbar-custom {
+  -webkit-overflow-scrolling: touch;
+  contain: layout;
+}

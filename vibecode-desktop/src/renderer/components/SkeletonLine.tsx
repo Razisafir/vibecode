@@ -8,6 +8,8 @@ interface SkeletonLineProps {
 
 /**
  * A single shimmer line used as a loading placeholder.
+ * Uses design tokens (bg-bg-tertiary / bg-bg-hover) via the animate-shimmer CSS class
+ * for a smooth, consistent shimmer effect that respects the design system.
  */
 const SkeletonLine: React.FC<SkeletonLineProps> = ({
   width = '100%',
@@ -16,7 +18,7 @@ const SkeletonLine: React.FC<SkeletonLineProps> = ({
 }) => {
   return (
     <div
-      className={`animate-shimmer rounded ${className}`}
+      className={`animate-shimmer rounded bg-bg-tertiary ${className}`}
       style={{
         width,
         height,
