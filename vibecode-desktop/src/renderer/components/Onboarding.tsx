@@ -1,0 +1,395 @@
+import React, { useState, useCallback } from 'react';
+
+interface OnboardingProps {
+  onComplete: () => void;
+  onSkip: () => void;
+}
+
+interface OnboardingStep {
+  id: string;
+  title: string;
+  description: string;
+  gradient: string;
+}
+
+const STEPS: OnboardingStep[] = [
+  {
+    id: 'welcome',
+    title: 'Welcome to VibeCode',
+    description:
+      'Your AI-native desktop workspace. Build, iterate, and ship faster with an intelligent assistant that understands your codebase and executes complex tasks.',
+    gradient: 'from-accent/30 via-bg-tertiary to-bg-secondary',
+  },
+  {
+    id: 'provider',
+    title: 'Connect Your AI Provider',
+    description:
+      'Choose your preferred AI provider and enter your API key. VibeCode supports OpenAI, Anthropic, Google, and local models.',
+    gradient: 'from-success/20 via-bg-tertiary to-bg-secondary',
+  },
+  {
+    id: 'workspace',
+    title: 'Set Up Your Workspace',
+    description:
+      'Choose a directory for your projects. VibeCode will analyze your codebase, remember decisions, and provide context-aware assistance.',
+    gradient: 'from-info/20 via-bg-tertiary to-bg-secondary',
+  },
+  {
+    id: 'ready',
+    title: 'You\'re All Set!',
+    description:
+      'Start by opening a project, asking the AI assistant, or exploring the workspace. Use Cmd+K anytime to open the command palette.',
+    gradient: 'from-accent/30 via-success/20 to-bg-secondary',
+  },
+];
+
+const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [providerType, setProviderType] = useState('openai');
+  const [apiKey, setApiKey] = useState('');
+  const [workspacePath, setWorkspacePath] = useState('');
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationError, setValidationError] = useState('');
+
+  const step = STEPS[currentStep];
+  const isFirstStep = currentStep === 0;
+  const isLastStep = currentStep === STEPS.length - 1;
+  const isProviderStep = currentStep === 1;
+  const isWorkspaceStep = currentStep === 2;
+
+  const handleNext = useCallback(async () => {
+    // Validate provider step
+    if (isProviderStep && apiKey.trim()) {
+      setIsValidating(true);
+      setValidationError('');
+      try {
+        const result = await window.vibecode?.provider.configure({
+          type: providerType as 'openai' | 'anthropic' | 'google',
+          apiKey: apiKey.trim(),
+        });
+        if (result && !result.success) {
+          setValidationError('Failed to configure provider. Please check your API key.');
+          setIsValidating(false);
+          return;
+        }
+      } catch {
+        // In dev without full backend, allow continuing
+      }
+      setIsValidating(false);
+    }
+
+    // Validate workspace step
+    if (isWorkspaceStep && workspacePath.trim()) {
+      try {
+        const stat = await window.vibecode?.fs.stat(workspacePath.trim());
+        if (stat && !stat.success) {
+          setValidationError('Directory does not exist. Please enter a valid path.');
+          return;
+        }
+        await window.vibecode?.workspace.open(workspacePath.trim());
+      } catch {
+        // In dev without full backend, allow continuing
+      }
+    }
+
+    if (isLastStep) {
+      onComplete();
+    } else {
+      setCurrentStep((prev) => prev + 1);
+    }
+  }, [currentStep, isProviderStep, isWorkspaceStep, isLastStep, apiKey, providerType, workspacePath, onComplete]);
+
+  const handleBack = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep((prev) => prev - 1);
+    }
+  }, [currentStep]);
+
+  const handleBrowseWorkspace = useCallback(async () => {
+    try {
+      // Try to use the native dialog via IPC
+      await window.vibecode?.workspace.open('');
+    } catch {
+      // Fallback: user can type path manually
+    }
+  }, []);
+
+  const renderStepContent = () => {
+    if (isProviderStep) {
+      return (
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            {(['openai', 'anthropic', 'google'] as const).map((type) => (
+              <button
+                key={type}
+                className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
+                  providerType === type
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-border bg-bg-primary text-text-secondary hover:border-accent/50'
+                }`}
+                onClick={() => setProviderType(type)}
+              >
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div>
+            <label
+              htmlFor="api-key"
+              className="mb-1.5 block text-xs font-medium text-text-secondary"
+            >
+              API Key
+            </label>
+            <input
+              id="api-key"
+              type="password"
+              className="input"
+              placeholder={`Enter your ${providerType} API key...`}
+              value={apiKey}
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                setValidationError('');
+              }}
+            />
+            <p className="mt-1.5 text-xs text-text-muted">
+              Your key is stored locally and never sent to our servers.
+            </p>
+          </div>
+          {validationError && (
+            <p className="text-xs text-error">{validationError}</p>
+          )}
+        </div>
+      );
+    }
+
+    if (isWorkspaceStep) {
+      return (
+        <div className="space-y-4">
+          <div>
+            <label
+              htmlFor="workspace-path"
+              className="mb-1.5 block text-xs font-medium text-text-secondary"
+            >
+              Workspace Directory
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="workspace-path"
+                type="text"
+                className="input flex-1"
+                placeholder="/path/to/your/project"
+                value={workspacePath}
+                onChange={(e) => {
+                  setWorkspacePath(e.target.value);
+                  setValidationError('');
+                }}
+              />
+              <button
+                className="btn btn-secondary rounded-lg"
+                onClick={handleBrowseWorkspace}
+              >
+                Browse
+              </button>
+            </div>
+            <p className="mt-1.5 text-xs text-text-muted">
+              Choose an existing project or create a new directory.
+            </p>
+          </div>
+          {validationError && (
+            <p className="text-xs text-error">{validationError}</p>
+          )}
+        </div>
+      );
+    }
+
+    if (isLastStep) {
+      return (
+        <div className="space-y-3">
+          <p className="text-sm text-text-secondary">
+            Here are some ways to get started:
+          </p>
+          <div className="space-y-2">
+            {[
+              'Open a project from the file explorer',
+              'Ask the AI assistant to create something new',
+              'Use Cmd+K to open the command palette',
+              'Browse your memory panel for context',
+            ].map((suggestion) => (
+              <div
+                key={suggestion}
+                className="flex items-center gap-2 rounded-md bg-bg-primary px-3 py-2 text-sm text-text-secondary"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  className="flex-shrink-0 text-accent"
+                >
+                  <polyline points="2,7 5.5,10.5 12,3.5" />
+                </svg>
+                {suggestion}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <div className="onboarding-overlay">
+      <div className="onboarding-card">
+        {/* Illustration Area */}
+        <div
+          className={`onboarding-illustration bg-gradient-to-br ${step.gradient}`}
+        >
+          {/* Abstract decoration */}
+          <div className="absolute inset-0 opacity-20">
+            <div
+              className="absolute left-1/4 top-1/4 h-32 w-32 rounded-full border border-accent/40"
+              style={{ animation: 'spin 20s linear infinite' }}
+            />
+            <div
+              className="absolute right-1/4 bottom-1/4 h-24 w-24 rounded-full border border-success/40"
+              style={{ animation: 'spin 15s linear infinite reverse' }}
+            />
+          </div>
+
+          {/* Center Icon */}
+          <div className="relative z-10 flex h-20 w-20 items-center justify-center rounded-2xl border border-border bg-bg-tertiary/80 shadow-lg backdrop-blur-sm">
+            {currentStep === 0 && (
+              <svg
+                width="40"
+                height="40"
+                viewBox="0 0 40 40"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                className="text-accent"
+              >
+                <path d="M20 4L4 12l16 8 16-8-16-8z" />
+                <path d="M4 20l16 8 16-8" />
+                <path d="M4 28l16 8 16-8" />
+              </svg>
+            )}
+            {currentStep === 1 && (
+              <svg
+                width="40"
+                height="40"
+                viewBox="0 0 40 40"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                className="text-success"
+              >
+                <path d="M20 4a16 16 0 100 32 16 16 0 000-32z" />
+                <path d="M14 20l4 4 8-8" />
+              </svg>
+            )}
+            {currentStep === 2 && (
+              <svg
+                width="40"
+                height="40"
+                viewBox="0 0 40 40"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                className="text-info"
+              >
+                <path d="M6 6h10l3 3h15a2 2 0 012 2v20a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2z" />
+              </svg>
+            )}
+            {currentStep === 3 && (
+              <svg
+                width="40"
+                height="40"
+                viewBox="0 0 40 40"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                className="text-accent"
+              >
+                <circle cx="20" cy="20" r="16" />
+                <path d="M12 20l6 6 12-12" />
+              </svg>
+            )}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="px-8 pb-4 pt-6">
+          <h2 className="mb-2 text-xl font-semibold text-text-primary">
+            {step.title}
+          </h2>
+          <p className="mb-6 text-sm leading-relaxed text-text-secondary">
+            {step.description}
+          </p>
+
+          {/* Step-specific content */}
+          {renderStepContent()}
+        </div>
+
+        {/* Progress Dots & Actions */}
+        <div className="border-t border-border px-8 py-4">
+          <div className="flex items-center justify-between">
+            {/* Skip */}
+            <button
+              className="text-xs text-text-muted hover:text-text-secondary transition-colors"
+              onClick={onSkip}
+            >
+              Skip setup
+            </button>
+
+            {/* Progress Dots */}
+            <div className="onboarding-progress">
+              {STEPS.map((_, index) => (
+                <div
+                  key={index}
+                  className={`onboarding-dot ${
+                    index === currentStep
+                      ? 'active'
+                      : index < currentStep
+                        ? 'completed'
+                        : ''
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Navigation Buttons */}
+            <div className="flex items-center gap-2">
+              {!isFirstStep && (
+                <button
+                  className="btn btn-secondary btn-sm rounded-md"
+                  onClick={handleBack}
+                >
+                  Back
+                </button>
+              )}
+              <button
+                className="btn btn-primary btn-sm rounded-md"
+                onClick={handleNext}
+                disabled={isValidating}
+              >
+                {isValidating ? (
+                  <span className="spinner spinner-sm" />
+                ) : isLastStep ? (
+                  'Get Started'
+                ) : (
+                  'Continue'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Onboarding;

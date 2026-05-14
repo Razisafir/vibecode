@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0a0f" />
+    <meta name="description" content="VibeCode Desktop — AI-Native Desktop Operating Environment" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:;" />
+    <title>VibeCode</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        background-color: #0a0a0f;
+        color: #e8e8f0;
+        overflow: hidden;
+        height: 100%;
+      }
+      #root {
+        height: 100%;
+      }
+      /* Prevent flash of unstyled content */
+      .app-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        background-color: #0a0a0f;
+        color: #555570;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="app-loading">Loading VibeCode...</div>
+    </div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>
