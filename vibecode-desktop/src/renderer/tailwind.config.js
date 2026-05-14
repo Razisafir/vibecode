@@ -1,12 +1,9 @@
-import { dirname, resolve } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    resolve(__dirname, 'src/renderer/**/*.{ts,tsx,html}'),
+    './*.{ts,tsx,html}',
+    './components/**/*.{ts,tsx}',
+    './hooks/**/*.{ts,tsx}',
   ],
   darkMode: 'class',
   theme: {
