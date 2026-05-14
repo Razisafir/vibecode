@@ -8,6 +8,8 @@ import { telemetry } from './services/telemetry';
 import { watchdog } from './services/watchdog';
 import { crashDumpService } from './services/crash-dump';
 import { getTrayIconPath, getAppMetadata } from './services/branding';
+import { autoUpdateService } from './services/auto-updater';
+import { analyticsService } from './services/analytics';
 import { logger } from './utils/logger';
 import { auditLog } from './utils/audit-log';
 
@@ -86,6 +88,11 @@ if (!gotTheLock) {
     // Initialize telemetry monitoring
     telemetry.startMonitoring();
 
+    // Initialize analytics service (only starts tracking if user has opted in)
+    if (analyticsService.getConfig().enabled) {
+      analyticsService.startSession();
+    }
+
     // Check for crashed sessions BEFORE creating the window
     const crashed = sessionManager.wasCrashed();
     if (crashed) {
@@ -104,6 +111,15 @@ if (!gotTheLock) {
     registerAllIpcHandlers();
     setupMenu();
     setupTray();
+
+    // Initialize auto-updater after window is created
+    if (mainWindow) {
+      autoUpdateService.initialize(mainWindow);
+      // Start periodic update checks (every 4 hours) in production
+      if (!IS_DEV) {
+        autoUpdateService.startPeriodicChecks();
+      }
+    }
 
     // Start watchdog monitoring after window is created
     if (mainWindow) {
@@ -647,6 +663,22 @@ function setupMenu(): void {
 
 function cleanupAndQuit(): void {
   logger.info('general', 'Performing cleanup before quit...');
+
+  // Stop auto-updater
+  try {
+    autoUpdateService.stopPeriodicChecks();
+    logger.info('general', 'Auto-updater stopped');
+  } catch (err) {
+    logger.error('general', 'Failed to stop auto-updater', { error: String(err) });
+  }
+
+  // Stop analytics
+  try {
+    analyticsService.stopSession();
+    logger.info('general', 'Analytics stopped');
+  } catch (err) {
+    logger.error('general', 'Failed to stop analytics', { error: String(err) });
+  }
 
   // Stop telemetry monitoring
   try {

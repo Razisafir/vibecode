@@ -158,6 +158,45 @@ const vibecode = {
     maximize: () => ipcRenderer.send('app:maximize'),
     close: () => ipcRenderer.send('app:close'),
   },
+  updater: {
+    check: (force?: boolean) => ipcRenderer.invoke('updater:check', force),
+    download: () => ipcRenderer.invoke('updater:download'),
+    cancel: () => ipcRenderer.invoke('updater:cancel'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    status: () => ipcRenderer.invoke('updater:status'),
+    setChannel: (channel: string) => ipcRenderer.invoke('updater:setChannel', channel),
+    onAvailable: (callback: (info: any) => void) => {
+      ipcRenderer.on('updater:update-available', (_event, info) => callback(info));
+    },
+    onNotAvailable: (callback: (info: any) => void) => {
+      ipcRenderer.on('updater:update-not-available', (_event, info) => callback(info));
+    },
+    onProgress: (callback: (progress: any) => void) => {
+      ipcRenderer.on('updater:update:progress', (_event, progress) => callback(progress));
+    },
+    onDownloaded: (callback: (info: any) => void) => {
+      ipcRenderer.on('updater:update-downloaded', (_event, info) => callback(info));
+    },
+    onError: (callback: (error: any) => void) => {
+      ipcRenderer.on('updater:update:error', (_event, error) => callback(error));
+    },
+  },
+  telemetry: {
+    getMetrics: () => ipcRenderer.invoke('telemetry:getMetrics'),
+    getRecentLogs: (count?: number, level?: string) => ipcRenderer.invoke('telemetry:getRecentLogs', count, level),
+    getCrashDumps: () => ipcRenderer.invoke('telemetry:getCrashDumps'),
+    sendHeartbeat: (data?: { fps?: number }) => ipcRenderer.invoke('telemetry:sendHeartbeat', data),
+    clearCrashDumps: () => ipcRenderer.invoke('telemetry:clearCrashDumps'),
+  },
+  analytics: {
+    getConfig: () => ipcRenderer.invoke('analytics:getConfig'),
+    grantConsent: (options?: any) => ipcRenderer.invoke('analytics:grantConsent', options),
+    revokeConsent: () => ipcRenderer.invoke('analytics:revokeConsent'),
+    updateConfig: (updates: any) => ipcRenderer.invoke('analytics:updateConfig', updates),
+    getMetrics: () => ipcRenderer.invoke('analytics:getMetrics'),
+    getPendingEvents: () => ipcRenderer.invoke('analytics:getPendingEvents'),
+    trackFeature: (feature: string) => ipcRenderer.invoke('analytics:trackFeature', feature),
+  },
 };
 
 contextBridge.exposeInMainWorld('vibecode', vibecode);

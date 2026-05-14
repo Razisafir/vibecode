@@ -31,7 +31,13 @@ export const app = {
   getPath: (name: string) => '/tmp/vibecode-test',
   on: () => {},
   quit: () => {},
-  getVersion: () => '0.1.0-test',
+  getVersion: () => '0.2.0-test',
+  getName: () => 'VibeCode',
+  isPackaged: false,
+  requestSingleInstanceLock: () => true,
+  getAppPath: () => '/tmp/vibecode-test',
+  relaunch: () => {},
+  exit: () => {},
 };
 
 export const clipboard = {

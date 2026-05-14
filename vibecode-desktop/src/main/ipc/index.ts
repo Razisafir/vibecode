@@ -9,6 +9,8 @@ import { registerAppHandlers } from './app-handlers';
 import { registerWorkspaceHandlers } from './workspace-handlers';
 import { registerProposalHandlers } from './proposal-handlers';
 import { registerTelemetryHandlers } from './telemetry-handlers';
+import { registerUpdaterHandlers } from './updater-handlers';
+import { registerAnalyticsHandlers } from './analytics-handlers';
 import { telemetry } from '../services/telemetry';
 import { rateLimiter } from '../utils/rate-limiter';
 
@@ -97,6 +99,12 @@ export function registerAllIpcHandlers(): void {
 
   // Telemetry & diagnostics
   registerTelemetryHandlers();
+
+  // Auto-update system
+  registerUpdaterHandlers();
+
+  // Analytics (opt-in, privacy-first)
+  registerAnalyticsHandlers();
 
   console.log('[IPC] All IPC handlers registered successfully');
 }

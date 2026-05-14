@@ -146,6 +146,28 @@ export interface VibeCodeAPI {
     sendHeartbeat(data?: { fps?: number }): Promise<{ success: boolean; data?: { received: boolean }; error?: string }>;
     clearCrashDumps(): Promise<{ success: boolean; data?: { cleared: boolean }; error?: string }>;
   };
+  updater: {
+    check(force?: boolean): Promise<{ success: boolean; data?: { status: UpdateStatus }; error?: string }>;
+    download(): Promise<{ success: boolean; data?: { status: UpdateStatus }; error?: string }>;
+    cancel(): Promise<{ success: boolean; data?: { cancelled: boolean }; error?: string }>;
+    install(): Promise<{ success: boolean; data?: { installing: boolean }; error?: string }>;
+    status(): Promise<{ success: boolean; data?: { status: UpdateStatus }; error?: string }>;
+    setChannel(channel: UpdateChannel): Promise<{ success: boolean; data?: { channel: UpdateChannel }; error?: string }>;
+    onAvailable(callback: (info: any) => void): void;
+    onNotAvailable(callback: (info: any) => void): void;
+    onProgress(callback: (progress: UpdateProgress) => void): void;
+    onDownloaded(callback: (info: any) => void): void;
+    onError(callback: (error: any) => void): void;
+  };
+  analytics: {
+    getConfig(): Promise<{ success: boolean; data?: { config: AnalyticsConfig }; error?: string }>;
+    grantConsent(options?: Partial<AnalyticsConsentOptions>): Promise<{ success: boolean; data?: { config: AnalyticsConfig }; error?: string }>;
+    revokeConsent(): Promise<{ success: boolean; data?: { config: AnalyticsConfig }; error?: string }>;
+    updateConfig(updates: Partial<AnalyticsConsentOptions>): Promise<{ success: boolean; data?: { config: AnalyticsConfig }; error?: string }>;
+    getMetrics(): Promise<{ success: boolean; data?: { metrics: UsageMetrics }; error?: string }>;
+    getPendingEvents(): Promise<{ success: boolean; data?: { events: any[] }; error?: string }>;
+    trackFeature(feature: string): Promise<{ success: boolean }>;
+  };
 }
 
 // ---- Chat ----
@@ -694,6 +716,62 @@ export interface LogEntry {
   module: LogCategory;
   message: string;
   data?: Record<string, unknown>;
+}
+
+// ---- Auto-Update ----
+
+export type UpdateChannel = 'stable' | 'beta' | 'nightly';
+
+export interface UpdateStatus {
+  checking: boolean;
+  available: boolean;
+  downloading: boolean;
+  downloaded: boolean;
+  error: string | null;
+  progress: UpdateProgress | null;
+  info: UpdateInfo | null;
+  channel: UpdateChannel;
+}
+
+export interface UpdateProgress {
+  bytesPerSecond: number;
+  percent: number;
+  transferred: number;
+  total: number;
+}
+
+export interface UpdateInfo {
+  version: string;
+  releaseDate: string;
+  releaseNotes?: string;
+}
+
+// ---- Analytics ----
+
+export interface AnalyticsConfig {
+  enabled: boolean;
+  crashReporting: boolean;
+  usageMetrics: boolean;
+  performanceMetrics: boolean;
+  sessionId: string;
+  consentDate: number | null;
+  consentVersion: string;
+}
+
+export interface AnalyticsConsentOptions {
+  crashReporting: boolean;
+  usageMetrics: boolean;
+  performanceMetrics: boolean;
+}
+
+export interface UsageMetrics {
+  sessionLength: number;
+  featureUsage: Record<string, number>;
+  executionSuccessRate: number;
+  providerPopularity: Record<string, number>;
+  averageSessionLength: number;
+  totalSessions: number;
+  crashFrequency: number;
 }
 
 // ---- Global Window Declaration ----

@@ -1,9 +1,19 @@
 {
   "name": "vibecode-desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "VibeCode — AI-Native Desktop Operating Environment",
   "main": "dist/main/main.js",
+  "author": "VibeCode",
+  "homepage": "https://vibecode.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Razisafir/vibecode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Razisafir/vibecode/issues"
+  },
+  "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
@@ -12,24 +22,38 @@
     "build:main": "tsc -p tsconfig.main.json",
     "build:preload": "tsc -p tsconfig.preload.json",
     "build:renderer": "vite build",
+    "build:prod": "node scripts/build.js --env=production",
+    "build:staging": "node scripts/build.js --env=staging",
+    "build:dev": "node scripts/build.js --env=development --no-pack",
     "preview": "vite preview",
-    "pack": "electron-builder --dir",
-    "dist": "npm run build && electron-builder",
-    "dist:mac": "npm run build && electron-builder --mac",
-    "dist:win": "npm run build && electron-builder --win",
-    "dist:linux": "npm run build && electron-builder --linux",
+    "pack": "electron-builder --dir --config electron-builder.yml",
+    "dist": "npm run build && electron-builder --config electron-builder.yml",
+    "dist:mac": "npm run build && electron-builder --mac --config electron-builder.yml",
+    "dist:win": "npm run build && electron-builder --win --config electron-builder.yml",
+    "dist:linux": "npm run build && electron-builder --linux --config electron-builder.yml",
+    "release:patch": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major",
+    "release:dry-run": "node scripts/release.js patch --dry-run",
     "clean": "rm -rf dist dist-electron",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "npx playwright test --config=e2e/playwright.config.ts",
+    "test:e2e:ui": "npx playwright test --config=e2e/playwright.config.ts --ui",
+    "icons:generate": "node scripts/generate-icons.js",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.3.0",
     "uuid": "^9.0.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {
+    "@electron/notarize": "^2.3.0",
+    "@playwright/test": "^1.42.0",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
@@ -43,52 +67,10 @@
     "postcss": "^8.4.32",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "sharp": "^0.33.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.0",
     "vite": "^5.0.0",
     "vitest": "^4.1.6"
-  },
-  "build": {
-    "appId": "com.vibecode.desktop",
-    "productName": "VibeCode",
-    "directories": {
-      "output": "dist-electron"
-    },
-    "files": [
-      "dist/**/*",
-      "resources/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "resources",
-        "to": "resources",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "mac": {
-      "category": "public.app-category.developer-tools",
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "icon": "resources/icon.icns"
-    },
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ],
-      "icon": "resources/icon.ico"
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "category": "Development",
-      "icon": "resources/icon.png"
-    }
   }
 }

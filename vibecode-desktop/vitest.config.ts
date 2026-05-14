@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { resolve } from 'path';
 
 export default defineConfig({
   test: {
@@ -16,7 +17,9 @@ export default defineConfig({
   resolve: {
     alias: {
       // Mock Electron imports at the module level
-      'electron': new URL('./src/__tests__/mocks/electron.ts', import.meta.url).pathname,
+      'electron': resolve(__dirname, 'src/__tests__/mocks/electron.ts'),
+      // Mock electron-updater for auto-updater tests
+      'electron-updater': resolve(__dirname, 'src/__tests__/mocks/electron-updater.ts'),
     },
   },
 });

@@ -1,0 +1,143 @@
+VIBECode Desktop — End User License Agreement (EULA)
+
+IMPORTANT: THIS IS A DRAFT TEMPLATE. CONSULT A QUALIFIED ATTORNEY BEFORE FINALIZING.
+
+Version: 1.0-DRAFT
+Effective Date: [DATE]
+
+================================================================================
+
+1. ACCEPTANCE OF TERMS
+
+By installing, downloading, or using VibeCode Desktop ("Software"), you agree
+to be bound by the terms of this End User License Agreement ("Agreement"). If
+you do not agree to the terms of this Agreement, do not install or use the
+Software.
+
+2. LICENSE GRANT
+
+Subject to the terms and conditions of this Agreement, VibeCode ("Licensor")
+grants you a non-exclusive, non-transferable, revocable license to:
+
+a) Install and use the Software on a single computer for personal or
+   commercial use, subject to the tier of your subscription;
+b) Make one backup copy of the Software for archival purposes;
+c) Use the Software in accordance with the documentation provided.
+
+3. LICENSE RESTRICTIONS
+
+You may NOT:
+
+a) Reverse engineer, decompile, disassemble, or otherwise attempt to derive
+   the source code of the Software;
+b) Modify, adapt, alter, translate, or create derivative works of the Software;
+c) Rent, lease, lend, sell, sublicense, or distribute the Software to any
+   third party;
+d) Use the Software for any illegal, harmful, or unauthorized purpose;
+e) Remove, alter, or obscure any proprietary notices on the Software;
+f) Use the Software to develop competing products or services;
+g) Circumvent any license validation or authentication mechanisms;
+h) Use the Software in violation of any applicable export control laws.
+
+4. INTELLECTUAL PROPERTY
+
+The Software and all associated intellectual property rights are owned by
+VibeCode and its licensors. This Agreement does not transfer any ownership
+rights to you. The Software is protected by copyright, trade secret, and other
+intellectual property laws.
+
+5. SUBSCRIPTION TIERS
+
+The Software may be offered under different subscription tiers:
+
+a) FREE TIER: Limited features, usage caps, and community support.
+b) PRO TIER: Full features, higher usage limits, priority support.
+c) ENTERPRISE TIER: Unlimited usage, dedicated support, custom integrations,
+   SLA guarantees.
+
+Your rights under this Agreement are limited to the tier you have subscribed to.
+VibeCode reserves the right to modify tier features and pricing with 30 days'
+advance notice.
+
+6. AI-POWERED FEATURES
+
+The Software includes AI-powered features that communicate with third-party
+AI providers (including but not limited to OpenAI, Anthropic, and Google).
+
+a) You are responsible for the content you submit to AI providers;
+b) AI-generated outputs may not always be accurate or reliable;
+c) You should review and verify all AI-generated code before using it;
+d) VibeCode is not liable for any damages arising from AI-generated outputs;
+e) Your use of AI features is subject to the respective provider's terms of
+   service;
+f) API keys you provide are stored locally and encrypted; VibeCode does not
+   transmit your API keys to any server other than the designated provider.
+
+7. DATA COLLECTION AND PRIVACY
+
+Our data practices are described in our Privacy Policy, available at
+https://vibecode.dev/privacy. By using the Software, you consent to the
+data practices described therein.
+
+Key points:
+a) Telemetry is opt-in and can be disabled in Settings;
+b) API keys are stored locally using platform-native secure storage;
+c) Workspace files are accessed only with your explicit permission;
+d) We do not sell personal data to third parties;
+e) Crash reports may include anonymized technical data.
+
+8. UPDATES
+
+VibeCode may provide updates, patches, or new versions of the Software. You
+agree to install updates as they become available. Updates may modify or
+remove existing features. VibeCode will use reasonable efforts to notify you
+of material changes.
+
+9. TERMINATION
+
+This Agreement is effective until terminated. VibeCode may terminate this
+Agreement at any time if you breach any term. Upon termination:
+
+a) You must immediately cease use of the Software;
+b) You must delete all copies of the Software from your systems;
+c) Sections 2(b), 3, 4, 6, 7, 9, 10, 11, and 12 shall survive termination.
+
+10. DISCLAIMER OF WARRANTIES
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+11. LIMITATION OF LIABILITY
+
+IN NO EVENT SHALL VIBECODE BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, REVENUE, DATA,
+OR DATA USE, REGARDLESS OF THE FORM OF ACTION, WHETHER IN CONTRACT, TORT
+(INCLUDING NEGLIGENCE), STRICT LIABILITY, OR OTHERWISE, EVEN IF VIBECODE HAS
+BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. VIBECODE'S TOTAL LIABILITY
+SHALL NOT EXCEED THE AMOUNT YOU PAID FOR THE SOFTWARE IN THE TWELVE (12)
+MONTHS PRECEDING THE CLAIM.
+
+12. GOVERNING LAW
+
+This Agreement shall be governed by and construed in accordance with the laws
+of [JURISDICTION], without regard to its conflict of law provisions. Any
+disputes arising from this Agreement shall be resolved in the courts of
+[JURISDICTION].
+
+13. CONTACT INFORMATION
+
+For questions about this Agreement, contact:
+VibeCode Legal
+Email: legal@vibecode.dev
+Website: https://vibecode.dev
+
+================================================================================
+
+THIS IS A DRAFT TEMPLATE. CONSULT A QUALIFIED ATTORNEY BEFORE USING THIS
+DOCUMENT AS A BINDING LEGAL AGREEMENT. VIBECODE MAKES NO REPRESENTATIONS
+REGARDING THE LEGAL SUFFICIENCY OF THIS TEMPLATE.
