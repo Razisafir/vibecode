@@ -2,9 +2,8 @@
   "name": "vibecode-desktop",
   "version": "0.2.0",
   "type": "module",
-  "description": "VibeCode — AI-Native Desktop Operating Environment",
+  "description": "VibeCode - AI-Native Desktop Operating Environment",
   "license": "UNLICENSED",
-  "main": "dist/main/main.js",
   "author": "VibeCode",
   "homepage": "https://vibecode.dev",
   "repository": {
@@ -14,12 +13,47 @@
   "bugs": {
     "url": "https://github.com/Razisafir/vibecode/issues"
   },
-  "license": "SEE LICENSE IN LICENSE",
+  "main": "dist/main/main.js",
   "scripts": {
+    "_comment_core": "--- CORE COMMANDS (use these daily) ---",
+
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
+    "build": "tsc -p tsconfig.main.json && vite build && tsc -p tsconfig.preload.json",
+    "test": "vitest run",
+    "lint": "eslint src/ --max-warnings=10",
+
+    "_comment_preview": "--- PREVIEW LAYER (supervised process mode) ---",
+
+    "preview:start": "npm run build && VIBECODE_HEALTH_PORT=9876 npx pm2 start ecosystem.config.js --env preview",
+    "preview:stop": "npx pm2 stop vibecode-desktop && npx pm2 delete vibecode-desktop",
+    "preview:restart": "npx pm2 restart vibecode-desktop --env preview",
+    "preview:logs": "npx pm2 logs vibecode-desktop",
+    "preview:status": "npx pm2 status",
+
+    "_comment_system": "--- SYSTEM LAYER (health & watchdog) ---",
+
+    "health": "curl -s http://localhost:9876/api/health || echo 'Health endpoint not responding (app not running in preview mode)'",
+    "health:ready": "curl -s http://localhost:9876/api/health/ready || echo 'Readiness endpoint not responding'",
+    "health:live": "curl -s http://localhost:9876/api/health/live || echo 'Liveness endpoint not responding'",
+    "watchdog:start": "node watchdog.js --enable",
+    "watchdog:status": "node watchdog.js --status",
+    "watchdog:stop": "node watchdog.js --disable",
+
+    "_comment_diag": "--- DIAGNOSTICS (CI & repo integrity) ---",
+
+    "status": "node scripts/status.cjs",
+    "status:json": "node scripts/status.cjs -- --json",
+    "ci": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.preload.json",
+    "check:env": "bash scripts/check-no-env-staged.sh",
+    "check:secrets": "bash scripts/check-no-secrets-staged.sh",
+    "check:gitignore": "bash scripts/verify-gitignore.sh .gitignore",
+    "check:all": "npm run check:env && npm run check:secrets && npm run check:gitignore",
+
+    "_comment_build": "--- BUILD (sub-steps & distribution) ---",
+
     "dev:vite": "vite",
     "dev:electron": "tsc -p tsconfig.main.json && electron .",
-    "build": "tsc -p tsconfig.main.json && vite build && tsc -p tsconfig.preload.json",
     "build:main": "tsc -p tsconfig.main.json",
     "build:preload": "tsc -p tsconfig.preload.json",
     "build:renderer": "vite build",
@@ -37,8 +71,6 @@
     "release:major": "node scripts/release.js major",
     "release:dry-run": "node scripts/release.js patch --dry-run",
     "clean": "rm -rf dist dist-electron",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npx playwright test --config=e2e/playwright.config.ts",
@@ -52,8 +84,12 @@
     "uuid": "^9.0.0",
     "zod": "^3.22.0"
   },
+  "optionalDependencies": {
+    "node-pty": "^1.0.0"
+  },
   "devDependencies": {
     "@electron/notarize": "^2.3.0",
+    "@eslint/js": "^9.0.0",
     "@playwright/test": "^1.42.0",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.0",
@@ -65,13 +101,58 @@
     "cssnano": "^6.0.0",
     "electron": "^33.4.0",
     "electron-builder": "^24.9.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react": "^7.37.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "postcss": "^8.4.32",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "sharp": "^0.33.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.0",
+    "typescript-eslint": "^8.0.0",
     "vite": "^5.0.0",
     "vitest": "^4.1.6"
+  },
+  "build": {
+    "appId": "com.vibecode.desktop",
+    "productName": "VibeCode",
+    "asar": true,
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "resources/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "dist/main/main.js"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Razisafir",
+      "repo": "vibecode"
+    }
   }
 }

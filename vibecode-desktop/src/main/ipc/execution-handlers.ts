@@ -1,7 +1,6 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import {
   ExecutionEngine,
-  ExecutionPlan,
   ExecutionStep,
   StepInput,
   ExecutionEvent,

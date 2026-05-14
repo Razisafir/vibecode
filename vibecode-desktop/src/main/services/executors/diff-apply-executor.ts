@@ -128,7 +128,7 @@ function applyHunk(fileLines: string[], hunk: Hunk): string[] {
   const result: string[] = [];
   let fileIndex = 0; // 0-based index into fileLines
   let hunkLineIndex = 0;
-  let applied = false;
+  let _applied = false;
 
   // We need to find where in the file this hunk starts.
   // The hunk.oldStart is 1-based line number in the original file.
@@ -167,7 +167,7 @@ function applyHunk(fileLines: string[], hunk: Hunk): string[] {
       }
       hunkLineIndex++;
     }
-    applied = true;
+    _applied = true;
   }
 
   // Copy remaining lines after the hunk

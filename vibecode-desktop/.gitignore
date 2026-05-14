@@ -10,6 +10,13 @@ out/
 .env
 .env.local
 .env.*.local
+# .env.dev, .env.preview, .env.prod are tracked as TEMPLATES
+# (they contain no real secrets — only placeholder values)
+# Actual .env with real keys is gitignored above
+
+# PM2 / Infrastructure
+logs/
+watchdog.pid
 
 # IDE
 .vscode/

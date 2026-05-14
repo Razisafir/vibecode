@@ -104,7 +104,7 @@ export function useWorkspace(): UseWorkspaceReturn {
 
         // Set up file watcher
         if (window.vibecode?.fs) {
-          window.vibecode.fs.watch(path, (event: string, file: string) => {
+          window.vibecode.fs.watch(path, (event: string, _file: string) => {
             // Refresh files on changes
             if (event === 'rename' || event === 'change') {
               listDirInternal(path).then(setRootFiles);

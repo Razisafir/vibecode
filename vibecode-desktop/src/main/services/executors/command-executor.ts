@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { ExecutionStep, StepExecutor } from '../execution-engine';
 import { auditLog } from '../../utils/audit-log';
 import { logger } from '../../utils/logger';
+import { SafetyGuard } from '../safety/runtime-safety-guard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -210,12 +211,29 @@ function truncateOutput(output: string): string {
 // ─── Command Executor ─────────────────────────────────────────────────────────
 
 export const createCommandExecutor = (workspaceRoot: string): StepExecutor => {
+  const safetyGuard = new SafetyGuard(workspaceRoot);
+
   return async (step: ExecutionStep): Promise<CommandResult> => {
     const params = step.params as unknown as CommandParams;
 
     // ── Validate required params ──────────────────────────────────────────
     if (!params.command || typeof params.command !== 'string') {
       throw new Error('command executor: "command" is required and must be a string');
+    }
+
+    // ── Runtime safety check ──────────────────────────────────────────────
+    const safety = safetyGuard.assessCommandSafety({
+      command: params.command,
+      cwd: params.cwd ? path.resolve(workspaceRoot, params.cwd) : workspaceRoot,
+      workspaceRoot,
+    });
+
+    if (safety.blocked) {
+      throw new Error(
+        `Command blocked by safety guard: ${safety.blockReason}\n` +
+        `Matched rules: ${safety.matchedRules.join(', ')}\n` +
+        `Risk level: ${safety.riskLevel} (score: ${safety.riskScore})`
+      );
     }
 
     // ── Enforce timeout limits ────────────────────────────────────────────

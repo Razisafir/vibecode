@@ -1,5 +1,4 @@
 import React, { useCallback } from 'react';
-import type { SidebarTab } from '../types';
 
 interface TitleBarProps {
   onToggleSidebar: () => void;

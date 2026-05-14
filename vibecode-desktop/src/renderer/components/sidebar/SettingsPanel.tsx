@@ -41,7 +41,7 @@ function getHealthLabel(provider: Provider): string {
 const SettingsPanel: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [editingProvider, setEditingProvider] = useState<string | null>(null);
+  const [_editingProvider, setEditingProvider] = useState<string | null>(null);
   const [isAddingProvider, setIsAddingProvider] = useState(false);
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
   const [providerForm, setProviderForm] = useState<ProviderFormData>({

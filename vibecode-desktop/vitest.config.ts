@@ -5,7 +5,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/__tests__/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'src/__tests__/**/*.test.ts'],
+    exclude: ['node_modules', 'dist', 'dist-electron'],
     testTimeout: 30000,
     hookTimeout: 30000,
     coverage: {
@@ -16,10 +17,12 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      // Mock Electron imports at the module level
+      '@': resolve(__dirname, 'src/renderer'),
       'electron': resolve(__dirname, 'src/__tests__/mocks/electron.ts'),
-      // Mock electron-updater for auto-updater tests
       'electron-updater': resolve(__dirname, 'src/__tests__/mocks/electron-updater.ts'),
     },
+  },
+  esbuild: {
+    target: 'es2020',
   },
 });

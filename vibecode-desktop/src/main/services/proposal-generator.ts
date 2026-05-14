@@ -153,7 +153,7 @@ export class ProposalGenerator {
     proposalCard: ProposalCardData;
   } {
     // Convert proposal steps to execution step inputs
-    const stepInputs: StepInput[] = intent.steps.map((step, idx) => ({
+    const stepInputs: StepInput[] = intent.steps.map((step, _idx) => ({
       title: step.title,
       description: step.description,
       type: step.type as ExecutionPlan['steps'][number]['type'],
@@ -250,11 +250,11 @@ export class ProposalGenerator {
 
   private createFileIntent(
     op: ExtractedFileOperation,
-    response: string,
-    context?: { workspaceRoot?: string; projectId?: string }
+    _response: string,
+    _context?: { workspaceRoot?: string; projectId?: string }
   ): ExecutionIntent | null {
     const intentId = uuidv4();
-    const stepId = uuidv4();
+    const _stepId = uuidv4();
 
     const actionLabel =
       op.type === 'create' ? 'Create' : op.type === 'edit' ? 'Edit' : 'Delete';
@@ -302,8 +302,8 @@ export class ProposalGenerator {
 
   private createMultiFileIntent(
     ops: ExtractedFileOperation[],
-    response: string,
-    context?: { workspaceRoot?: string; projectId?: string }
+    _response: string,
+    _context?: { workspaceRoot?: string; projectId?: string }
   ): ExecutionIntent | null {
     const intentId = uuidv4();
 

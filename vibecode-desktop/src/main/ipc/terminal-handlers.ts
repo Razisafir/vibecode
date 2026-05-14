@@ -1,4 +1,4 @@
-import { ipcMain, IpcMainEvent, BrowserWindow } from 'electron';
+import { ipcMain, BrowserWindow } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 import * as os from 'os';
@@ -300,7 +300,7 @@ export function registerTerminalHandlers(): void {
 
   // ── Cleanup on window close ────────────────────────────────────────────
   ipcMain.on('terminal:cleanup', (event) => {
-    const webContentsId = event.sender.id;
+    const _webContentsId = event.sender.id;
     for (const [id, session] of sessions) {
       // Kill sessions associated with this renderer
       try {

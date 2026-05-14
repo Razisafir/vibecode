@@ -3,8 +3,6 @@ import type {
   EnhancedSessionState,
   RecoveryInfo,
   CrashInfo,
-  LayoutState,
-  ChatMessage,
 } from '../types';
 
 const AUTO_SAVE_INTERVAL = 30_000;
@@ -192,7 +190,7 @@ export function useSessionRestore(): UseSessionRestoreReturn {
       if (currentStateRef.current && window.vibecode?.session) {
         try {
           await window.vibecode.session.updateEnhancedState(currentStateRef.current);
-        } catch (err) {
+        } catch (_err) {
           // Workspace save is best-effort
         }
       }

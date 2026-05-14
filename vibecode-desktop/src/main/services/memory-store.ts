@@ -179,7 +179,7 @@ export class MemoryStore {
   /** Retrieve a single memory by ID */
   retrieve(id: string): MemoryEntry | null {
     // Find which project this entry belongs to
-    for (const [projectId, cache] of this.projectCaches) {
+    for (const [_projectId, cache] of this.projectCaches) {
       const entry = cache.entries.get(id);
       if (entry) {
         entry.lastAccessed = Date.now();

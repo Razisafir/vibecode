@@ -58,7 +58,7 @@ const CODE_BLOCK_REGEX = /```(\w*)\s*(?:([^\n]+)\n)?([\s\S]*?)```/g;
 
 /** File path patterns — must include an extension to avoid false positives */
 const FILE_PATH_REGEX =
-  /(?:^|[\s"'`(\[{,;]|(?:in|to|at|into|file|files?)\s*[:=]?\s*)([./\w\-]+(?:\/[\w\-]+)*\.\w{1,12})/gi;
+  /(?:^|[\s"'`([{,;]|(?:in|to|at|into|file|files?)\s*[:=]?\s*)([./\w-]+(?:\/[\w-]+)*\.\w{1,12})/gi;
 
 /** Action verbs with optional targets */
 const ACTION_VERB_REGEX =
@@ -290,7 +290,7 @@ export function isActionable(text: string): boolean {
   if (FILE_PATH_REGEX.test(text)) return true;
 
   // Has step patterns like "1. ", "Step 1:", "- "
-  if (/^\s*(?:\d+[\.\)]\s|step\s+\d|[-*]\s)/im.test(text)) return true;
+  if (/^\s*(?:\d+[.)]\s|step\s+\d|[-*]\s)/im.test(text)) return true;
 
   return false;
 }
@@ -306,9 +306,9 @@ function looksLikeFilePath(s: string): boolean {
   // Has an extension (e.g. .ts, .tsx, .js, .py, .css)
   if (/\.\w{1,12}$/.test(s.trim())) return true;
   // Starts with ./ or ../ or / or ~
-  if (/^[.\/~]/.test(s.trim())) return true;
+  if (/^[./~]/.test(s.trim())) return true;
   // Contains path separators with segments
-  if (/[\w\-]+\/[\w\-]+/.test(s)) return true;
+  if (/[\w-]+\/[\w-]+/.test(s)) return true;
   return false;
 }
 

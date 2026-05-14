@@ -12,6 +12,7 @@ import { autoUpdateService } from './services/auto-updater';
 import { analyticsService } from './services/analytics';
 import { logger } from './utils/logger';
 import { auditLog } from './utils/audit-log';
+import { startHealthServer, stopHealthServer } from './services/health-server';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -143,6 +144,9 @@ if (!gotTheLock) {
         createWindow();
       });
     }
+
+    // Start health server (NO-OP unless VIBECODE_HEALTH_PORT is set)
+    startHealthServer();
 
     if (IS_DEV) {
       logger.info('general', 'Running in development mode');
@@ -703,6 +707,9 @@ function cleanupAndQuit(): void {
   } catch (err) {
     logger.error('general', 'Failed to mark safe shutdown', { error: String(err) });
   }
+
+  // Stop health server if running
+  stopHealthServer();
 
   // Flush memory store to disk
   try {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { LayoutState, SidebarTab, EnhancedSessionState } from './types';
 import TitleBar from './components/TitleBar';
 import Sidebar from './components/Sidebar';

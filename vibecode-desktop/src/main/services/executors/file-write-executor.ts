@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ExecutionStep, StepExecutor } from '../execution-engine';
+import { SafetyGuard } from '../safety/runtime-safety-guard';
 
 // ─── Path Validation ──────────────────────────────────────────────────────────
 
@@ -37,6 +38,8 @@ export interface FileWriteResult {
 }
 
 export const createFileWriteExecutor = (workspaceRoot: string): StepExecutor => {
+  const safetyGuard = new SafetyGuard(workspaceRoot);
+
   return async (step: ExecutionStep): Promise<FileWriteResult> => {
     const params = step.params as unknown as FileWriteParams;
 
@@ -46,6 +49,21 @@ export const createFileWriteExecutor = (workspaceRoot: string): StepExecutor => 
     }
     if (typeof params.content !== 'string') {
       throw new Error('file_write executor: "content" is required and must be a string');
+    }
+
+    // ── Runtime safety check ──────────────────────────────────────────────
+    const safety = safetyGuard.assessFileMutationSafety({
+      filePath: params.filePath,
+      operation: 'write',
+      workspaceRoot,
+    });
+
+    if (safety.blocked) {
+      throw new Error(
+        `File write blocked by safety guard: ${safety.blockReason}\n` +
+        `Matched rules: ${safety.matchedRules.join(', ')}\n` +
+        `Risk level: ${safety.riskLevel} (score: ${safety.riskScore})`
+      );
     }
 
     const encoding: BufferEncoding = params.encoding ?? 'utf-8';
