@@ -1,5 +1,9 @@
 # Release Process
 
+This document describes the release process for VibeCode. For the step-by-step pre-release verification checklist, see [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md). For versioning rules and breaking change definitions, see [VERSIONING_POLICY.md](../VERSIONING_POLICY.md).
+
+---
+
 ## Prerequisites
 
 - Commit access to the main branch

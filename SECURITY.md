@@ -1,5 +1,7 @@
 # Security Policy
 
+For the high-level security model and trust boundaries, see [SECURITY_MODEL.md](SECURITY_MODEL.md).
+
 ## Reporting a Vulnerability
 
 We take security vulnerabilities seriously. If you discover a security issue in

@@ -1,5 +1,7 @@
 # Support
 
+For the full support policy including supported versions, platform details, and scope limitations, see [SUPPORT_POLICY.md](SUPPORT_POLICY.md).
+
 ## Getting Help
 
 ### Documentation

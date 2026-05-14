@@ -2,172 +2,386 @@
 
 # VibeCode
 
-**The AI copilot that remembers your codebase.**
+**A desktop AI engineering partner that remembers your codebase, proposes changes, and executes them with your approval.**
 
-VibeCode is a desktop workspace where an AI assistant understands your project, proposes changes, and executes them — with your approval — while remembering everything across sessions.
-
-*Because your AI should know what you built yesterday.*
-
-[![Download](https://img.shields.io/badge/Download-Alpha-orange.svg)]()
+[![CI](https://github.com/Razisafir/vibecode/actions/workflows/ci.yml/badge.svg)](https://github.com/Razisafir/vibecode/actions/workflows/ci.yml)
+[![Security](https://github.com/Razisafir/vibecode/actions/workflows/security.yml/badge.svg)](https://github.com/Razisafir/vibecode/actions/workflows/security.yml)
+[![Tests](https://img.shields.io/badge/Tests-82%20passing-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-47848f.svg)]()
+[![Node.js](https://img.shields.io/badge/Node.js-20.x-339933.svg)]()
+[![License](https://img.shields.io/badge/License-Proprietary-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-0.1.0--alpha-orange.svg)]()
+
+[Getting Started](docs/getting-started.md) · [First 30 Minutes](docs/first-30-minutes.md) · [Architecture](docs/architecture-overview.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
 ---
 
-## What is VibeCode?
+## Table of Contents
 
-VibeCode is an AI-native desktop application for software engineers. It gives you an AI assistant that lives inside your codebase — one that understands the full project, proposes structured changes, executes them safely with your approval, and remembers what it learned the next time you open it.
-
-Traditional IDEs were built for humans writing code. AI plugins were bolted on after the fact. Neither was designed for an AI that actually *works* on your project — making changes, running commands, and building long-term understanding of your code.
-
-VibeCode was.
-
-### The gap in today's AI tools
-
-Most AI coding tools fall into one of two categories:
-
-**Chat assistants** — they answer questions and suggest code, but they forget everything when you close the window. Every session starts from scratch. You spend time re-explaining your project, re-uploading context, and re-establishing what the AI should already know.
-
-**Inline autocomplete** — they complete your next line or suggest a function, but they can't plan a multi-file refactor, run a build command, or understand why a previous approach failed. They're fast, but shallow.
-
-VibeCode sits in a different category: a **persistent AI engineering partner** that doesn't just suggest — it acts, with your permission, and carries forward everything it learns.
-
----
-
-## How it works
-
-VibeCode follows a simple, controlled workflow:
-
-**1. You ask.** Describe what you need — a feature, a bug fix, a refactor, an explanation. The AI has full context of your project because it's been working in it.
-
-**2. The AI plans.** Instead of jumping straight to code, VibeCode presents a structured proposal: what files will change, what commands will run, what the impact looks like, and whether it can be undone.
-
-**3. You approve.** Review the plan. Approve it, reject it, or modify it. Nothing happens without your explicit consent.
-
-**4. The system executes.** VibeCode applies the changes step by step — creating files, editing code, running commands. If something fails, it retries. If you change your mind, it rolls back.
-
-**5. Results are saved.** Every action is recorded. Files are updated. Terminal output is captured. Your project is in a known state.
-
-**6. Memory is updated.** The AI remembers what it did, what worked, what didn't, and why. Next session, it picks up where it left off — no re-explaining required.
+- [What VibeCode Does](#what-vibecode-does)
+- [Architecture](#architecture)
+- [Operational Modes](#operational-modes)
+- [Safety Model](#safety-model)
+- [Observability](#observability)
+- [Quick Start](#quick-start)
+- [Comparison](#comparison)
+- [Command Reference](#command-reference)
+- [Documentation](#documentation)
+- [Project Status](#project-status)
+- [Production Readiness](#production-readiness)
+- [Stability Guarantees](#stability-guarantees)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## Key Features
+## What VibeCode Does
 
-### Safe AI-Driven Code Changes
+VibeCode is a desktop application where an AI assistant works inside your codebase. It understands your project, proposes structured changes, executes them with your approval, and remembers what it learned across sessions.
 
-VibeCode doesn't just suggest edits — it makes them, safely. The AI proposes multi-step execution plans that can include creating files, editing existing code, running terminal commands, and applying diffs. Each step is executed in order with automatic retry on failure, and every action can be undone with rollback. You see the plan before anything touches your code.
+The core workflow:
 
-### Persistent Memory That Grows With Your Project
+```
+  You ask           AI plans           You approve        System executes
+  ───────────────>  ───────────────>  ───────────────>  ───────────────>
+  "Add error        Structured        Review risk,       File edits,
+   handling to      proposal:         affected files,    command runs,
+   auth.ts"         3 files, 5 steps  rollback plan      diff applications
+```
 
-The AI remembers your project across sessions. It stores architectural decisions, bug fix histories, code patterns, and your preferences — then uses that knowledge automatically the next time you work together. It doesn't just recall past conversations; it prioritizes what matters based on importance, recency, and relevance, and prunes what no longer matters. The longer you use VibeCode, the more effective it becomes.
-
-### Session Recovery — Never Lose Progress
-
-Crash. Power loss. Accidental quit. It doesn't matter. VibeCode auto-saves your full session state continuously — conversation, execution plans, open files, scroll positions — and detects unsafe shutdowns on next launch. You get a recovery prompt, and everything is exactly where you left it.
-
-### Full Control Through Approvals
-
-The AI never runs anything without your say-so. Every proposed change comes with a risk assessment (low, medium, or high), a list of affected files, an impact summary, and a rollback indicator. You approve, reject, or modify before anything executes. For high-risk operations — like editing config files or running destructive commands — the approval requirement is automatic.
-
-### Secure Sandbox — Your System Stays Safe
-
-VibeCode restricts all AI actions to your project directory. The AI cannot access files outside your workspace, cannot read your SSH keys or cloud credentials, and cannot execute binaries or modify system files. Every file path and command is validated against safety rules before execution. Your system boundaries are enforced, always.
-
-### Choose Your AI Provider
-
-Use the model that fits your needs and budget. VibeCode supports OpenAI (GPT-4o, o1), Anthropic (Claude Sonnet 4), Google (Gemini 2.5 Pro), and local providers like Ollama for fully offline use. Switch between them freely — the AI's capabilities stay the same regardless of which model is running.
+Every action requires your approval. Nothing runs without your consent.
 
 ---
 
-## Why VibeCode is different
+## Architecture
+
+VibeCode is structured in five layers with clear responsibility boundaries:
+
+```
++===================================================================+
+|                        DESKTOP RUNTIME                            |
+|   Electron (main + renderer + preload) + Vite + React             |
++===================================================================+
+              |                                      |
+              v                                      v
++===========================+       +===========================+
+|   AI EXECUTION LAYER     |       |   SESSION & MEMORY LAYER  |
+|   7 executor types        |       |   JSONL persistence       |
+|   Proposal/approval flow  |       |   Crash recovery          |
+|   Safety guard + rollback |       |   LRU cache + index       |
++===========================+       +===========================+
+              |                                      |
+              +------------------+-------------------+
+                                 |
+                                 v
++===================================================================+
+|                    OPERATIONAL INTELLIGENCE LAYER                  |
+|   Health grading (GREEN/YELLOW/RED) · Failure analysis            |
+|   Root cause inference · Safe recovery paths                      |
++===================================================================+
+                                 |
+                                 v
++===================================================================+
+|                      INFRASTRUCTURE LAYER                         |
+|   PM2 (optional) · Health server (optional) · Watchdog (optional) |
++===================================================================+
+```
+
+See [Architecture Overview](docs/architecture-overview.md) for detailed diagrams and data flow.
+
+---
+
+## Operational Modes
+
+```
+  DEV                     PREVIEW                    PRODUCTION
+  (default)               (optional)                 (distribution)
+
+  npm run dev             npm run preview:start      npm run dist
+
+  Vite hot-reload         PM2 supervision            Signed packages
+  DevTools open           Health endpoint (9876)     Auto-update ready
+  No infrastructure       Watchdog available          Hardened safety
+  Fast iteration          Isolated environment        No dev dependencies
+```
+
+Infrastructure is **opt-in, never opt-out**. Nothing activates without you explicitly requesting it. In DEV mode, there is no process manager, no health server, no monitoring — just the app and your code.
+
+---
+
+## Safety Model
+
+Trust is structural, not aspirational. VibeCode enforces safety through four independent mechanisms:
+
+```
+  +-------------------+    +-------------------+    +-------------------+
+  |   PathSandbox     |    |   Safety Guard    |    |  Runtime Safety   |
+  |                   |    |                   |    |  Guard            |
+  | Filesystem bounds |    | Execution validation|  | Regression check  |
+  | Blocked dirs      |    | Risk assessment   |    | Baseline compare  |
+  | Blocked extensions|    | Approval enforcement|   | Change validation |
+  +-------------------+    +-------------------+    +-------------------+
+             |                        |                        |
+             +------------------------+------------------------+
+                                      |
+                                      v
+                           +-------------------+
+                           |  Approval Flow    |
+                           |                   |
+                           |  Nothing executes |
+                           |  without your     |
+                           |  explicit consent |
+                           +-------------------+
+```
+
+**Key guarantees:**
+- Nothing runs without your approval — no auto-apply, no background execution
+- Your project stays contained — the AI cannot access files outside the workspace
+- Every action is reversible — per-step rollback and full plan rollback
+- Your data stays local — no cloud storage, no telemetry by default
+
+See [System Philosophy](docs/system-philosophy.md) for the reasoning behind these decisions.
+
+---
+
+## Observability
+
+One command explains the entire running system:
+
+```bash
+npm run status
+```
+
+When the system is healthy:
+
+```
+  Overall:   GREEN  All systems nominal
+  Mode:      DEV
+```
+
+When something is wrong, the status command provides failure intelligence:
+
+```
+  Overall:   RED  Preview mode detected but health endpoint is unreachable
+
+  Failure Analysis
+  ────────────────────────────────────────────────
+  Category:    HEALTH_SERVER_DOWN
+  Confidence:  HIGH
+
+  Likely Causes:
+  - The Electron process has not finished starting up yet
+  - The app under PM2 has crashed and is in a restart loop
+
+  Recommended Actions:
+  - npm run preview:logs      Check for crash traces      Risk: LOW
+  - npm run preview:restart   Restart the process          Risk: LOW
+
+  Safe Recovery Path:
+  1. npm run preview:stop
+  2. npm run preview:start
+  3. npm run status
+```
+
+The diagnostic system is **strictly read-only** — it observes and suggests, but never modifies state.
+
+See [System Status Reference](docs/system-status.md) for the complete failure category catalog and JSON schema.
+
+---
+
+## Quick Start
+
+**Developers** — build from source:
+
+```bash
+# Clone and install
+git clone https://github.com/Razisafir/vibecode.git
+cd vibecode/vibecode-desktop
+npm install
+
+# Start development
+npm run dev
+
+# Verify system health
+npm run status
+
+# Run the test suite
+npm run test
+
+# Full CI check
+npm run ci
+```
+
+**Users** — download and install:
+
+1. Download the latest release from [GitHub Releases](https://github.com/Razisafir/vibecode/releases)
+2. Install VibeCode for your platform (DMG, EXE, or AppImage)
+3. Launch and follow the onboarding flow
+
+See [Getting Started](docs/getting-started.md) for detailed setup instructions, or [First 30 Minutes](docs/first-30-minutes.md) for a guided walkthrough.
+
+Going offline? Install [Ollama](https://ollama.ai), pull a model, and select it in settings. No API keys needed.
+
+---
+
+## Comparison
 
 | | VibeCode | Cursor | Replit AI | VS Code Extensions |
 |---|---|---|---|---|
-| **Persistent memory across sessions** | Yes — remembers decisions, patterns, and context | No — resets per conversation | Limited — workspace-aware but not persistent | No — stateless per session |
-| **Execution, not just suggestions** | Proposes and executes multi-step plans with rollback | Inline edits only | Cloud-only execution | Suggestions only |
-| **Approval before action** | Every change requires explicit approval | Auto-applies inline edits | Auto-applies in cloud editor | Auto-completes inline |
-| **Works on your local machine** | Yes — full local filesystem access | Yes | No — cloud-only editor | Yes — but limited capabilities |
-| **Crash recovery** | Full session restoration | Basic tab restore | N/A (cloud) | Basic tab restore |
-| **Rollback support** | Every action is reversible | Undo stack only | Manual undo | Manual undo |
-| **Offline capability** | Yes — via Ollama or local providers | No — requires cloud AI | No — cloud platform | No — requires cloud AI |
-| **Long-term project understanding** | Yes — memory accumulates over time | Per-session only | Per-session only | Per-session only |
-
-The core difference: VibeCode treats your AI assistant as a **long-term engineering partner**, not a one-off chat. It remembers. It executes. It respects your boundaries. And it gets better the more you use it.
+| Persistent memory across sessions | Yes | No | Limited | No |
+| Execution with rollback | Yes | Inline only | Cloud-only | Suggestions only |
+| Approval before every action | Yes | Auto-applies | Auto-applies | Auto-completes |
+| Local filesystem access | Yes | Yes | No (cloud) | Limited |
+| Crash recovery | Full session | Basic | N/A | Basic |
+| Offline capability | Yes (Ollama) | No | No | No |
 
 ---
 
-## Get Started
+## Command Reference
 
-```bash
-# Clone and enter the project
-git clone https://github.com/Razisafir/vibecode.git
-cd vibecode/vibecode-desktop
+| Category | Command | Purpose |
+|----------|---------|---------|
+| **Core** | `npm run dev` | Start Vite + Electron with hot-reload |
+| | `npm run build` | Compile TypeScript + build renderer |
+| | `npm run test` | Run all tests (82 tests) |
+| | `npm run lint` | ESLint with zero-error policy |
+| **Preview** | `npm run preview:start` | Build + start under PM2 with health server |
+| | `npm run preview:stop` | Stop PM2 process |
+| | `npm run preview:logs` | Tail PM2 logs |
+| **System** | `npm run health` | Check health endpoint |
+| | `npm run watchdog:start` | Start process monitor |
+| | `npm run status` | Full system status + failure analysis |
+| | `npm run status:json` | Same in JSON format |
+| **Diagnostics** | `npm run ci` | typecheck + lint + test + build |
+| | `npm run typecheck` | TypeScript compiler checks |
+| | `npm run check:all` | Pre-commit integrity checks |
+| **Distribution** | `npm run dist` | Build installable package |
+| | `npm run dist:mac` | macOS (DMG + ZIP) |
+| | `npm run dist:win` | Windows (NSIS + Portable) |
+| | `npm run dist:linux` | Linux (AppImage + DEB) |
 
-# Install dependencies
-npm install
-
-# Launch VibeCode
-npm run dev
-```
-
-On first launch, VibeCode walks you through a quick setup: choose your AI provider, select your workspace, and start coding. That's it.
-
-Want to go fully offline? Install [Ollama](https://ollama.ai), pull a model, and select it in settings. No API keys needed.
-
----
-
-## Safety & Control
-
-Trust is non-negotiable when an AI is modifying your code. VibeCode is designed so that you remain in control at every step.
-
-**Nothing runs without your approval.** Every file edit, every terminal command, every multi-step plan — you see it first, you decide if it happens. High-risk operations are automatically flagged and always require explicit consent.
-
-**Your project stays contained.** The AI operates within your project directory and cannot access files outside of it. Credential directories like `.ssh` and `.aws` are blocked entirely. Binary files, executables, and archives are off-limits by default.
-
-**Every action is reversible.** Before the AI modifies a file, it captures the original state. If a step fails or you change your mind, you can roll back individual steps or entire execution plans.
-
-**Your data stays on your machine.** VibeCode runs locally. Your code, your conversations, and your memories are stored on your device — not in the cloud. When you use a local AI provider, nothing ever leaves your computer.
+Full reference: [Operational Guide](docs/operational-guide.md)
 
 ---
 
-## Product Roadmap
+## Documentation
 
-### Now — Available in Alpha
+### Recommended Reading Path
 
-- AI chat with streaming responses and multi-provider support
-- Structured proposals with risk assessment and approval flow
-- Safe execution of file operations and terminal commands
-- Persistent memory across sessions with intelligent search and pruning
-- Crash recovery with full session restoration
-- Secure sandbox with project-scoped filesystem boundaries
-- Local AI support via Ollama and compatible providers
-- Built-in file explorer, terminal, and memory browser
+If you are new to VibeCode, start here:
 
-### Next — Coming Soon
+1. **[Getting Started](docs/getting-started.md)** — Install and configure (5 min)
+2. **[First 30 Minutes](docs/first-30-minutes.md)** — Clone, build, run, diagnose (30 min)
+3. **[Architecture Overview](docs/architecture-overview.md)** — Understand the system layers (15 min)
+4. **[System Philosophy](docs/system-philosophy.md)** — Understand the design decisions (10 min)
 
-- Visual provider management with health status and model selection
-- Monaco editor integration for in-app code editing and diff review
-- Multi-root workspace support with independent memory contexts
-- Enhanced memory with project-scoped timelines and automatic conversation summarization
+### Core Documents
 
-### Future — On the Horizon
+| Document | Audience | Purpose |
+|----------|----------|--------|
+| [Getting Started](docs/getting-started.md) | Users | Installation, first launch, key concepts |
+| [First 30 Minutes](docs/first-30-minutes.md) | Developers | Guided codebase onboarding |
+| [Architecture Overview](docs/architecture-overview.md) | All technical | System layers, data flow, diagrams |
+| [System Philosophy](docs/system-philosophy.md) | All technical | Design principles and trade-offs |
+| [Repository Map](docs/repository-map.md) | Developers | Codebase navigation and file guide |
+| [Operational Guide](docs/operational-guide.md) | Operators | Complete command and mode reference |
+| [Operational Safety](docs/operational-safety.md) | Operators | Guardrails and mode compatibility |
+| [System Status](docs/system-status.md) | Operators | Failure categories and JSON schema |
+| [Configuration](docs/configuration.md) | All | Environment variables and provider setup |
+| [Troubleshooting](docs/troubleshooting.md) | All | Common issues and solutions |
+| [Glossary](docs/glossary.md) | All | Terminology reference |
+| [FAQ](docs/faq.md) | All | Frequently asked questions |
 
-- Parallel execution for independent operations
-- Plugin system for custom actions, memory backends, and AI providers
-- Autonomous iteration loops — plan, execute, validate, revise — with approval only at risk boundaries
-- Workspace knowledge graph with dependency mapping and architecture visualization
-- Auto-update system and cross-platform installers
+### Governance & Policy
+
+| Document | Purpose |
+|----------|--------|
+| [Contributing](CONTRIBUTING.md) | How to contribute effectively |
+| [Code of Conduct](CODE_OF_CONDUCT.md) | Community standards and enforcement |
+| [Security Policy](SECURITY.md) | Vulnerability reporting and response |
+| [Security Model](SECURITY_MODEL.md) | High-level security boundaries |
+| [Support Policy](SUPPORT_POLICY.md) | Supported versions, scope, and limitations |
+| [Versioning Policy](VERSIONING_POLICY.md) | Semver rules and breaking change definition |
+| [Release Process](docs/release-process.md) | Release checklist and alpha channel |
+| [Release Checklist](RELEASE_CHECKLIST.md) | Pre-release verification steps |
+| [Release Channels](RELEASE_CHANNELS.md) | Alpha, beta, and stable channel definitions |
+| [Compatibility Matrix](COMPATIBILITY_MATRIX.md) | OS and runtime compatibility table |
+| [Maintainers](MAINTAINERS.md) | Governance and triage process |
+
+For the complete documentation index, see [docs/INDEX.md](docs/INDEX.md).
 
 ---
 
-<div align="center">
+## Project Status
 
-**VibeCode — the AI engineering copilot that combines intelligence with control.**
+VibeCode is in **alpha** (`0.1.0-alpha`). The core systems — AI execution, persistent memory, session recovery, secure sandbox, operational intelligence — are functional and tested. The architecture is stable. The API surface may change before version 1.0.
 
-It doesn't just suggest. It remembers. It executes. It respects your boundaries.
+| Metric | Status |
+|--------|--------|
+| Test suite | 82 tests across 5 files — all passing |
+| CI pipeline | typecheck (3 configs) + lint (zero errors) + test + build |
+| Security scanning | gitleaks + npm audit on every push |
+| Platform support | macOS (Apple Silicon + Intel), Windows 10/11, Linux (x64) |
+| Minimum runtime | Node.js 20.x, Electron 33.x |
+| Release channel | Alpha |
 
-And it's ready when you are.
+---
 
-</div>
+## Production Readiness
+
+VibeCode is in alpha and not yet recommended for production-critical workflows. The following table tracks readiness across key dimensions:
+
+| Dimension | Status | Notes |
+|-----------|--------|-------|
+| Core functionality | Ready | AI execution, proposals, memory, sandbox all functional |
+| Crash recovery | Ready | Session persistence + atomic file writes + rollback snapshots |
+| Security boundaries | Ready | PathSandbox + approval flow + safety guard |
+| Observability | Ready | Health grading + failure intelligence + status CLI |
+| Test coverage | Alpha | 82 tests covering core paths; more coverage needed for 1.0 |
+| Documentation | Ready | 14 operational docs + 7 governance docs + glossary + FAQ |
+| API stability | Not ready | API surface may change before 1.0 (see [VERSIONING_POLICY.md](VERSIONING_POLICY.md)) |
+| Distribution | Alpha | Build pipeline works; code signing not yet configured |
+| Performance | Alpha | Not yet benchmarked or optimized |
+
+---
+
+## Stability Guarantees
+
+The following architectural invariants are guaranteed across all versions, including pre-1.0. These are structural commitments, not version-dependent features — they will not be removed or weakened.
+
+### Architecture Stability Promise
+
+1. **Approval-first execution** — The AI will never auto-apply changes without explicit user consent. No configuration option, environment variable, or future feature will bypass the approval flow.
+
+2. **PathSandbox enforcement** — All file operations will always be validated against workspace bounds. System directories will always be blocked. The sandbox cannot be disabled by user configuration.
+
+3. **Data locality** — User data (sessions, memory, configuration, API keys) will always be stored locally by default. No data will be transmitted to VibeCode servers without explicit user opt-in. API keys will never leave the device.
+
+4. **Opt-in infrastructure** — PM2, health server, and watchdog will never activate without explicit user action. No infrastructure component will auto-activate in any future version.
+
+5. **Read-only diagnostics** — The status system and failure intelligence will never modify system state. Diagnostic commands will observe and suggest, but never execute fixes, restart processes, or alter configuration.
+
+### What Will Not Break Across Updates
+
+The following will remain backward-compatible within the alpha phase:
+- The `npm run status` and `npm run status:json` command interface
+- The PathSandbox validation rules (existing blocked paths will not be unblocked)
+- The health endpoint schema (`/api/health`, `/api/health/ready`, `/api/health/live`)
+- The session data format (existing sessions will remain readable)
+- The rollback snapshot format
+
+See [VERSIONING_POLICY.md](VERSIONING_POLICY.md) for the complete versioning rules and breaking change definition.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit conventions, code standards, and the PR review process. All contributions are subject to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+---
+
+## License
+
+VibeCode is proprietary software. See [LICENSE](LICENSE) and [EULA.md](EULA.md) for terms.
