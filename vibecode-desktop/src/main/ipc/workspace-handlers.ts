@@ -1,6 +1,7 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { setExecutionWorkspaceRoot } from './execution-handlers';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -149,6 +150,10 @@ export function registerWorkspaceHandlers(): void {
       }
 
       const info = analyzeWorkspace(resolved);
+
+      // Update the execution engine's workspace root
+      setExecutionWorkspaceRoot(resolved);
+
       return ok({ canceled: false, workspace: info });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));

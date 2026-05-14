@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { SessionManager, SessionState } from '../services/session-manager';
+import { SessionManager, SessionState, EnhancedSessionState } from '../services/session-manager';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -135,7 +135,142 @@ export function registerSessionHandlers(): void {
     }
   });
 
-  console.log('[IPC] Session handlers registered');
+  // ═══════════════════════════════════════════════════════════════════════
+  // ENHANCED SESSION HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // ── session:saveEnhanced ───────────────────────────────────────────────
+  ipcMain.handle('session:saveEnhanced', async (_event, state: EnhancedSessionState) => {
+    try {
+      sessionManager.saveEnhanced(state);
+      return ok({ sessionId: state.id, saved: true });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  // ── session:restoreEnhanced ────────────────────────────────────────────
+  ipcMain.handle('session:restoreEnhanced', async (_event, sessionId: string) => {
+    try {
+      const state = sessionManager.restoreEnhanced(sessionId);
+      if (!state) {
+        return err(`Session not found: ${sessionId}`);
+      }
+      return ok({ session: state });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  // ── session:wasCrashed ─────────────────────────────────────────────────
+  ipcMain.handle('session:wasCrashed', async () => {
+    try {
+      const crashed = sessionManager.wasCrashed();
+      return ok({ crashed });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  // ── session:getRecoverySession ─────────────────────────────────────────
+  ipcMain.handle('session:getRecoverySession', async () => {
+    try {
+      const state = sessionManager.getRecoverySession();
+      return ok({ session: state });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  // ── session:getRecoveryInfo ────────────────────────────────────────────
+  ipcMain.handle('session:getRecoveryInfo', async () => {
+    try {
+      const info = sessionManager.getRecoveryInfo();
+      return ok(info);
+    } catch (error) {
+      return err(error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  // ── session:markSafeShutdown ───────────────────────────────────────────
+  ipcMain.handle('session:markSafeShutdown', async () => {
+    try {
+      sessionManager.markSafeShutdown();
+      return ok({ marked: true });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  // ── session:createEnhanced ─────────────────────────────────────────────
+  ipcMain.handle('session:createEnhanced', async (_event, projectId: string, rootPath?: string) => {
+    try {
+      const state = sessionManager.createEnhanced(projectId, rootPath);
+      return ok({ session: state });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  // ── session:autoSaveEnhanced ───────────────────────────────────────────
+  ipcMain.handle(
+    'session:autoSaveEnhanced',
+    async (event, state: EnhancedSessionState, interval?: number) => {
+      try {
+        const webContentsId = event.sender.id;
+        const sessionId = state.id;
+
+        // Stop previous auto-save for this renderer
+        const previousSessionId = autoSaveSessions.get(webContentsId);
+        if (previousSessionId && previousSessionId !== sessionId) {
+          sessionManager.stopAutoSave(previousSessionId);
+        }
+
+        // Start enhanced auto-save
+        sessionManager.autoSaveEnhanced(state, interval);
+        autoSaveSessions.set(webContentsId, sessionId);
+
+        return ok({ sessionId, autoSave: true, interval: interval ?? 30000 });
+      } catch (error) {
+        return err(error instanceof Error ? error.message : String(error));
+      }
+    }
+  );
+
+  // ── session:stopAutoSaveEnhanced ───────────────────────────────────────
+  ipcMain.handle('session:stopAutoSaveEnhanced', async (_event, sessionId: string) => {
+    try {
+      sessionManager.stopAutoSave(sessionId);
+      return ok({ sessionId, autoSave: false });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  // ── session:updateEnhancedState ────────────────────────────────────────
+  ipcMain.handle('session:updateEnhancedState', async (_event, state: EnhancedSessionState) => {
+    try {
+      sessionManager.updateEnhancedState(state);
+      return ok({ updated: true });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  // ── session:archiveCrashedSession ──────────────────────────────────────
+  ipcMain.handle('session:archiveCrashedSession', async (_event, sessionId: string) => {
+    try {
+      const archived = sessionManager.archiveCrashedSession(sessionId);
+      if (!archived) {
+        return err(`Failed to archive session: ${sessionId}`);
+      }
+      return ok({ archived: true, sessionId });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  console.log('[IPC] Session handlers registered (with enhanced session support)');
 }
 
 /** Expose sessionManager for use in other handlers */

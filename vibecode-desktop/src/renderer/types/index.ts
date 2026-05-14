@@ -52,6 +52,18 @@ export interface VibeCodeAPI {
     list(): Promise<SessionState[]>;
     delete(sessionId: string): Promise<boolean>;
     getLatest(projectId: string): Promise<SessionState | null>;
+    // Enhanced session methods
+    saveEnhanced(state: EnhancedSessionState): Promise<void>;
+    restoreEnhanced(sessionId: string): Promise<EnhancedSessionState | null>;
+    wasCrashed(): Promise<boolean>;
+    getRecoverySession(): Promise<EnhancedSessionState | null>;
+    getRecoveryInfo(): Promise<RecoveryInfo>;
+    markSafeShutdown(): Promise<void>;
+    createEnhanced(projectId: string, rootPath?: string): Promise<EnhancedSessionState>;
+    autoSaveEnhanced(state: EnhancedSessionState, interval?: number): Promise<void>;
+    stopAutoSaveEnhanced(sessionId: string): Promise<void>;
+    updateEnhancedState(state: EnhancedSessionState): Promise<void>;
+    archiveCrashedSession(sessionId: string): Promise<boolean>;
   };
   execution: {
     plan(title: string, description: string, steps: Omit<ExecutionStep, 'id' | 'planId' | 'retryCount'>[]): Promise<ExecutionPlan>;
@@ -67,6 +79,15 @@ export interface VibeCodeAPI {
     analyze(path: string): Promise<WorkspaceAnalysis>;
     open(path: string): Promise<void>;
     close(): Promise<void>;
+  };
+  proposal: {
+    generateFromResponse(response: string, context?: { workspaceRoot?: string; projectId?: string }): Promise<{ success: boolean; data?: { intents: ExecutionIntent[]; proposals: ProposalCardData[] }; error?: string }>;
+    approveAndExecute(planId: string): Promise<{ success: boolean; data?: { plan: ExecutionPlan }; error?: string }>;
+    reject(planId: string, reason?: string): Promise<{ success: boolean; data?: { planId: string; rejected: boolean }; error?: string }>;
+    modify(planId: string, modifications: ProposalModification): Promise<{ success: boolean; data?: { plan: ExecutionPlan }; error?: string }>;
+    list(): Promise<{ success: boolean; data?: { proposals: ProposalCardData[]; total: number }; error?: string }>;
+    get(proposalId: string): Promise<{ success: boolean; data?: { proposal: ProposalCardData }; error?: string }>;
+    onUpdate(callback: (update: ProposalUpdateEvent) => void): void;
   };
   app: {
     getVersion(): Promise<string>;
@@ -93,6 +114,7 @@ export interface ChatMessageMetadata {
   latency?: number;
   tokenCount?: number;
   proposalId?: string;
+  proposalIds?: string[];
   error?: string;
 }
 
@@ -213,6 +235,73 @@ export interface ProposalCard {
 
 export type ProposalStatus = 'pending' | 'approved' | 'rejected' | 'executing' | 'completed' | 'failed';
 
+/** Enhanced proposal card data generated from AI responses */
+export interface ProposalCardData {
+  id: string;
+  type: 'file_create' | 'file_edit' | 'command' | 'analysis' | 'multi_step';
+  title: string;
+  description: string;
+  riskLevel: RiskLevel;
+  status: ProposalStatus;
+  affectedFiles: AffectedFile[];
+  steps: ProposalStepData[];
+  estimatedImpact: string;
+  canRollback: boolean;
+  details: Record<string, unknown>;
+  timestamp: number;
+  planId?: string;
+}
+
+export interface AffectedFile {
+  path: string;
+  action: 'create' | 'edit' | 'delete';
+  description: string;
+}
+
+export interface ProposalStepData {
+  type: 'file_write' | 'file_edit' | 'command' | 'code_generation' | 'diff_apply';
+  title: string;
+  description: string;
+  params: Record<string, unknown>;
+  riskLevel: RiskLevel;
+  dependsOn?: string[];
+}
+
+/** Intent extracted from an LLM response */
+export interface ExecutionIntent {
+  id: string;
+  type: 'file_create' | 'file_edit' | 'command' | 'analysis' | 'multi_step';
+  title: string;
+  description: string;
+  files: AffectedFile[];
+  steps: ProposalStepData[];
+  riskLevel: RiskLevel;
+  estimatedImpact: string;
+  canRollback: boolean;
+}
+
+/** Modification input for proposal:modify IPC */
+export interface ProposalModification {
+  title?: string;
+  description?: string;
+  stepUpdates?: Array<{
+    stepIndex: number;
+    updates: Partial<{
+      title: string;
+      description: string;
+      params: Record<string, unknown>;
+      riskLevel: RiskLevel;
+    }>;
+  }>;
+}
+
+/** Event sent via proposal:onUpdate */
+export interface ProposalUpdateEvent {
+  event: string;
+  planIds: string[];
+  timestamp: number;
+}
+
 // ---- Session ----
 
 export interface SessionState {
@@ -224,6 +313,76 @@ export interface SessionState {
   layout: LayoutState;
   lastSaved: number;
   createdAt: number;
+}
+
+export interface EnhancedSessionState extends SessionState {
+  // Enhanced execution state
+  execution: ExecutionState & {
+    activePlans: Array<ActivePlanInfo>;
+    recentPlans: Array<RecentPlanInfo>;
+    proposalQueue: string[];
+  };
+
+  // Enhanced conversation with full metadata
+  conversation: ConversationState & {
+    messages: Array<EnhancedChatMessage>;
+  };
+
+  // Enhanced layout state
+  layout: LayoutState & {
+    workspacePanel?: 'editor' | 'terminal' | 'welcome';
+  };
+
+  // Enhanced workspace details
+  workspace: WorkspaceState & {
+    rootPath: string;
+    expandedFolders: string[];
+    recentFiles: string[];
+  };
+
+  // Recovery metadata
+  recovery: RecoveryState;
+}
+
+export interface ActivePlanInfo {
+  planId: string;
+  status: string;
+  currentStepIndex: number;
+  startedAt: number;
+}
+
+export interface RecentPlanInfo {
+  planId: string;
+  title: string;
+  status: string;
+  completedAt?: number;
+}
+
+export interface EnhancedChatMessage extends ChatMessage {
+  metadata?: ChatMessageMetadata & {
+    proposalIds?: string[];
+  };
+}
+
+export interface RecoveryState {
+  lastCrashed: boolean;
+  crashCount: number;
+  lastCrashReason?: string;
+  safeShutdown: boolean;
+}
+
+export interface CrashInfo {
+  sessionId: string;
+  reason: string;
+  timestamp: number;
+  activePlans: ActivePlanInfo[];
+  unsavedChanges: boolean;
+}
+
+export interface RecoveryInfo {
+  hasCrashedSession: boolean;
+  crashInfo?: CrashInfo;
+  sessionId?: string;
 }
 
 export interface WorkspaceState {

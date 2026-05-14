@@ -33,6 +33,12 @@ if (!gotTheLock) {
   // ─── App Lifecycle ──────────────────────────────────────────────────────
 
   app.on('ready', () => {
+    // Check for crashed sessions BEFORE creating the window
+    const crashed = sessionManager.wasCrashed();
+    if (crashed) {
+      console.log('[VibeCode] Previous session crashed — recovery will be offered');
+    }
+
     createWindow();
     registerAllIpcHandlers();
     setupMenu();
@@ -80,6 +86,14 @@ if (!gotTheLock) {
         // User confirmed quit
         setQuitting(true);
         cleanupAndQuit();
+      }
+    } else {
+      // Mark safe shutdown before quitting
+      try {
+        sessionManager.markSafeShutdown();
+        console.log('[VibeCode] Marked safe shutdown');
+      } catch (err) {
+        console.error('[VibeCode] Failed to mark safe shutdown:', err);
       }
     }
   });
@@ -145,6 +159,14 @@ function createWindow(): void {
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     console.error('[VibeCode] Render process gone:', details);
 
+    // Mark the session as crashed
+    const reason = details.reason || 'unknown';
+    try {
+      sessionManager.markCrash(`render-process-gone: ${reason}`);
+    } catch (err) {
+      console.error('[VibeCode] Failed to mark crash:', err);
+    }
+
     if (details.reason === 'crashed' || details.reason === 'oom') {
       // Attempt recovery by reloading
       const recoveryDelay = 2000;
@@ -176,6 +198,22 @@ function createWindow(): void {
   mainWindow.on('responsive', () => {
     console.log('[VibeCode] Renderer is responsive again');
   });
+
+  // Handle GPU process crash (Electron 33+ uses 'child-process-gone' instead)
+  try {
+    app.on('child-process-gone', (_event, details) => {
+      if (details.type === 'GPU' && details.reason !== 'killed') {
+        console.error('[VibeCode] GPU process crashed:', details.reason);
+        try {
+          sessionManager.markCrash(`gpu-process-crashed: ${details.reason}`);
+        } catch {
+          // Best-effort
+        }
+      }
+    });
+  } catch {
+    // Older Electron versions may not support this event
+  }
 }
 
 // ─── Menu Setup ─────────────────────────────────────────────────────────────
@@ -351,6 +389,14 @@ function setupMenu(): void {
 function cleanupAndQuit(): void {
   console.log('[VibeCode] Performing cleanup before quit...');
 
+  // Mark safe shutdown FIRST
+  try {
+    sessionManager.markSafeShutdown();
+    console.log('[VibeCode] Marked safe shutdown');
+  } catch (err) {
+    console.error('[VibeCode] Failed to mark safe shutdown:', err);
+  }
+
   // Flush memory store to disk
   try {
     memoryStore.flush();
@@ -359,7 +405,7 @@ function cleanupAndQuit(): void {
     console.error('[VibeCode] Failed to flush memory store:', err);
   }
 
-  // Dispose session manager (stop auto-save timers)
+  // Dispose session manager (stop auto-save timers, flush current state)
   try {
     sessionManager.dispose();
     console.log('[VibeCode] Session manager disposed');

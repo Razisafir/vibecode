@@ -6,6 +6,7 @@ import { registerSessionHandlers } from './session-handlers';
 import { registerExecutionHandlers } from './execution-handlers';
 import { registerAppHandlers } from './app-handlers';
 import { registerWorkspaceHandlers } from './workspace-handlers';
+import { registerProposalHandlers } from './proposal-handlers';
 
 /**
  * Register all IPC handlers for the main process.
@@ -19,7 +20,7 @@ export function registerAllIpcHandlers(): void {
   // Core system handlers
   registerAppHandlers();
 
-  // File system operations
+  // File system operations (includes PathSandbox validation)
   registerFsHandlers();
 
   // Terminal / PTY management
@@ -40,5 +41,14 @@ export function registerAllIpcHandlers(): void {
   // Workspace analysis & management
   registerWorkspaceHandlers();
 
+  // Proposal generation from AI responses
+  registerProposalHandlers();
+
   console.log('[IPC] All IPC handlers registered successfully');
 }
+
+/**
+ * Export the PathSandbox instance so other modules (execution engine,
+ * workspace handlers, etc.) can validate paths or update the workspace root.
+ */
+export { pathSandbox } from './fs-handlers';

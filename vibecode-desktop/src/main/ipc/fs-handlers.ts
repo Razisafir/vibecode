@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { pathSandbox } from '../services/path-sandbox';
+import { logger } from '../utils/logger';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -27,13 +29,85 @@ interface WatcherEntry {
 
 const activeWatchers: Map<string, WatcherEntry> = new Map();
 
+// ─── Sandbox Helper ─────────────────────────────────────────────────────────
+
+/**
+ * Validate a path against the sandbox and return the resolved path on success,
+ * or an IpcResult error on failure.
+ */
+function validateOrFail(requestedPath: string): { resolvedPath: string } | IpcResult {
+  const validation = pathSandbox.validatePath(requestedPath);
+  if (!validation.allowed) {
+    return err(validation.error ?? 'Access denied by path sandbox');
+  }
+  return { resolvedPath: validation.resolvedPath };
+}
+
+/**
+ * Validate a file path for reading, checking both sandbox containment
+ * and the read extension allowlist.
+ */
+function validateReadOrFail(requestedPath: string): { resolvedPath: string } | IpcResult {
+  const pathValidation = validateOrFail(requestedPath);
+  if ('success' in pathValidation) return pathValidation;
+
+  const extValidation = pathSandbox.validateReadExtension(pathValidation.resolvedPath);
+  if (!extValidation.allowed) {
+    return err(extValidation.error ?? 'File extension not allowed for reading');
+  }
+
+  return pathValidation;
+}
+
+/**
+ * Validate a file path for writing, checking both sandbox containment
+ * and the write extension allowlist.
+ */
+function validateWriteOrFail(requestedPath: string): { resolvedPath: string } | IpcResult {
+  const pathValidation = validateOrFail(requestedPath);
+  if ('success' in pathValidation) return pathValidation;
+
+  const extValidation = pathSandbox.validateWriteExtension(pathValidation.resolvedPath);
+  if (!extValidation.allowed) {
+    return err(extValidation.error ?? 'File extension not allowed for writing');
+  }
+
+  return pathValidation;
+}
+
 // ─── Handler Registration ───────────────────────────────────────────────────
 
 export function registerFsHandlers(): void {
+  // ── fs:setWorkspaceRoot ───────────────────────────────────────────────
+  ipcMain.handle('fs:setWorkspaceRoot', async (_event, rootPath: string) => {
+    try {
+      const resolved = path.resolve(rootPath);
+
+      // Validate that the path exists and is a directory
+      if (!fs.existsSync(resolved)) {
+        return err(`Workspace path does not exist: ${resolved}`);
+      }
+
+      const stat = fs.statSync(resolved);
+      if (!stat.isDirectory()) {
+        return err(`Workspace path is not a directory: ${resolved}`);
+      }
+
+      pathSandbox.setWorkspaceRoot(resolved);
+      logger.info(`[IPC] Workspace root set to: ${resolved}`);
+
+      return ok({ workspaceRoot: resolved, set: true });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : String(error));
+    }
+  });
+
   // ── fs:readFile ────────────────────────────────────────────────────────
   ipcMain.handle('fs:readFile', async (_event, filePath: string, encoding: BufferEncoding = 'utf-8') => {
     try {
-      const resolved = path.resolve(filePath);
+      const validation = validateReadOrFail(filePath);
+      if ('success' in validation) return validation;
+      const resolved = validation.resolvedPath;
 
       if (!fs.existsSync(resolved)) {
         return err(`File not found: ${resolved}`);
@@ -51,10 +125,15 @@ export function registerFsHandlers(): void {
     'fs:writeFile',
     async (_event, filePath: string, content: string, encoding: BufferEncoding = 'utf-8') => {
       try {
-        const resolved = path.resolve(filePath);
+        const validation = validateWriteOrFail(filePath);
+        if ('success' in validation) return validation;
+        const resolved = validation.resolvedPath;
         const dir = path.dirname(resolved);
 
-        // Ensure directory exists
+        // Ensure directory exists (and is within sandbox)
+        const dirValidation = validateOrFail(dir);
+        if ('success' in dirValidation) return dirValidation;
+
         if (!fs.existsSync(dir)) {
           fs.mkdirSync(dir, { recursive: true });
         }
@@ -70,7 +149,9 @@ export function registerFsHandlers(): void {
   // ── fs:listDir ─────────────────────────────────────────────────────────
   ipcMain.handle('fs:listDir', async (_event, dirPath: string) => {
     try {
-      const resolved = path.resolve(dirPath);
+      const validation = validateOrFail(dirPath);
+      if ('success' in validation) return validation;
+      const resolved = validation.resolvedPath;
 
       if (!fs.existsSync(resolved)) {
         return err(`Directory not found: ${resolved}`);
@@ -119,7 +200,9 @@ export function registerFsHandlers(): void {
   // ── fs:watch ───────────────────────────────────────────────────────────
   ipcMain.handle('fs:watch', async (event, watchPath: string, _options?: { recursive?: boolean }) => {
     try {
-      const resolved = path.resolve(watchPath);
+      const validation = validateOrFail(watchPath);
+      if ('success' in validation) return validation;
+      const resolved = validation.resolvedPath;
       const watchId = `watch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
       // Close existing watchers from the same renderer
@@ -138,6 +221,11 @@ export function registerFsHandlers(): void {
           const fullPath = changedPath ? path.join(resolved, changedPath) : resolved;
           try {
             if (!event.sender.isDestroyed()) {
+              // Validate that the changed path is still within sandbox
+              if (!pathSandbox.isWithinWorkspace(fullPath)) {
+                return; // Silently skip paths outside sandbox
+              }
+
               // Structured event for new API consumers
               event.sender.send('fs:watch:event', {
                 watchId,
@@ -180,7 +268,9 @@ export function registerFsHandlers(): void {
   // ── fs:watch (send-based for preload compatibility) ────────────────────
   ipcMain.on('fs:watch', (event, watchPath: string) => {
     try {
-      const resolved = path.resolve(watchPath);
+      const validation = validateOrFail(watchPath);
+      if ('success' in validation) return;
+      const resolved = validation.resolvedPath;
       const webContentsId = event.sender.id;
 
       // Close existing watchers from the same renderer
@@ -200,6 +290,11 @@ export function registerFsHandlers(): void {
           const fullPath = changedPath ? path.join(resolved, changedPath) : resolved;
           try {
             if (!event.sender.isDestroyed()) {
+              // Validate that the changed path is still within sandbox
+              if (!pathSandbox.isWithinWorkspace(fullPath)) {
+                return;
+              }
+
               event.sender.send('fs:watch:change', fullPath, eventName);
               event.sender.send('fs:watch:event', {
                 watchId,
@@ -253,7 +348,9 @@ export function registerFsHandlers(): void {
   // ── fs:stat ────────────────────────────────────────────────────────────
   ipcMain.handle('fs:stat', async (_event, filePath: string) => {
     try {
-      const resolved = path.resolve(filePath);
+      const validation = validateOrFail(filePath);
+      if ('success' in validation) return validation;
+      const resolved = validation.resolvedPath;
 
       if (!fs.existsSync(resolved)) {
         return err(`Path not found: ${resolved}`);
@@ -280,7 +377,9 @@ export function registerFsHandlers(): void {
   // ── fs:mkdir ───────────────────────────────────────────────────────────
   ipcMain.handle('fs:mkdir', async (_event, dirPath: string, options?: { recursive?: boolean }) => {
     try {
-      const resolved = path.resolve(dirPath);
+      const validation = validateOrFail(dirPath);
+      if ('success' in validation) return validation;
+      const resolved = validation.resolvedPath;
 
       if (fs.existsSync(resolved)) {
         return err(`Directory already exists: ${resolved}`);
@@ -296,7 +395,9 @@ export function registerFsHandlers(): void {
   // ── fs:delete ──────────────────────────────────────────────────────────
   ipcMain.handle('fs:delete', async (_event, targetPath: string, options?: { recursive?: boolean }) => {
     try {
-      const resolved = path.resolve(targetPath);
+      const validation = validateOrFail(targetPath);
+      if ('success' in validation) return validation;
+      const resolved = validation.resolvedPath;
 
       if (!fs.existsSync(resolved)) {
         return err(`Path not found: ${resolved}`);
@@ -319,8 +420,14 @@ export function registerFsHandlers(): void {
   // ── fs:rename ──────────────────────────────────────────────────────────
   ipcMain.handle('fs:rename', async (_event, oldPath: string, newPath: string) => {
     try {
-      const resolvedOld = path.resolve(oldPath);
-      const resolvedNew = path.resolve(newPath);
+      // Validate BOTH old and new paths
+      const oldValidation = validateOrFail(oldPath);
+      if ('success' in oldValidation) return oldValidation;
+      const resolvedOld = oldValidation.resolvedPath;
+
+      const newValidation = validateWriteOrFail(newPath);
+      if ('success' in newValidation) return newValidation;
+      const resolvedNew = newValidation.resolvedPath;
 
       if (!fs.existsSync(resolvedOld)) {
         return err(`Source path not found: ${resolvedOld}`);
@@ -328,6 +435,9 @@ export function registerFsHandlers(): void {
 
       // Ensure target directory exists
       const targetDir = path.dirname(resolvedNew);
+      const dirValidation = validateOrFail(targetDir);
+      if ('success' in dirValidation) return dirValidation;
+
       if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
       }
@@ -339,5 +449,10 @@ export function registerFsHandlers(): void {
     }
   });
 
-  console.log('[IPC] File system handlers registered');
+  console.log('[IPC] File system handlers registered (with PathSandbox)');
 }
+
+// ─── Exports ────────────────────────────────────────────────────────────────
+
+/** Re-export the PathSandbox instance so other modules can access it. */
+export { pathSandbox } from '../services/path-sandbox';

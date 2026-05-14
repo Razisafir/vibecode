@@ -4,8 +4,15 @@ import type { ChatMessage, Provider } from '../types';
 const generateId = (): string =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+/** Maximum length for the stream buffer to prevent unbounded memory growth */
+const MAX_STREAM_BUFFER_LENGTH = 100_000;
+
+/** Maximum number of messages kept in memory */
+const MAX_MESSAGES = 200;
+
 interface UseAIChatReturn {
   messages: ChatMessage[];
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   isStreaming: boolean;
   isThinking: boolean;
   activeProvider: string;
@@ -16,9 +23,11 @@ interface UseAIChatReturn {
   sendMessage: (content: string) => void;
   clearChat: () => void;
   retryLast: () => void;
+  /** Callback: after streaming completes, invoke proposal generation */
+  onStreamingComplete?: (response: string, messageId: string) => void;
 }
 
-export function useAIChat(): UseAIChatReturn {
+export function useAIChat(onStreamingComplete?: (response: string, messageId: string) => void): UseAIChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
@@ -27,6 +36,12 @@ export function useAIChat(): UseAIChatReturn {
   const [providers, setProviders] = useState<Provider[]>([]);
   const streamBufferRef = useRef<string>('');
   const lastUserMessageRef = useRef<string>('');
+  const onStreamingCompleteRef = useRef(onStreamingComplete);
+
+  // Keep the callback ref up to date without triggering re-renders
+  useEffect(() => {
+    onStreamingCompleteRef.current = onStreamingComplete;
+  }, [onStreamingComplete]);
 
   // Load providers on mount
   useEffect(() => {
@@ -47,25 +62,69 @@ export function useAIChat(): UseAIChatReturn {
     loadProviders();
   }, []);
 
-  // Listen for stream events
+  // Listen for stream events — with throttled updates to prevent renderer flooding
   useEffect(() => {
     if (!window.vibecode?.provider) return;
 
-    window.vibecode.provider.onStream((chunk: string) => {
-      streamBufferRef.current += chunk;
+    let lastUpdateTime = 0;
+    const UPDATE_THROTTLE_MS = 50; // Max 20 updates per second
+    let pendingTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const flushBuffer = () => {
+      const currentBuffer = streamBufferRef.current;
       setMessages((prev) => {
         const updated = [...prev];
         const lastMsg = updated[updated.length - 1];
         if (lastMsg && lastMsg.role === 'assistant') {
           updated[updated.length - 1] = {
             ...lastMsg,
-            content: streamBufferRef.current,
+            content: currentBuffer,
           };
         }
         return updated;
       });
+    };
+
+    window.vibecode.provider.onStream((chunk: string) => {
+      // Bound the stream buffer to prevent unbounded memory growth
+      streamBufferRef.current += chunk;
+      if (streamBufferRef.current.length > MAX_STREAM_BUFFER_LENGTH) {
+        streamBufferRef.current = streamBufferRef.current.slice(-MAX_STREAM_BUFFER_LENGTH);
+      }
+
+      const now = Date.now();
+      const elapsed = now - lastUpdateTime;
+
+      if (elapsed >= UPDATE_THROTTLE_MS) {
+        // Enough time has passed — update immediately
+        lastUpdateTime = now;
+        flushBuffer();
+      } else {
+        // Throttle — schedule a trailing update
+        if (!pendingTimer) {
+          pendingTimer = setTimeout(() => {
+            pendingTimer = null;
+            lastUpdateTime = Date.now();
+            flushBuffer();
+          }, UPDATE_THROTTLE_MS - elapsed);
+        }
+      }
     });
+
+    return () => {
+      if (pendingTimer) {
+        clearTimeout(pendingTimer);
+        pendingTimer = null;
+      }
+    };
   }, []);
+
+  // Trim messages if they exceed the maximum
+  useEffect(() => {
+    if (messages.length > MAX_MESSAGES) {
+      setMessages((prev) => prev.slice(-MAX_MESSAGES));
+    }
+  }, [messages.length]);
 
   const sendMessage = useCallback(
     (content: string) => {
@@ -143,14 +202,24 @@ export function useAIChat(): UseAIChatReturn {
         } finally {
           setIsStreaming(false);
 
+          // ── Bridge: Generate proposals from AI response ──────────────
+          const fullResponse = streamBufferRef.current;
+          if (fullResponse && onStreamingCompleteRef.current) {
+            try {
+              onStreamingCompleteRef.current(fullResponse, assistantMessageId);
+            } catch (err) {
+              console.error('[useAIChat] Proposal generation callback error:', err);
+            }
+          }
+
           // Auto-save conversation to memory
           try {
             if (window.vibecode?.memory) {
               await window.vibecode.memory.store({
                 projectId: 'default',
                 type: 'conversation',
-                content: `User: ${content}\nAssistant: ${streamBufferRef.current}`,
-                importance: 3,
+                content: `User: ${content}\nAssistant: ${fullResponse}`,
+                importance: 0.3,
                 tags: ['chat', activeProvider, activeModel],
                 relatedIds: [],
               });
@@ -231,6 +300,7 @@ export function useAIChat(): UseAIChatReturn {
 
   return {
     messages,
+    setMessages,
     isStreaming,
     isThinking,
     activeProvider,
@@ -241,5 +311,6 @@ export function useAIChat(): UseAIChatReturn {
     sendMessage,
     clearChat,
     retryLast,
+    onStreamingComplete,
   };
 }

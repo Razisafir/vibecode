@@ -336,4 +336,20 @@
     background-color: var(--border);
     margin: 8px 0;
   }
+
+  /* Toast slide-up animation */
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }

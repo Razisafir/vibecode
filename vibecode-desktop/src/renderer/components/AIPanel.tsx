@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { ChatMessage, ProposalCard as ProposalCardType } from '../types';
+import type { ChatMessage, ProposalCard as ProposalCardType, ProposalCardData } from '../types';
 import { useAIChat } from '../hooks/useAIChat';
+import { useProposals } from '../hooks/useProposals';
 import ProposalCardComponent from './ProposalCard';
 
 interface AIPanelProps {
@@ -10,7 +11,47 @@ interface AIPanelProps {
 
 const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle }) => {
   const {
+    proposals,
+    approve: approveProposal,
+    reject: rejectProposal,
+  } = useProposals();
+
+  // Callback: when AI streaming finishes, generate proposals from the response
+  const handleStreamingComplete = useCallback(
+    async (response: string, messageId: string) => {
+      if (!window.vibecode?.proposal) return;
+
+      try {
+        const result = await window.vibecode.proposal.generateFromResponse(response);
+        if (result.success && result.data?.proposals && result.data.proposals.length > 0) {
+          const proposalIds = result.data.proposals.map((p: ProposalCardData) => p.id);
+
+          // Update the assistant message metadata with proposal IDs
+          setMessages((prev) => {
+            const updated = [...prev];
+            const msg = updated.find((m) => m.id === messageId);
+            if (msg) {
+              updated[updated.indexOf(msg)] = {
+                ...msg,
+                metadata: {
+                  ...msg.metadata,
+                  proposalIds,
+                },
+              };
+            }
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.error('[AIPanel] Failed to generate proposals:', err);
+      }
+    },
+    []
+  );
+
+  const {
     messages,
+    setMessages,
     isStreaming,
     isThinking,
     sendMessage,
@@ -20,7 +61,7 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle }) => {
     setActiveProvider,
     setActiveModel,
     clearChat,
-  } = useAIChat();
+  } = useAIChat(handleStreamingComplete);
 
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -58,6 +99,83 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle }) => {
       }
     },
     [handleSend],
+  );
+
+  const handleApproveProposal = useCallback(
+    (proposalId: string) => {
+      const proposal = proposals.find((p) => p.id === proposalId);
+      if (proposal?.planId) {
+        approveProposal(proposal.planId);
+      }
+    },
+    [proposals, approveProposal]
+  );
+
+  const handleRejectProposal = useCallback(
+    (proposalId: string) => {
+      const proposal = proposals.find((p) => p.id === proposalId);
+      if (proposal?.planId) {
+        rejectProposal(proposal.planId);
+      }
+    },
+    [proposals, rejectProposal]
+  );
+
+  /**
+   * Render proposal cards for a message that has proposalIds in its metadata.
+   */
+  const renderProposalCards = useCallback(
+    (message: ChatMessage) => {
+      const proposalIds = message.metadata?.proposalIds;
+      if (!proposalIds || proposalIds.length === 0) return null;
+
+      return (
+        <div className="mt-3 space-y-2">
+          {proposalIds.map((pid: string) => {
+            // Look up the proposal data from our hook or build a basic card
+            const proposalData = proposals.find((p) => p.id === pid);
+            if (proposalData) {
+              // Convert ProposalCardData → ProposalCard for the component
+              const card: ProposalCardType = {
+                id: proposalData.id,
+                type: mapProposalType(proposalData.type),
+                title: proposalData.title,
+                description: proposalData.description,
+                riskLevel: proposalData.riskLevel,
+                status: proposalData.status,
+                details: {
+                  ...proposalData.details,
+                  affectedFiles: proposalData.affectedFiles,
+                  steps: proposalData.steps,
+                  estimatedImpact: proposalData.estimatedImpact,
+                  canRollback: proposalData.canRollback,
+                },
+                timestamp: proposalData.timestamp,
+              };
+              return (
+                <ProposalCardComponent
+                  key={pid}
+                  proposal={card}
+                  onApprove={handleApproveProposal}
+                  onReject={handleRejectProposal}
+                />
+              );
+            }
+
+            // Fallback: we have an ID but no data yet (may still be loading)
+            return (
+              <div
+                key={pid}
+                className="proposal-card border-l-accent animate-pulse-slow rounded-md border-l-2 bg-bg-secondary p-3"
+              >
+                <div className="text-xs text-text-muted">Loading proposal...</div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    },
+    [proposals, handleApproveProposal, handleRejectProposal]
   );
 
   const formatTimestamp = (timestamp: number): string => {
@@ -212,20 +330,9 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle }) => {
                   {message.role === 'assistant' ? (
                     <div className="whitespace-pre-wrap">
                       {message.content}
-                      {message.metadata?.proposalId && (
-                        <ProposalCardComponent
-                          proposal={{
-                            id: message.metadata.proposalId,
-                            type: 'file_edit',
-                            title: 'Proposed Change',
-                            description: 'AI-proposed modification',
-                            riskLevel: 'low',
-                            status: 'pending',
-                            details: {},
-                            timestamp: message.timestamp,
-                          }}
-                        />
-                      )}
+
+                      {/* Render proposal cards inline after AI message */}
+                      {renderProposalCards(message)}
                     </div>
                   ) : message.role === 'system' ? (
                     <span>{message.content}</span>
@@ -241,6 +348,11 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle }) => {
                   {formatTimestamp(message.timestamp)}
                   {message.metadata?.model && (
                     <span className="ml-2 opacity-60">{message.metadata.model}</span>
+                  )}
+                  {message.metadata?.proposalIds && message.metadata.proposalIds.length > 0 && (
+                    <span className="ml-2 text-accent">
+                      {message.metadata.proposalIds.length} proposal{message.metadata.proposalIds.length !== 1 ? 's' : ''}
+                    </span>
                   )}
                 </div>
               </div>
@@ -339,5 +451,15 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle }) => {
     </div>
   );
 };
+
+/**
+ * Map ProposalCardData type to the ProposalCard type that the component expects.
+ */
+function mapProposalType(
+  type: ProposalCardData['type']
+): ProposalCardType['type'] {
+  if (type === 'multi_step') return 'plan';
+  return type;
+}
 
 export default AIPanel;
