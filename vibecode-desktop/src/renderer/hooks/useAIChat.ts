@@ -48,11 +48,11 @@ export function useAIChat(onStreamingComplete?: (response: string, messageId: st
     const loadProviders = async () => {
       try {
         const result = await window.vibecode?.provider.list();
-        if (result && result.length > 0) {
-          setProviders(result);
-          setActiveProvider(result[0].id);
-          if (result[0].models.length > 0) {
-            setActiveModel(result[0].models[0].id);
+        if (result?.success && result.data?.providers && result.data.providers.length > 0) {
+          setProviders(result.data.providers);
+          setActiveProvider(result.data.providers[0].id);
+          if (result.data.providers[0].models.length > 0) {
+            setActiveModel(result.data.providers[0].models[0].id);
           }
         }
       } catch {
@@ -173,6 +173,7 @@ export function useAIChat(onStreamingComplete?: (response: string, messageId: st
               {
                 temperature: 0.7,
                 maxTokens: 4096,
+                streaming: true,
               },
             );
           } else {

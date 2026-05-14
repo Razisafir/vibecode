@@ -1,5 +1,8 @@
 import { ipcMain } from 'electron';
 import { SessionManager, SessionState, EnhancedSessionState } from '../services/session-manager';
+import { validateWithError } from '../utils/validation';
+import { SessionStateSchema, EnhancedSessionStateSchema, IdSchema } from '../utils/schemas';
+import { auditLog } from '../utils/audit-log';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -30,8 +33,11 @@ export function registerSessionHandlers(): void {
   // ── session:save ───────────────────────────────────────────────────────
   ipcMain.handle('session:save', async (_event, state: SessionState) => {
     try {
-      sessionManager.save(state);
-      return ok({ sessionId: state.id, saved: true });
+      const validation = validateWithError(SessionStateSchema, state);
+      if (!validation.success) return err(validation.error!);
+
+      sessionManager.save(validation.data!);
+      return ok({ sessionId: validation.data!.id, saved: true });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));
     }
@@ -40,10 +46,11 @@ export function registerSessionHandlers(): void {
   // ── session:restore ────────────────────────────────────────────────────
   ipcMain.handle('session:restore', async (_event, sessionId: string) => {
     try {
+      const idV = validateWithError(IdSchema, sessionId);
+      if (!idV.success) return err(idV.error!);
+
       const state = sessionManager.restore(sessionId);
-      if (!state) {
-        return err(`Session not found: ${sessionId}`);
-      }
+      if (!state) return err(`Session not found: ${sessionId}`);
       return ok({ session: state });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));
@@ -66,10 +73,11 @@ export function registerSessionHandlers(): void {
   // ── session:delete ─────────────────────────────────────────────────────
   ipcMain.handle('session:delete', async (_event, sessionId: string) => {
     try {
+      const idV = validateWithError(IdSchema, sessionId);
+      if (!idV.success) return err(idV.error!);
+
       const deleted = sessionManager.delete(sessionId);
-      if (!deleted) {
-        return err(`Session not found: ${sessionId}`);
-      }
+      if (!deleted) return err(`Session not found: ${sessionId}`);
       return ok({ deleted: true, sessionId });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));
@@ -81,17 +89,18 @@ export function registerSessionHandlers(): void {
     'session:autoSave',
     async (event, state: SessionState, interval?: number) => {
       try {
-        const webContentsId = event.sender.id;
-        const sessionId = state.id;
+        const validation = validateWithError(SessionStateSchema, state);
+        if (!validation.success) return err(validation.error!);
 
-        // Stop previous auto-save for this renderer
+        const webContentsId = event.sender.id;
+        const sessionId = validation.data!.id;
+
         const previousSessionId = autoSaveSessions.get(webContentsId);
         if (previousSessionId) {
           sessionManager.stopAutoSave(previousSessionId);
         }
 
-        // Start new auto-save
-        sessionManager.autoSave(state, interval);
+        sessionManager.autoSave(validation.data!, interval);
         autoSaveSessions.set(webContentsId, sessionId);
 
         return ok({ sessionId, autoSave: true, interval: interval ?? 30000 });
@@ -104,6 +113,9 @@ export function registerSessionHandlers(): void {
   // ── session:stopAutoSave ───────────────────────────────────────────────
   ipcMain.handle('session:stopAutoSave', async (event, sessionId: string) => {
     try {
+      const idV = validateWithError(IdSchema, sessionId);
+      if (!idV.success) return err(idV.error!);
+
       sessionManager.stopAutoSave(sessionId);
       autoSaveSessions.delete(event.sender.id);
       return ok({ sessionId, autoSave: false });
@@ -115,10 +127,11 @@ export function registerSessionHandlers(): void {
   // ── session:getLatest ──────────────────────────────────────────────────
   ipcMain.handle('session:getLatest', async (_event, projectId: string) => {
     try {
-      const state = sessionManager.getLatest(projectId);
-      if (!state) {
-        return ok({ session: null });
+      if (!projectId || typeof projectId !== 'string') {
+        return err('Project ID is required');
       }
+
+      const state = sessionManager.getLatest(projectId);
       return ok({ session: state });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));
@@ -128,6 +141,10 @@ export function registerSessionHandlers(): void {
   // ── session:create ─────────────────────────────────────────────────────
   ipcMain.handle('session:create', async (_event, projectId: string) => {
     try {
+      if (!projectId || typeof projectId !== 'string') {
+        return err('Project ID is required');
+      }
+
       const state = sessionManager.create(projectId);
       return ok({ session: state });
     } catch (error) {
@@ -142,8 +159,11 @@ export function registerSessionHandlers(): void {
   // ── session:saveEnhanced ───────────────────────────────────────────────
   ipcMain.handle('session:saveEnhanced', async (_event, state: EnhancedSessionState) => {
     try {
-      sessionManager.saveEnhanced(state);
-      return ok({ sessionId: state.id, saved: true });
+      const validation = validateWithError(EnhancedSessionStateSchema, state);
+      if (!validation.success) return err(validation.error!);
+
+      sessionManager.saveEnhanced(validation.data!);
+      return ok({ sessionId: validation.data!.id, saved: true });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));
     }
@@ -152,10 +172,13 @@ export function registerSessionHandlers(): void {
   // ── session:restoreEnhanced ────────────────────────────────────────────
   ipcMain.handle('session:restoreEnhanced', async (_event, sessionId: string) => {
     try {
+      const idV = validateWithError(IdSchema, sessionId);
+      if (!idV.success) return err(idV.error!);
+
       const state = sessionManager.restoreEnhanced(sessionId);
-      if (!state) {
-        return err(`Session not found: ${sessionId}`);
-      }
+      if (!state) return err(`Session not found: ${sessionId}`);
+
+      auditLog.auditLog('session.restore', { sessionId, wasCrashed: state.recovery?.lastCrashed });
       return ok({ session: state });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));
@@ -205,6 +228,10 @@ export function registerSessionHandlers(): void {
   // ── session:createEnhanced ─────────────────────────────────────────────
   ipcMain.handle('session:createEnhanced', async (_event, projectId: string, rootPath?: string) => {
     try {
+      if (!projectId || typeof projectId !== 'string') {
+        return err('Project ID is required');
+      }
+
       const state = sessionManager.createEnhanced(projectId, rootPath);
       return ok({ session: state });
     } catch (error) {
@@ -217,17 +244,18 @@ export function registerSessionHandlers(): void {
     'session:autoSaveEnhanced',
     async (event, state: EnhancedSessionState, interval?: number) => {
       try {
-        const webContentsId = event.sender.id;
-        const sessionId = state.id;
+        const validation = validateWithError(EnhancedSessionStateSchema, state);
+        if (!validation.success) return err(validation.error!);
 
-        // Stop previous auto-save for this renderer
+        const webContentsId = event.sender.id;
+        const sessionId = validation.data!.id;
+
         const previousSessionId = autoSaveSessions.get(webContentsId);
         if (previousSessionId && previousSessionId !== sessionId) {
           sessionManager.stopAutoSave(previousSessionId);
         }
 
-        // Start enhanced auto-save
-        sessionManager.autoSaveEnhanced(state, interval);
+        sessionManager.autoSaveEnhanced(validation.data!, interval);
         autoSaveSessions.set(webContentsId, sessionId);
 
         return ok({ sessionId, autoSave: true, interval: interval ?? 30000 });
@@ -240,6 +268,9 @@ export function registerSessionHandlers(): void {
   // ── session:stopAutoSaveEnhanced ───────────────────────────────────────
   ipcMain.handle('session:stopAutoSaveEnhanced', async (_event, sessionId: string) => {
     try {
+      const idV = validateWithError(IdSchema, sessionId);
+      if (!idV.success) return err(idV.error!);
+
       sessionManager.stopAutoSave(sessionId);
       return ok({ sessionId, autoSave: false });
     } catch (error) {
@@ -250,7 +281,10 @@ export function registerSessionHandlers(): void {
   // ── session:updateEnhancedState ────────────────────────────────────────
   ipcMain.handle('session:updateEnhancedState', async (_event, state: EnhancedSessionState) => {
     try {
-      sessionManager.updateEnhancedState(state);
+      const validation = validateWithError(EnhancedSessionStateSchema, state);
+      if (!validation.success) return err(validation.error!);
+
+      sessionManager.updateEnhancedState(validation.data!);
       return ok({ updated: true });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));
@@ -260,17 +294,20 @@ export function registerSessionHandlers(): void {
   // ── session:archiveCrashedSession ──────────────────────────────────────
   ipcMain.handle('session:archiveCrashedSession', async (_event, sessionId: string) => {
     try {
+      const idV = validateWithError(IdSchema, sessionId);
+      if (!idV.success) return err(idV.error!);
+
       const archived = sessionManager.archiveCrashedSession(sessionId);
-      if (!archived) {
-        return err(`Failed to archive session: ${sessionId}`);
-      }
+      if (!archived) return err(`Failed to archive session: ${sessionId}`);
+
+      auditLog.auditLog('session.archiveCrashed', { sessionId });
       return ok({ archived: true, sessionId });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));
     }
   });
 
-  console.log('[IPC] Session handlers registered (with enhanced session support)');
+  console.log('[IPC] Session handlers registered (with enhanced session support + validation)');
 }
 
 /** Expose sessionManager for use in other handlers */

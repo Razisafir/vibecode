@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Provider, ProviderType } from '../../types';
+import type { Provider, ProviderType, ModelInfo, ChatOptions } from '../../types';
+import SkeletonCard from '../SkeletonCard';
+
+// ─── Provider Type Definitions ──────────────────────────────────────────────
 
 interface ProviderFormData {
   name: string;
@@ -8,19 +11,37 @@ interface ProviderFormData {
   baseUrl: string;
 }
 
-const PROVIDER_TYPES: { value: ProviderType; label: string }[] = [
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'google', label: 'Google' },
-  { value: 'local', label: 'Local' },
-  { value: 'custom', label: 'Custom' },
+const PROVIDER_TYPES: { value: ProviderType; label: string; needsApiKey: boolean; defaultBaseUrl: string }[] = [
+  { value: 'openai', label: 'OpenAI', needsApiKey: true, defaultBaseUrl: 'https://api.openai.com/v1' },
+  { value: 'anthropic', label: 'Anthropic', needsApiKey: true, defaultBaseUrl: 'https://api.anthropic.com/v1' },
+  { value: 'google', label: 'Gemini', needsApiKey: true, defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
+  { value: 'ollama', label: 'Ollama', needsApiKey: false, defaultBaseUrl: 'http://localhost:11434/api' },
+  { value: 'lmstudio', label: 'LM Studio', needsApiKey: false, defaultBaseUrl: 'http://localhost:1234/v1' },
+  { value: 'custom', label: 'Custom', needsApiKey: false, defaultBaseUrl: '' },
 ];
+
+// ─── Health indicator colors ────────────────────────────────────────────────
+
+function getHealthColor(provider: Provider): string {
+  if (provider.latency > 0 && provider.isAvailable) return 'bg-emerald-400';
+  if (provider.latency > 0 && !provider.isAvailable) return 'bg-red-400';
+  return 'bg-yellow-400'; // Unknown
+}
+
+function getHealthLabel(provider: Provider): string {
+  if (provider.latency > 0 && provider.isAvailable) return 'Available';
+  if (provider.latency > 0 && !provider.isAvailable) return 'Unavailable';
+  return 'Unknown';
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
 
 const SettingsPanel: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [isAddingProvider, setIsAddingProvider] = useState(false);
+  const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
   const [providerForm, setProviderForm] = useState<ProviderFormData>({
     name: '',
     type: 'openai',
@@ -34,6 +55,7 @@ const SettingsPanel: React.FC = () => {
   const [appVersion, setAppVersion] = useState('');
   const [isTesting, setIsTesting] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<Record<string, { success: boolean; latency: number }>>({});
+  const [chatOptionsMap, setChatOptionsMap] = useState<Record<string, ChatOptions>>({});
 
   // Load providers on mount
   useEffect(() => {
@@ -41,8 +63,16 @@ const SettingsPanel: React.FC = () => {
       setIsLoading(true);
       try {
         const result = await window.vibecode?.provider.list();
-        if (result) {
-          setProviders(result);
+        if (result?.success && result.data?.providers) {
+          setProviders(result.data.providers);
+          // Load chat options for each provider
+          const optionsMap: Record<string, ChatOptions> = {};
+          for (const p of result.data.providers) {
+            if (p.chatOptions) {
+              optionsMap[p.id] = p.chatOptions;
+            }
+          }
+          setChatOptionsMap(optionsMap);
         }
       } catch {
         // Providers not available
@@ -52,10 +82,27 @@ const SettingsPanel: React.FC = () => {
     };
     loadProviders();
 
-    // Get app version
     window.vibecode?.app.getVersion().then((v) => {
       if (v) setAppVersion(v);
     }).catch(() => {});
+  }, []);
+
+  const reloadProviders = useCallback(async () => {
+    try {
+      const result = await window.vibecode?.provider.list();
+      if (result?.success && result.data?.providers) {
+        setProviders(result.data.providers);
+        const optionsMap: Record<string, ChatOptions> = {};
+        for (const p of result.data.providers) {
+          if (p.chatOptions) {
+            optionsMap[p.id] = p.chatOptions;
+          }
+        }
+        setChatOptionsMap(optionsMap);
+      }
+    } catch {
+      // Reload failed
+    }
   }, []);
 
   const handleAddProvider = useCallback(() => {
@@ -65,30 +112,31 @@ const SettingsPanel: React.FC = () => {
 
   const handleSaveProvider = useCallback(async () => {
     try {
+      const selectedType = PROVIDER_TYPES.find((t) => t.value === providerForm.type);
       await window.vibecode?.provider.configure({
-        name: providerForm.name,
+        name: providerForm.name || selectedType?.label || providerForm.type,
         type: providerForm.type,
         apiKey: providerForm.apiKey || undefined,
-        baseUrl: providerForm.baseUrl || undefined,
+        baseUrl: providerForm.baseUrl || selectedType?.defaultBaseUrl || undefined,
       });
       setIsAddingProvider(false);
-      // Reload providers
-      const result = await window.vibecode?.provider.list();
-      if (result) setProviders(result);
+      await reloadProviders();
     } catch {
       // Save failed
     }
-  }, [providerForm]);
+  }, [providerForm, reloadProviders]);
 
   const handleTestProvider = useCallback(async (id: string) => {
     setIsTesting(id);
     try {
       const result = await window.vibecode?.provider.test(id);
-      if (result) {
+      if (result?.data) {
+        const { success, latency } = result.data;
         setTestResult((prev) => ({
           ...prev,
-          [id]: { success: result.success, latency: result.latency },
+          [id]: { success, latency },
         }));
+        await reloadProviders();
       }
     } catch {
       setTestResult((prev) => ({
@@ -97,6 +145,45 @@ const SettingsPanel: React.FC = () => {
       }));
     } finally {
       setIsTesting(null);
+    }
+  }, [reloadProviders]);
+
+  const handleRemoveProvider = useCallback(async (id: string) => {
+    try {
+      await window.vibecode?.provider.remove(id);
+      await reloadProviders();
+    } catch {
+      // Remove failed
+    }
+  }, [reloadProviders]);
+
+  const handleSetActive = useCallback(async (id: string) => {
+    try {
+      await window.vibecode?.provider.setActive(id);
+      await reloadProviders();
+    } catch {
+      // Set active failed
+    }
+  }, [reloadProviders]);
+
+  const handleSetFallback = useCallback(async (id: string) => {
+    try {
+      await window.vibecode?.provider.setFallback(id);
+      await reloadProviders();
+    } catch {
+      // Set fallback failed
+    }
+  }, [reloadProviders]);
+
+  const handleChatOptionChange = useCallback(async (providerId: string, updates: Partial<ChatOptions>) => {
+    try {
+      await window.vibecode?.provider.setChatOptions(providerId, updates);
+      setChatOptionsMap((prev) => ({
+        ...prev,
+        [providerId]: { ...(prev[providerId] ?? { temperature: 0.7, maxTokens: 4096, streaming: true }), ...updates },
+      }));
+    } catch {
+      // Update failed
     }
   }, []);
 
@@ -108,6 +195,10 @@ const SettingsPanel: React.FC = () => {
     }
   }, []);
 
+  const getTypeLabel = (type: ProviderType): string => {
+    return PROVIDER_TYPES.find((t) => t.value === type)?.label ?? type;
+  };
+
   return (
     <div className="flex h-full flex-col overflow-y-auto scrollbar-custom">
       <div className="space-y-4 p-4">
@@ -118,40 +209,105 @@ const SettingsPanel: React.FC = () => {
           </h3>
 
           {isLoading ? (
-            <div className="flex items-center justify-center py-4">
-              <span className="spinner" />
+            <div className="space-y-2">
+              <SkeletonCard lines={2} />
+              <SkeletonCard lines={2} />
+              <SkeletonCard lines={3} />
             </div>
           ) : (
             <div className="space-y-2">
-              {providers.map((provider) => (
-                <div
-                  key={provider.id}
-                  className="card"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`h-2 w-2 rounded-full ${
-                          provider.isAvailable ? 'bg-success' : 'bg-error'
-                        }`}
-                      />
-                      <span className="text-sm font-medium text-text-primary">
-                        {provider.name}
-                      </span>
-                      <span className="badge bg-bg-hover text-text-muted">
-                        {provider.type}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        className="btn btn-ghost btn-sm rounded p-1"
-                        onClick={() => handleTestProvider(provider.id)}
-                        disabled={isTesting === provider.id}
-                        title="Test connection"
-                      >
-                        {isTesting === provider.id ? (
-                          <span className="spinner spinner-sm" />
-                        ) : (
+              {providers.map((provider) => {
+                const isExpanded = expandedProvider === provider.id;
+                const chatOpts = chatOptionsMap[provider.id] ?? provider.chatOptions ?? { temperature: 0.7, maxTokens: 4096, streaming: true };
+                const currentTestResult = testResult[provider.id];
+
+                return (
+                  <div key={provider.id} className="card">
+                    {/* Provider Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {/* Active indicator */}
+                        <button
+                          className={`h-4 w-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                            provider.isActive
+                              ? 'border-accent bg-accent/20'
+                              : 'border-border hover:border-accent/50'
+                          }`}
+                          onClick={() => handleSetActive(provider.id)}
+                          title={provider.isActive ? 'Active provider' : 'Set as active'}
+                        >
+                          {provider.isActive && (
+                            <div className="h-2 w-2 rounded-full bg-accent" />
+                          )}
+                        </button>
+
+                        {/* Health dot */}
+                        <div
+                          className={`h-2 w-2 rounded-full flex-shrink-0 ${getHealthColor(provider)}`}
+                          title={getHealthLabel(provider)}
+                        />
+
+                        <span className="text-sm font-medium text-text-primary truncate">
+                          {provider.name}
+                        </span>
+                        <span className="badge bg-bg-hover text-text-muted flex-shrink-0">
+                          {getTypeLabel(provider.type)}
+                        </span>
+                        {provider.isFallback && (
+                          <span className="badge bg-yellow-500/20 text-yellow-400 flex-shrink-0">
+                            Fallback
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {/* Test button */}
+                        <button
+                          className="btn btn-ghost btn-sm rounded p-1"
+                          onClick={() => handleTestProvider(provider.id)}
+                          disabled={isTesting === provider.id}
+                          title="Test connection"
+                        >
+                          {isTesting === provider.id ? (
+                            <span className="spinner spinner-sm" />
+                          ) : (
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 12 12"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                            >
+                              <circle cx="6" cy="6" r="4" />
+                              <path d="M4.5 6l1.5 1.5L8 4.5" />
+                            </svg>
+                          )}
+                        </button>
+                        {/* Expand/collapse */}
+                        <button
+                          className="btn btn-ghost btn-sm rounded p-1"
+                          onClick={() => setExpandedProvider(isExpanded ? null : provider.id)}
+                          title={isExpanded ? 'Collapse' : 'Expand settings'}
+                        >
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 12 12"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                          >
+                            <polyline points="3,5 6,8 9,5" />
+                          </svg>
+                        </button>
+                        {/* Remove */}
+                        <button
+                          className="btn btn-ghost btn-sm rounded p-1 text-red-400 hover:text-red-300"
+                          onClick={() => handleRemoveProvider(provider.id)}
+                          title="Remove provider"
+                        >
                           <svg
                             width="12"
                             height="12"
@@ -160,58 +316,173 @@ const SettingsPanel: React.FC = () => {
                             stroke="currentColor"
                             strokeWidth="1.5"
                           >
-                            <circle cx="6" cy="6" r="4" />
-                            <path d="M4.5 6l1.5 1.5L8 4.5" />
+                            <path d="M2 2l8 8M10 2l-8 8" />
                           </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Test result */}
+                    {(currentTestResult || provider.latency > 0) && (
+                      <div className="mt-2 text-xs">
+                        {(() => {
+                          const result = currentTestResult ?? (provider.isAvailable
+                            ? { success: true, latency: provider.latency }
+                            : provider.latency > 0
+                              ? { success: false, latency: provider.latency }
+                              : null);
+                          if (!result) return null;
+                          return result.success ? (
+                            <span className="text-emerald-400">
+                              Connected ({result.latency}ms)
+                            </span>
+                          ) : (
+                            <span className="text-red-400">Connection failed</span>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {/* Models list */}
+                    {provider.models.length > 0 && !isExpanded && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {provider.models.map((model) => (
+                          <span
+                            key={model.id}
+                            className={`rounded px-1.5 py-0.5 text-[10px] ${
+                              chatOpts.model === model.id
+                                ? 'bg-accent/20 text-accent'
+                                : 'bg-bg-primary text-text-muted'
+                            }`}
+                          >
+                            {model.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Expanded configuration */}
+                    {isExpanded && (
+                      <div className="mt-3 space-y-3 border-t border-border pt-3">
+                        {/* Model Selection */}
+                        {provider.models.length > 0 && (
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-text-secondary">
+                              Default Model
+                            </label>
+                            <select
+                              className="input text-xs w-full"
+                              value={chatOpts.model ?? provider.models[0]?.id ?? ''}
+                              onChange={(e) => handleChatOptionChange(provider.id, { model: e.target.value })}
+                            >
+                              {provider.models.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.name} ({(m.contextWindow / 1000).toFixed(0)}k ctx)
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         )}
-                      </button>
-                      <button
-                        className="btn btn-ghost btn-sm rounded p-1"
-                        onClick={() => setEditingProvider(provider.id)}
-                        title="Edit provider"
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 12 12"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                        >
-                          <path d="M8.5 1.5l2 2L4 10H2v-2l6.5-6.5z" />
-                        </svg>
-                      </button>
-                    </div>
+
+                        {/* Temperature */}
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-text-secondary">
+                            Temperature: {chatOpts.temperature.toFixed(1)}
+                          </label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="2"
+                            step="0.1"
+                            value={chatOpts.temperature}
+                            onChange={(e) => handleChatOptionChange(provider.id, { temperature: parseFloat(e.target.value) })}
+                            className="w-full accent-accent"
+                          />
+                          <div className="flex justify-between text-[10px] text-text-muted mt-0.5">
+                            <span>Precise</span>
+                            <span>Creative</span>
+                          </div>
+                        </div>
+
+                        {/* Max Tokens */}
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-text-secondary">
+                            Max Tokens
+                          </label>
+                          <input
+                            type="number"
+                            className="input text-xs w-full"
+                            value={chatOpts.maxTokens}
+                            min={1}
+                            max={200000}
+                            step={256}
+                            onChange={(e) => handleChatOptionChange(provider.id, { maxTokens: parseInt(e.target.value, 10) || 4096 })}
+                          />
+                        </div>
+
+                        {/* Streaming Toggle */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-text-primary">Streaming</p>
+                            <p className="text-[10px] text-text-muted">Stream responses token-by-token</p>
+                          </div>
+                          <button
+                            className={`relative h-5 w-9 rounded-full transition-colors ${
+                              chatOpts.streaming ? 'bg-accent' : 'bg-border'
+                            }`}
+                            onClick={() => handleChatOptionChange(provider.id, { streaming: !chatOpts.streaming })}
+                            role="switch"
+                            aria-checked={chatOpts.streaming}
+                          >
+                            <span
+                              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                                chatOpts.streaming ? 'left-[18px]' : 'left-0.5'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {/* Fallback toggle */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-text-primary">Fallback Provider</p>
+                            <p className="text-[10px] text-text-muted">Used when active provider fails</p>
+                          </div>
+                          <button
+                            className={`relative h-5 w-9 rounded-full transition-colors ${
+                              provider.isFallback ? 'bg-yellow-500' : 'bg-border'
+                            }`}
+                            onClick={() => handleSetFallback(provider.id)}
+                            role="switch"
+                            aria-checked={provider.isFallback ?? false}
+                          >
+                            <span
+                              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                                provider.isFallback ? 'left-[18px]' : 'left-0.5'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {/* Base URL (for local/custom) */}
+                        {(provider.type === 'ollama' || provider.type === 'lmstudio' || provider.type === 'custom') && (
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-text-secondary">
+                              Base URL
+                            </label>
+                            <input
+                              type="text"
+                              className="input text-xs w-full"
+                              value={provider.baseUrl ?? ''}
+                              readOnly
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-
-                  {/* Test result */}
-                  {testResult[provider.id] && (
-                    <div className="mt-2 text-xs">
-                      {testResult[provider.id].success ? (
-                        <span className="text-success">
-                          Connected ({testResult[provider.id].latency}ms)
-                        </span>
-                      ) : (
-                        <span className="text-error">Connection failed</span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Models list */}
-                  {provider.models.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {provider.models.map((model) => (
-                        <span
-                          key={model.id}
-                          className="rounded bg-bg-primary px-1.5 py-0.5 text-[10px] text-text-muted"
-                        >
-                          {model.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
 
               {/* Add Provider */}
               {isAddingProvider ? (
@@ -223,15 +494,16 @@ const SettingsPanel: React.FC = () => {
                     <select
                       className="input text-xs"
                       value={providerForm.type}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const type = e.target.value as ProviderType;
+                        const selectedType = PROVIDER_TYPES.find((t) => t.value === type);
                         setProviderForm((prev) => ({
                           ...prev,
-                          type: e.target.value as ProviderType,
-                          name:
-                            PROVIDER_TYPES.find((t) => t.value === e.target.value)
-                              ?.label || prev.name,
-                        }))
-                      }
+                          type,
+                          name: prev.name || selectedType?.label || type,
+                          baseUrl: prev.baseUrl || selectedType?.defaultBaseUrl || '',
+                        }));
+                      }}
                     >
                       {PROVIDER_TYPES.map((pt) => (
                         <option key={pt.value} value={pt.value}>
@@ -256,22 +528,26 @@ const SettingsPanel: React.FC = () => {
                     />
                   </div>
 
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-text-secondary">
-                      API Key
-                    </label>
-                    <input
-                      type="password"
-                      className="input text-xs"
-                      placeholder="sk-..."
-                      value={providerForm.apiKey}
-                      onChange={(e) =>
-                        setProviderForm((prev) => ({ ...prev, apiKey: e.target.value }))
-                      }
-                    />
-                  </div>
+                  {/* API Key (only for types that need it) */}
+                  {(PROVIDER_TYPES.find((t) => t.value === providerForm.type)?.needsApiKey || providerForm.type === 'custom') && (
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-text-secondary">
+                        API Key
+                      </label>
+                      <input
+                        type="password"
+                        className="input text-xs"
+                        placeholder="sk-..."
+                        value={providerForm.apiKey}
+                        onChange={(e) =>
+                          setProviderForm((prev) => ({ ...prev, apiKey: e.target.value }))
+                        }
+                      />
+                    </div>
+                  )}
 
-                  {providerForm.type === 'custom' || providerForm.type === 'local' ? (
+                  {/* Base URL for local/custom providers */}
+                  {(providerForm.type === 'ollama' || providerForm.type === 'lmstudio' || providerForm.type === 'custom') && (
                     <div>
                       <label className="mb-1 block text-xs font-medium text-text-secondary">
                         Base URL
@@ -286,7 +562,7 @@ const SettingsPanel: React.FC = () => {
                         }
                       />
                     </div>
-                  ) : null}
+                  )}
 
                   <div className="flex items-center gap-2">
                     <button

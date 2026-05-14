@@ -94,7 +94,7 @@ export function registerFsHandlers(): void {
       }
 
       pathSandbox.setWorkspaceRoot(resolved);
-      logger.info(`[IPC] Workspace root set to: ${resolved}`);
+      logger.info('ipc', `Workspace root set to: ${resolved}`);
 
       return ok({ workspaceRoot: resolved, set: true });
     } catch (error) {

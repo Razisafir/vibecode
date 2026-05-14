@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import type { ProviderType } from '../types';
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -24,48 +25,118 @@ const STEPS: OnboardingStep[] = [
     id: 'provider',
     title: 'Connect Your AI Provider',
     description:
-      'Choose your preferred AI provider and enter your API key. VibeCode supports OpenAI, Anthropic, Google, and local models.',
+      'Choose your preferred AI provider and enter your API key. VibeCode supports OpenAI, Anthropic, Google, Ollama, and LM Studio.',
     gradient: 'from-success/20 via-bg-tertiary to-bg-secondary',
+  },
+  {
+    id: 'model',
+    title: 'Configure Model Settings',
+    description:
+      'Select a default model and adjust settings for your provider. You can always change these later in Settings.',
+    gradient: 'from-info/20 via-bg-tertiary to-bg-secondary',
   },
   {
     id: 'workspace',
     title: 'Set Up Your Workspace',
     description:
       'Choose a directory for your projects. VibeCode will analyze your codebase, remember decisions, and provide context-aware assistance.',
-    gradient: 'from-info/20 via-bg-tertiary to-bg-secondary',
+    gradient: 'from-purple-500/20 via-bg-tertiary to-bg-secondary',
   },
   {
     id: 'ready',
-    title: 'You\'re All Set!',
+    title: "You're All Set!",
     description:
       'Start by opening a project, asking the AI assistant, or exploring the workspace. Use Cmd+K anytime to open the command palette.',
     gradient: 'from-accent/30 via-success/20 to-bg-secondary',
   },
 ];
 
+interface ProviderOption {
+  type: ProviderType;
+  label: string;
+  description: string;
+  needsApiKey: boolean;
+  placeholder: string;
+  defaultBaseUrl: string;
+}
+
+const PROVIDER_OPTIONS: ProviderOption[] = [
+  {
+    type: 'openai',
+    label: 'OpenAI',
+    description: 'GPT-4o, o1, and more',
+    needsApiKey: true,
+    placeholder: 'sk-...',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+  },
+  {
+    type: 'anthropic',
+    label: 'Anthropic',
+    description: 'Claude Sonnet 4, Haiku',
+    needsApiKey: true,
+    placeholder: 'sk-ant-...',
+    defaultBaseUrl: 'https://api.anthropic.com/v1',
+  },
+  {
+    type: 'google',
+    label: 'Google',
+    description: 'Gemini 2.0 Flash, 2.5 Pro',
+    needsApiKey: true,
+    placeholder: 'AIza...',
+    defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+  },
+  {
+    type: 'ollama',
+    label: 'Ollama',
+    description: 'Run local models like Llama, CodeLlama',
+    needsApiKey: false,
+    placeholder: '',
+    defaultBaseUrl: 'http://localhost:11434/api',
+  },
+  {
+    type: 'lmstudio',
+    label: 'LM Studio',
+    description: 'Run local models with OpenAI-compatible API',
+    needsApiKey: false,
+    placeholder: '',
+    defaultBaseUrl: 'http://localhost:1234/v1',
+  },
+];
+
 const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [providerType, setProviderType] = useState('openai');
+  const [providerType, setProviderType] = useState<ProviderType>('openai');
   const [apiKey, setApiKey] = useState('');
+  const [customBaseUrl, setCustomBaseUrl] = useState('');
   const [workspacePath, setWorkspacePath] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const [selectedModel, setSelectedModel] = useState('');
+  const [temperature, setTemperature] = useState(0.7);
+  const [maxTokens, setMaxTokens] = useState(4096);
+  const [streaming, setStreaming] = useState(true);
+  const [skipProvider, setSkipProvider] = useState(false);
 
   const step = STEPS[currentStep];
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === STEPS.length - 1;
   const isProviderStep = currentStep === 1;
-  const isWorkspaceStep = currentStep === 2;
+  const isModelStep = currentStep === 2;
+  const isWorkspaceStep = currentStep === 3;
+
+  const selectedProviderOption = PROVIDER_OPTIONS.find((p) => p.type === providerType);
 
   const handleNext = useCallback(async () => {
     // Validate provider step
-    if (isProviderStep && apiKey.trim()) {
+    if (isProviderStep && !skipProvider && apiKey.trim()) {
       setIsValidating(true);
       setValidationError('');
       try {
         const result = await window.vibecode?.provider.configure({
-          type: providerType as 'openai' | 'anthropic' | 'google',
-          apiKey: apiKey.trim(),
+          name: selectedProviderOption?.label ?? providerType,
+          type: providerType,
+          apiKey: apiKey.trim() || undefined,
+          baseUrl: customBaseUrl.trim() || selectedProviderOption?.defaultBaseUrl || undefined,
         });
         if (result && !result.success) {
           setValidationError('Failed to configure provider. Please check your API key.');
@@ -76,6 +147,13 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
         // In dev without full backend, allow continuing
       }
       setIsValidating(false);
+    }
+
+    // Skip model step if provider setup was skipped
+    if (isProviderStep && skipProvider) {
+      // Skip to workspace step
+      setCurrentStep(3);
+      return;
     }
 
     // Validate workspace step
@@ -92,12 +170,33 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
       }
     }
 
+    if (isModelStep && !skipProvider) {
+      // Save model/chat options
+      try {
+        const listResult = await window.vibecode?.provider.list();
+        if (listResult?.success && listResult.data?.providers?.length) {
+          const latestProvider = listResult.data.providers[listResult.data.providers.length - 1];
+          if (latestProvider) {
+            await window.vibecode?.provider.setChatOptions(latestProvider.id, {
+              temperature,
+              maxTokens,
+              streaming,
+              model: selectedModel || undefined,
+            });
+            await window.vibecode?.provider.setActive(latestProvider.id);
+          }
+        }
+      } catch {
+        // Best-effort
+      }
+    }
+
     if (isLastStep) {
       onComplete();
     } else {
       setCurrentStep((prev) => prev + 1);
     }
-  }, [currentStep, isProviderStep, isWorkspaceStep, isLastStep, apiKey, providerType, workspacePath, onComplete]);
+  }, [currentStep, isProviderStep, isModelStep, isWorkspaceStep, isLastStep, apiKey, providerType, customBaseUrl, workspacePath, selectedProviderOption, skipProvider, selectedModel, temperature, maxTokens, streaming, onComplete]);
 
   const handleBack = useCallback(() => {
     if (currentStep > 0) {
@@ -107,7 +206,6 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
 
   const handleBrowseWorkspace = useCallback(async () => {
     try {
-      // Try to use the native dialog via IPC
       await window.vibecode?.workspace.open('');
     } catch {
       // Fallback: user can type path manually
@@ -118,43 +216,192 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
     if (isProviderStep) {
       return (
         <div className="space-y-4">
-          <div className="flex gap-2">
-            {(['openai', 'anthropic', 'google'] as const).map((type) => (
-              <button
-                key={type}
-                className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
-                  providerType === type
-                    ? 'border-accent bg-accent/10 text-accent'
-                    : 'border-border bg-bg-primary text-text-secondary hover:border-accent/50'
-                }`}
-                onClick={() => setProviderType(type)}
-              >
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </button>
-            ))}
-          </div>
-          <div>
-            <label
-              htmlFor="api-key"
-              className="mb-1.5 block text-xs font-medium text-text-secondary"
+          {/* Skip provider option */}
+          <div className="flex items-center justify-between rounded-lg bg-bg-primary px-3 py-2">
+            <div>
+              <p className="text-sm text-text-primary">Skip provider setup</p>
+              <p className="text-xs text-text-muted">Configure later in Settings</p>
+            </div>
+            <button
+              className={`relative h-5 w-9 rounded-full transition-colors ${
+                skipProvider ? 'bg-accent' : 'bg-border'
+              }`}
+              onClick={() => setSkipProvider(!skipProvider)}
+              role="switch"
+              aria-checked={skipProvider}
             >
-              API Key
+              <span
+                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                  skipProvider ? 'left-[18px]' : 'left-0.5'
+                }`}
+              />
+            </button>
+          </div>
+
+          {!skipProvider && (
+            <>
+              {/* Provider selection grid */}
+              <div className="grid grid-cols-2 gap-2">
+                {PROVIDER_OPTIONS.map((option) => (
+                  <button
+                    key={option.type}
+                    className={`rounded-lg border px-3 py-2.5 text-left transition-all ${
+                      providerType === option.type
+                        ? 'border-accent bg-accent/10 text-accent'
+                        : 'border-border bg-bg-primary text-text-secondary hover:border-accent/50'
+                    }`}
+                    onClick={() => {
+                      setProviderType(option.type);
+                      setCustomBaseUrl('');
+                      setValidationError('');
+                    }}
+                  >
+                    <span className="block text-sm font-medium">
+                      {option.label}
+                    </span>
+                    <span className="block text-xs opacity-70 mt-0.5">
+                      {option.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* API Key input (conditional) */}
+              {selectedProviderOption?.needsApiKey && (
+                <div>
+                  <label
+                    htmlFor="api-key"
+                    className="mb-1.5 block text-xs font-medium text-text-secondary"
+                  >
+                    API Key
+                  </label>
+                  <input
+                    id="api-key"
+                    type="password"
+                    className="input"
+                    placeholder={selectedProviderOption.placeholder}
+                    value={apiKey}
+                    onChange={(e) => {
+                      setApiKey(e.target.value);
+                      setValidationError('');
+                    }}
+                  />
+                  <p className="mt-1.5 text-xs text-text-muted">
+                    Your key is stored locally with obfuscation and never sent to our servers.
+                  </p>
+                </div>
+              )}
+
+              {/* Base URL for local providers */}
+              {(providerType === 'ollama' || providerType === 'lmstudio' || providerType === 'custom') && (
+                <div>
+                  <label
+                    htmlFor="base-url"
+                    className="mb-1.5 block text-xs font-medium text-text-secondary"
+                  >
+                    Base URL
+                  </label>
+                  <input
+                    id="base-url"
+                    type="text"
+                    className="input"
+                    placeholder={selectedProviderOption?.defaultBaseUrl ?? 'http://localhost:8080'}
+                    value={customBaseUrl}
+                    onChange={(e) => {
+                      setCustomBaseUrl(e.target.value);
+                      setValidationError('');
+                    }}
+                  />
+                </div>
+              )}
+
+              {validationError && (
+                <p className="text-xs text-error">{validationError}</p>
+              )}
+            </>
+          )}
+        </div>
+      );
+    }
+
+    if (isModelStep) {
+      return (
+        <div className="space-y-4">
+          {/* Model selection would be populated from provider models */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-text-secondary">
+              Default Model
             </label>
             <input
-              id="api-key"
-              type="password"
+              type="text"
               className="input"
-              placeholder={`Enter your ${providerType} API key...`}
-              value={apiKey}
-              onChange={(e) => {
-                setApiKey(e.target.value);
-                setValidationError('');
-              }}
+              placeholder="e.g., gpt-4o, claude-sonnet-4-20250514"
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
             />
-            <p className="mt-1.5 text-xs text-text-muted">
-              Your key is stored locally and never sent to our servers.
+            <p className="mt-1 text-xs text-text-muted">
+              Leave blank to use the provider default
             </p>
           </div>
+
+          {/* Temperature */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-text-secondary">
+              Temperature: {temperature.toFixed(1)}
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="2"
+              step="0.1"
+              value={temperature}
+              onChange={(e) => setTemperature(parseFloat(e.target.value))}
+              className="w-full accent-accent"
+            />
+            <div className="flex justify-between text-xs text-text-muted mt-1">
+              <span>Precise (0)</span>
+              <span>Creative (2)</span>
+            </div>
+          </div>
+
+          {/* Max Tokens */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-text-secondary">
+              Max Tokens
+            </label>
+            <input
+              type="number"
+              className="input"
+              value={maxTokens}
+              min={1}
+              max={200000}
+              step={256}
+              onChange={(e) => setMaxTokens(parseInt(e.target.value, 10) || 4096)}
+            />
+          </div>
+
+          {/* Streaming */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-text-primary">Streaming</p>
+              <p className="text-xs text-text-muted">Stream responses token-by-token</p>
+            </div>
+            <button
+              className={`relative h-5 w-9 rounded-full transition-colors ${
+                streaming ? 'bg-accent' : 'bg-border'
+              }`}
+              onClick={() => setStreaming(!streaming)}
+              role="switch"
+              aria-checked={streaming}
+            >
+              <span
+                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                  streaming ? 'left-[18px]' : 'left-0.5'
+                }`}
+              />
+            </button>
+          </div>
+
           {validationError && (
             <p className="text-xs text-error">{validationError}</p>
           )}
@@ -213,6 +460,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
               'Open a project from the file explorer',
               'Ask the AI assistant to create something new',
               'Use Cmd+K to open the command palette',
+              'Use Cmd+P to search for files',
               'Browse your memory panel for context',
             ].map((suggestion) => (
               <div
@@ -301,10 +549,24 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
                 strokeWidth="1.5"
                 className="text-info"
               >
-                <path d="M6 6h10l3 3h15a2 2 0 012 2v20a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2z" />
+                <rect x="6" y="6" width="28" height="28" rx="4" />
+                <path d="M14 16h12M14 20h8M14 24h10" />
               </svg>
             )}
             {currentStep === 3 && (
+              <svg
+                width="40"
+                height="40"
+                viewBox="0 0 40 40"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                className="text-purple-400"
+              >
+                <path d="M6 6h10l3 3h15a2 2 0 012 2v20a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2z" />
+              </svg>
+            )}
+            {currentStep === 4 && (
               <svg
                 width="40"
                 height="40"

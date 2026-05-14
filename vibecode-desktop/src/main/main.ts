@@ -1,9 +1,15 @@
-import { app, BrowserWindow, Menu, shell, dialog } from 'electron';
+import { app, BrowserWindow, Menu, shell, dialog, session, Tray, nativeImage } from 'electron';
 import * as path from 'path';
 import { registerAllIpcHandlers } from './ipc/index';
 import { setQuitting, isQuitting } from './ipc/app-handlers';
 import { memoryStore } from './ipc/memory-handlers';
 import { sessionManager } from './ipc/session-handlers';
+import { telemetry } from './services/telemetry';
+import { watchdog } from './services/watchdog';
+import { crashDumpService } from './services/crash-dump';
+import { getTrayIconPath, getAppMetadata } from './services/branding';
+import { logger } from './utils/logger';
+import { auditLog } from './utils/audit-log';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -13,6 +19,44 @@ const VITE_DEV_SERVER_URL = 'http://localhost:5173';
 // ─── State ──────────────────────────────────────────────────────────────────
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let isSafeMode: boolean = false;
+
+// ─── Safe Mode Detection ────────────────────────────────────────────────────
+
+/** Check if the app should start in safe mode */
+function detectSafeMode(): boolean {
+  // Check for --safe-mode command line flag
+  if (process.argv.includes('--safe-mode')) {
+    logger.info('general', 'Safe mode requested via --safe-mode flag');
+    return true;
+  }
+
+  // Check for existing crash dumps
+  if (crashDumpService.hasCrashDumps()) {
+    logger.warn('general', 'Crash dumps detected — safe mode recommended');
+    return true;
+  }
+
+  return false;
+}
+
+/** Apply safe mode restrictions */
+function applySafeModeRestrictions(): void {
+  logger.info('general', 'Applying safe mode restrictions');
+
+  // Disable streaming by default (set environment variable for providers to check)
+  process.env.VIBECODE_SAFE_MODE = 'true';
+  process.env.VIBECODE_NO_STREAMING = 'true';
+
+  // Reduce memory limits
+  process.env.VIBECODE_MAX_MEMORY_MB = '256';
+
+  // Disable auto-save
+  process.env.VIBECODE_NO_AUTO_SAVE = 'true';
+
+  logger.info('general', 'Safe mode restrictions applied: streaming disabled, memory limited, auto-save disabled');
+}
 
 // ─── App Lock ───────────────────────────────────────────────────────────────
 
@@ -33,18 +77,64 @@ if (!gotTheLock) {
   // ─── App Lifecycle ──────────────────────────────────────────────────────
 
   app.on('ready', () => {
+    // Detect safe mode before anything else
+    isSafeMode = detectSafeMode();
+
+    // Initialize crash dump service (register global error handlers)
+    crashDumpService.initialize();
+
+    // Initialize telemetry monitoring
+    telemetry.startMonitoring();
+
     // Check for crashed sessions BEFORE creating the window
     const crashed = sessionManager.wasCrashed();
     if (crashed) {
-      console.log('[VibeCode] Previous session crashed — recovery will be offered');
+      logger.info('session', 'Previous session crashed — recovery will be offered');
     }
+
+    // Apply safe mode restrictions if needed
+    if (isSafeMode) {
+      applySafeModeRestrictions();
+    }
+
+    // ── Content Security Policy ─────────────────────────────────────────────
+    setupContentSecurityPolicy();
 
     createWindow();
     registerAllIpcHandlers();
     setupMenu();
+    setupTray();
+
+    // Start watchdog monitoring after window is created
+    if (mainWindow) {
+      watchdog.startWatching();
+
+      watchdog.on('watchdog:unresponsive', (data) => {
+        logger.warn('watchdog', 'Renderer unresponsive detected', data);
+      });
+
+      watchdog.on('watchdog:recovered', (data) => {
+        logger.info('watchdog', 'Renderer recovered', data);
+      });
+
+      watchdog.on('watchdog:failed', (data) => {
+        logger.error('watchdog', 'Watchdog recovery failed — recreating window', data);
+        // Last resort: destroy and recreate window
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.destroy();
+          mainWindow = null;
+        }
+        createWindow();
+      });
+    }
 
     if (IS_DEV) {
-      console.log('[VibeCode] Running in development mode');
+      logger.info('general', 'Running in development mode');
+    }
+
+    // Show safe mode dialog if crash dumps exist
+    if (isSafeMode && mainWindow) {
+      showSafeModeDialog();
     }
   });
 
@@ -91,11 +181,101 @@ if (!gotTheLock) {
       // Mark safe shutdown before quitting
       try {
         sessionManager.markSafeShutdown();
-        console.log('[VibeCode] Marked safe shutdown');
+        logger.info('general', 'Marked safe shutdown');
       } catch (err) {
-        console.error('[VibeCode] Failed to mark safe shutdown:', err);
+        logger.error('general', 'Failed to mark safe shutdown', { error: String(err) });
       }
     }
+  });
+}
+
+// ─── Content Security Policy ─────────────────────────────────────────────────
+
+/**
+ * Set strict Content Security Policy headers for the renderer process.
+ *
+ * In production: strict CSP that only allows 'self' resources.
+ * In development: relaxed CSP that allows Vite HMR and dev tools.
+ */
+function setupContentSecurityPolicy(): void {
+  const isDev = !app.isPackaged || !!process.env.VIBECODE_DEV;
+
+  const productionPolicy = [
+    `default-src 'self'`,
+    `script-src 'self' 'unsafe-inline'`,
+    `style-src 'self' 'unsafe-inline'`,
+    `img-src 'self' data: blob:`,
+    `connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:11434 http://localhost:1234`,
+    `font-src 'self'`,
+    `media-src 'self'`,
+    `object-src 'none'`,
+    `base-uri 'self'`,
+    `form-action 'self'`,
+  ].join('; ');
+
+  const developmentPolicy = [
+    `default-src 'self'`,
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5173`,
+    `style-src 'self' 'unsafe-inline'`,
+    `img-src 'self' data: blob: http://localhost:5173`,
+    `connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:11434 http://localhost:1234 http://localhost:5173 ws://localhost:5173`,
+    `font-src 'self' http://localhost:5173`,
+    `media-src 'self'`,
+    `object-src 'none'`,
+    `base-uri 'self'`,
+    `form-action 'self'`,
+  ].join('; ');
+
+  const policy = isDev ? developmentPolicy : productionPolicy;
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [policy],
+      },
+    });
+  });
+
+  logger.info('general', `Content Security Policy configured (${isDev ? 'development' : 'production'} mode)`);
+}
+
+// ─── Safe Mode Dialog ───────────────────────────────────────────────────────
+
+function showSafeModeDialog(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const crashDumps = crashDumpService.listCrashDumps();
+  const recentCrash = crashDumps[0];
+
+  const message = recentCrash
+    ? `VibeCode detected a previous crash:\n\n${recentCrash.error.message}\n\nSafe mode has been enabled with reduced functionality. You can restart normally after this session.`
+    : 'VibeCode is starting in safe mode with reduced functionality.';
+
+  dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    title: 'Safe Mode',
+    message: 'VibeCode — Safe Mode',
+    detail: message,
+    buttons: ['OK', 'Clear Crash Data & Restart Normally'],
+    defaultId: 0,
+    cancelId: 0,
+  }).then((result) => {
+    if (result.response === 1) {
+      // Clear crash data and restart normally
+      crashDumpService.clearCrashDumps().then(() => {
+        isSafeMode = false;
+        delete process.env.VIBECODE_SAFE_MODE;
+        delete process.env.VIBECODE_NO_STREAMING;
+        delete process.env.VIBECODE_MAX_MEMORY_MB;
+        delete process.env.VIBECODE_NO_AUTO_SAVE;
+        // Restart the app
+        app.relaunch();
+        app.exit(0);
+      });
+    }
+  }).catch(() => {
+    // Dialog may fail if window is destroyed
   });
 }
 
@@ -157,28 +337,40 @@ function createWindow(): void {
   // ─── Crash Recovery ───────────────────────────────────────────────────
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    console.error('[VibeCode] Render process gone:', details);
+    logger.error('general', 'Render process gone', {
+      reason: details.reason,
+      exitCode: details.exitCode,
+    });
+
+    // Generate crash dump
+    const error = new Error(`render-process-gone: ${details.reason || 'unknown'}`);
+    crashDumpService.generateCrashDump(error, {
+      source: 'render-process-gone',
+      reason: details.reason,
+      exitCode: details.exitCode,
+    }).catch(() => {
+      // Best-effort crash dump
+    });
 
     // Mark the session as crashed
-    const reason = details.reason || 'unknown';
     try {
-      sessionManager.markCrash(`render-process-gone: ${reason}`);
+      sessionManager.markCrash(`render-process-gone: ${details.reason}`);
     } catch (err) {
-      console.error('[VibeCode] Failed to mark crash:', err);
+      logger.error('general', 'Failed to mark crash', { error: String(err) });
     }
 
     if (details.reason === 'crashed' || details.reason === 'oom') {
       // Attempt recovery by reloading
       const recoveryDelay = 2000;
-      console.log(`[VibeCode] Attempting crash recovery in ${recoveryDelay}ms...`);
+      logger.info('general', `Attempting crash recovery in ${recoveryDelay}ms...`);
 
       setTimeout(() => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           try {
             mainWindow.reload();
-            console.log('[VibeCode] Crash recovery: window reloaded');
+            logger.info('general', 'Crash recovery: window reloaded');
           } catch (err) {
-            console.error('[VibeCode] Crash recovery failed:', err);
+            logger.error('general', 'Crash recovery failed', { error: String(err) });
             // Last resort: recreate window
             createWindow();
           }
@@ -192,18 +384,18 @@ function createWindow(): void {
 
   // Handle unresponsive renderer
   mainWindow.on('unresponsive', () => {
-    console.warn('[VibeCode] Renderer is unresponsive');
+    logger.warn('general', 'Renderer is unresponsive');
   });
 
   mainWindow.on('responsive', () => {
-    console.log('[VibeCode] Renderer is responsive again');
+    logger.info('general', 'Renderer is responsive again');
   });
 
   // Handle GPU process crash (Electron 33+ uses 'child-process-gone' instead)
   try {
     app.on('child-process-gone', (_event, details) => {
       if (details.type === 'GPU' && details.reason !== 'killed') {
-        console.error('[VibeCode] GPU process crashed:', details.reason);
+        logger.error('general', 'GPU process crashed', { reason: details.reason });
         try {
           sessionManager.markCrash(`gpu-process-crashed: ${details.reason}`);
         } catch {
@@ -213,6 +405,73 @@ function createWindow(): void {
     });
   } catch {
     // Older Electron versions may not support this event
+  }
+}
+
+// ─── Tray Icon Setup ─────────────────────────────────────────────────────────
+
+/**
+ * Sets up the system tray icon with context menu.
+ * Only creates the tray if a valid icon asset is found.
+ * This function is ready to be called — it will silently skip
+ * if no tray icon asset is available yet.
+ */
+function setupTray(): void {
+  const trayIconPath = getTrayIconPath();
+  if (!trayIconPath) {
+    logger.info('general', 'No tray icon available — skipping tray setup');
+    return;
+  }
+
+  try {
+    const icon = nativeImage.createFromPath(trayIconPath);
+    if (icon.isEmpty()) {
+      logger.warn('general', 'Tray icon image is empty — skipping tray setup');
+      return;
+    }
+
+    const metadata = getAppMetadata();
+
+    tray = new Tray(icon.resize({ width: 16, height: 16 }));
+    tray.setToolTip(metadata.name);
+
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: `Show ${metadata.name}`,
+        click: () => {
+          if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Quit',
+        accelerator: 'CmdOrCtrl+Q',
+        click: () => {
+          setQuitting(true);
+          cleanupAndQuit();
+        },
+      },
+    ]);
+
+    tray.setContextMenu(contextMenu);
+
+    // On Windows/Linux, clicking the tray shows the window
+    tray.on('click', () => {
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+
+    logger.info('general', 'System tray icon created successfully');
+  } catch (err) {
+    logger.error('general', 'Failed to create tray icon', { error: String(err) });
+    tray = null;
   }
 }
 
@@ -387,30 +646,60 @@ function setupMenu(): void {
 // ─── Cleanup & Quit ─────────────────────────────────────────────────────────
 
 function cleanupAndQuit(): void {
-  console.log('[VibeCode] Performing cleanup before quit...');
+  logger.info('general', 'Performing cleanup before quit...');
+
+  // Stop telemetry monitoring
+  try {
+    telemetry.stopMonitoring();
+    logger.info('general', 'Telemetry monitoring stopped');
+  } catch (err) {
+    logger.error('general', 'Failed to stop telemetry', { error: String(err) });
+  }
+
+  // Stop watchdog
+  try {
+    watchdog.stopWatching();
+    logger.info('general', 'Watchdog stopped');
+  } catch (err) {
+    logger.error('general', 'Failed to stop watchdog', { error: String(err) });
+  }
 
   // Mark safe shutdown FIRST
   try {
     sessionManager.markSafeShutdown();
-    console.log('[VibeCode] Marked safe shutdown');
+    logger.info('general', 'Marked safe shutdown');
   } catch (err) {
-    console.error('[VibeCode] Failed to mark safe shutdown:', err);
+    logger.error('general', 'Failed to mark safe shutdown', { error: String(err) });
   }
 
   // Flush memory store to disk
   try {
     memoryStore.flush();
-    console.log('[VibeCode] Memory store flushed');
+    logger.info('general', 'Memory store flushed');
   } catch (err) {
-    console.error('[VibeCode] Failed to flush memory store:', err);
+    logger.error('general', 'Failed to flush memory store', { error: String(err) });
   }
 
   // Dispose session manager (stop auto-save timers, flush current state)
   try {
     sessionManager.dispose();
-    console.log('[VibeCode] Session manager disposed');
+    logger.info('general', 'Session manager disposed');
   } catch (err) {
-    console.error('[VibeCode] Failed to dispose session manager:', err);
+    logger.error('general', 'Failed to dispose session manager', { error: String(err) });
+  }
+
+  // Flush logger
+  try {
+    logger.flush();
+  } catch {
+    // Best-effort
+  }
+
+  // Flush audit log
+  try {
+    auditLog.forceFlush();
+  } catch {
+    // Best-effort
   }
 
   // Destroy window if it exists

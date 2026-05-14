@@ -10,6 +10,7 @@ interface SidebarProps {
   activeTab: SidebarTab;
   onTabChange: (tab: SidebarTab) => void;
   onToggle: () => void;
+  width?: number;
 }
 
 interface SidebarIconProps {
@@ -37,7 +38,7 @@ const TAB_CONFIG: { id: SidebarTab; label: string }[] = [
   { id: 'settings', label: 'Settings' },
 ];
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeTab, onTabChange, onToggle }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeTab, onTabChange, onToggle, width = 280 }) => {
   const renderTabIcon = (tab: SidebarTab) => {
     switch (tab) {
       case 'files':
@@ -134,7 +135,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeTab, onTabChange, onTog
       </div>
 
       {/* Expandable Panel */}
-      <div className={`sidebar-panel ${isOpen ? '' : 'collapsed'}`}>
+      <div
+        className={`sidebar-panel sidebar-transition ${isOpen ? '' : 'collapsed'}`}
+        style={isOpen ? { width: `${width}px` } : undefined}
+      >
         {/* Panel Header */}
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">

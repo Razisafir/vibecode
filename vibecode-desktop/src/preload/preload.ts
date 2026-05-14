@@ -27,11 +27,19 @@ const vibecode = {
   provider: {
     list: () => ipcRenderer.invoke('provider:list'),
     configure: (config: any) => ipcRenderer.invoke('provider:configure', config),
+    update: (id: string, updates: any) => ipcRenderer.invoke('provider:update', id, updates),
+    remove: (id: string) => ipcRenderer.invoke('provider:remove', id),
     test: (id: string) => ipcRenderer.invoke('provider:test', id),
     route: (requirements: any) => ipcRenderer.invoke('provider:route', requirements),
     chat: (providerId: string, model: string, messages: any[], options?: any) =>
       ipcRenderer.invoke('provider:chat', providerId, model, messages, options),
     models: (id: string) => ipcRenderer.invoke('provider:models', id),
+    setActive: (id: string) => ipcRenderer.invoke('provider:setActive', id),
+    getActive: () => ipcRenderer.invoke('provider:getActive'),
+    setFallback: (id: string) => ipcRenderer.invoke('provider:setFallback', id),
+    getConfig: (id: string) => ipcRenderer.invoke('provider:getConfig', id),
+    getChatOptions: (id: string) => ipcRenderer.invoke('provider:getChatOptions', id),
+    setChatOptions: (id: string, options: any) => ipcRenderer.invoke('provider:setChatOptions', id, options),
     onStream: (callback: (chunk: string) => void) => {
       ipcRenderer.on('provider:stream', (_event, chunk) => callback(chunk));
     },
@@ -53,7 +61,6 @@ const vibecode = {
     list: () => ipcRenderer.invoke('session:list'),
     delete: (sessionId: string) => ipcRenderer.invoke('session:delete', sessionId),
     getLatest: (projectId: string) => ipcRenderer.invoke('session:getLatest', projectId),
-    // Enhanced session methods
     saveEnhanced: (state: any) => ipcRenderer.invoke('session:saveEnhanced', state),
     restoreEnhanced: (sessionId: string) => ipcRenderer.invoke('session:restoreEnhanced', sessionId),
     wasCrashed: () => ipcRenderer.invoke('session:wasCrashed'),
@@ -97,11 +104,36 @@ const vibecode = {
     onStepUpdate: (callback: (update: any) => void) => {
       ipcRenderer.on('execution:step:update', (_event, update) => callback(update));
     },
+    // ── Diff Preview ──────────────────────────────────────────────────────
+    getDiff: (stepId: string) => ipcRenderer.invoke('execution:getDiff', stepId),
+    getPlanDiffs: (planId: string) => ipcRenderer.invoke('execution:getPlanDiffs', planId),
+    getStepResult: (stepId: string) => ipcRenderer.invoke('execution:getStepResult', stepId),
+    getStepOutput: (stepId: string) => ipcRenderer.invoke('execution:getStepOutput', stepId),
+    // ── Execution Queue ───────────────────────────────────────────────────
+    queue: {
+      list: () => ipcRenderer.invoke('execution:queue:list'),
+      add: (planId: string, priority?: number, stepTimeout?: number) =>
+        ipcRenderer.invoke('execution:queue:add', planId, priority, stepTimeout),
+      cancel: (entryId: string) => ipcRenderer.invoke('execution:queue:cancel', entryId),
+    },
+    // ── Execution History ─────────────────────────────────────────────────
+    getHistory: () => ipcRenderer.invoke('execution:getHistory'),
+    // ── Queue Update Events ───────────────────────────────────────────────
+    onQueueUpdate: (callback: (update: any) => void) => {
+      ipcRenderer.on('execution:queue:update', (_event, update) => callback(update));
+    },
   },
   workspace: {
     analyze: (path: string) => ipcRenderer.invoke('workspace:analyze', path),
     open: (path: string) => ipcRenderer.invoke('workspace:open', path),
     close: () => ipcRenderer.invoke('workspace:close'),
+    recent: (limit?: number) => ipcRenderer.invoke('workspace:recent', limit),
+    addRecent: (path: string, name?: string, type?: string) => ipcRenderer.invoke('workspace:addRecent', path, name, type),
+    removeRecent: (path: string) => ipcRenderer.invoke('workspace:removeRecent', path),
+    switchWorkspace: (path: string) => ipcRenderer.invoke('workspace:switchWorkspace', path),
+    getInfo: () => ipcRenderer.invoke('workspace:getInfo'),
+    searchFiles: (pattern: string, maxResults?: number) => ipcRenderer.invoke('workspace:searchFiles', pattern, maxResults),
+    fuzzySearch: (query: string, maxResults?: number) => ipcRenderer.invoke('workspace:fuzzySearch', query, maxResults),
   },
   proposal: {
     generateFromResponse: (response: string, context?: { workspaceRoot?: string; projectId?: string }) =>

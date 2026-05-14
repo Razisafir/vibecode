@@ -23,17 +23,25 @@ export interface VibeCodeAPI {
     onData(callback: (id: string, data: string) => void): void;
   };
   provider: {
-    list(): Promise<Provider[]>;
-    configure(config: Partial<Provider>): Promise<{ success: boolean }>;
-    test(id: string): Promise<{ success: boolean; latency: number }>;
-    route(requirements: Record<string, unknown>): Promise<Provider>;
+    list(): Promise<{ success: boolean; data?: { providers: Provider[] }; error?: string }>;
+    configure(config: Partial<ProviderConfig>): Promise<{ success: boolean; data?: { provider: Provider }; error?: string }>;
+    update(id: string, updates: Partial<ProviderConfig>): Promise<{ success: boolean; data?: { provider: Provider }; error?: string }>;
+    remove(id: string): Promise<{ success: boolean; data?: { removed: boolean; providerId: string }; error?: string }>;
+    test(id: string): Promise<{ success: boolean; data?: { success: boolean; latency: number }; error?: string }>;
+    route(requirements: Record<string, unknown>): Promise<{ success: boolean; data?: { provider: Provider }; error?: string }>;
     chat(
       providerId: string,
       model: string,
       messages: ChatMessage[],
       options?: ChatOptions,
-    ): Promise<void>;
-    models(id: string): Promise<ModelInfo[]>;
+    ): Promise<{ success: boolean; data?: { content: string; providerId: string; model: string }; error?: string }>;
+    models(id: string): Promise<{ success: boolean; data?: { models: ModelInfo[] }; error?: string }>;
+    setActive(id: string): Promise<{ success: boolean; data?: { id: string; active: boolean }; error?: string }>;
+    getActive(): Promise<{ success: boolean; data?: { provider: Provider | null }; error?: string }>;
+    setFallback(id: string): Promise<{ success: boolean; data?: { id: string; fallback: boolean }; error?: string }>;
+    getConfig(id: string): Promise<{ success: boolean; data?: { config: Record<string, unknown> }; error?: string }>;
+    getChatOptions(id: string): Promise<{ success: boolean; data?: { chatOptions: ChatOptions }; error?: string }>;
+    setChatOptions(id: string, options: Partial<ChatOptions>): Promise<{ success: boolean; data?: { id: string; chatOptions: ChatOptions }; error?: string }>;
     onStream(callback: (chunk: string) => void): void;
   };
   memory: {
@@ -52,7 +60,6 @@ export interface VibeCodeAPI {
     list(): Promise<SessionState[]>;
     delete(sessionId: string): Promise<boolean>;
     getLatest(projectId: string): Promise<SessionState | null>;
-    // Enhanced session methods
     saveEnhanced(state: EnhancedSessionState): Promise<void>;
     restoreEnhanced(sessionId: string): Promise<EnhancedSessionState | null>;
     wasCrashed(): Promise<boolean>;
@@ -66,19 +73,55 @@ export interface VibeCodeAPI {
     archiveCrashedSession(sessionId: string): Promise<boolean>;
   };
   execution: {
-    plan(title: string, description: string, steps: Omit<ExecutionStep, 'id' | 'planId' | 'retryCount'>[]): Promise<ExecutionPlan>;
-    execute(planId: string): Promise<ExecutionPlan>;
-    status(planId: string): Promise<ExecutionPlan>;
-    cancel(planId: string): Promise<void>;
-    retry(stepId: string): Promise<ExecutionStep>;
-    history(projectId?: string): Promise<ExecutionPlan[]>;
-    propose(step: Partial<ExecutionStep>): Promise<ProposalCard>;
-    onStatus(callback: (status: ExecutionPlan) => void): void;
+    plan(title: string, description: string, steps: any[]): Promise<{ success: boolean; data?: { plan: ExecutionPlan }; error?: string }>;
+    execute(planId: string): Promise<{ success: boolean; data?: { plan: ExecutionPlan }; error?: string }>;
+    status(planId: string): Promise<{ success: boolean; data?: { plan: { id: string; title: string; description: string; status: string; createdAt: number; updatedAt: number }; steps: Array<{ id: string; title: string; type: string; status: string; riskLevel: RiskLevel; requiresApproval: boolean; error?: string; retryCount: number; startedAt?: number; completedAt?: number }>; progress: { total: number; completed: number; failed: number; running: number; pending: number } }; error?: string }>;
+    cancel(planId: string): Promise<{ success: boolean; data?: { plan: ExecutionPlan | null }; error?: string }>;
+    retry(stepId: string): Promise<{ success: boolean; data?: { step: ExecutionStep }; error?: string }>;
+    history(planId: string): Promise<{ success: boolean; data?: { history: any[]; planId: string }; error?: string }>;
+    propose(title: string, description: string, steps: any[]): Promise<{ success: boolean; data?: { plan: ExecutionPlan }; error?: string }>;
+    approve(planId: string): Promise<{ success: boolean; data?: { plan: ExecutionPlan }; error?: string }>;
+    getPlan(planId: string): Promise<{ success: boolean; data?: { plan: ExecutionPlan }; error?: string }>;
+    getStep(stepId: string): Promise<{ success: boolean; data?: { step: ExecutionStep }; error?: string }>;
+    executeStep(stepId: string): Promise<{ success: boolean; data?: { step: ExecutionStep }; error?: string }>;
+    detectBlockers(planId: string): Promise<{ success: boolean; data?: { blockers: ExecutionStep[]; count: number }; error?: string }>;
+    rollbackStep(stepId: string): Promise<{ success: boolean; data?: { step: ExecutionStep | null }; error?: string }>;
+    rollbackPlan(planId: string): Promise<{ success: boolean; data?: { plan: ExecutionPlan | null }; error?: string }>;
+    listPlans(): Promise<{ success: boolean; data?: { plans: any[]; total: number }; error?: string }>;
+    deletePlan(planId: string): Promise<{ success: boolean; data?: { deleted: boolean; planId: string }; error?: string }>;
+    setWorkspace(workspaceRoot: string): Promise<{ success: boolean; data?: { workspaceRoot: string }; error?: string }>;
+    onStatus(callback: (status: any) => void): void;
+    onStepUpdate(callback: (update: any) => void): void;
+    /** Get diff preview for a single step */
+    getDiff(stepId: string): Promise<{ success: boolean; data?: DiffResult; error?: string }>;
+    /** Get diff previews for all file-related steps in a plan */
+    getPlanDiffs(planId: string): Promise<{ success: boolean; data?: { diffs: DiffResult[] }; error?: string }>;
+    /** Get full step result including stdout for command steps */
+    getStepResult(stepId: string): Promise<{ success: boolean; data?: { step: ExecutionStep; output?: StepOutput }; error?: string }>;
+    /** Get truncated stdout/stderr for command steps */
+    getStepOutput(stepId: string): Promise<{ success: boolean; data?: StepOutput; error?: string }>;
+    /** Queue operations */
+    queue: {
+      list(): Promise<{ success: boolean; data?: { entries: ExecutionQueueEntry[] }; error?: string }>;
+      add(planId: string, priority?: number, stepTimeout?: number): Promise<{ success: boolean; data?: ExecutionQueueEntry; error?: string }>;
+      cancel(entryId: string): Promise<{ success: boolean; data?: { cancelled: boolean }; error?: string }>;
+    };
+    /** Get all completed execution history */
+    getHistory(): Promise<{ success: boolean; data?: { history: ExecutionHistoryEntry[] }; error?: string }>;
+    /** Queue update events */
+    onQueueUpdate(callback: (update: any) => void): void;
   };
   workspace: {
     analyze(path: string): Promise<WorkspaceAnalysis>;
-    open(path: string): Promise<void>;
-    close(): Promise<void>;
+    open(path: string): Promise<{ success: boolean; data?: { canceled?: boolean; workspace?: WorkspaceInfo }; error?: string }>;
+    close(): Promise<{ success: boolean; data?: { closed: boolean }; error?: string }>;
+    recent(limit?: number): Promise<{ success: boolean; data?: { workspaces: RecentWorkspaceInfo[] }; error?: string }>;
+    addRecent(path: string, name?: string, type?: string): Promise<{ success: boolean; data?: { workspace: RecentWorkspaceInfo }; error?: string }>;
+    removeRecent(path: string): Promise<{ success: boolean; data?: { removed: boolean; path: string }; error?: string }>;
+    switchWorkspace(path: string): Promise<{ success: boolean; data?: { workspace: WorkspaceInfo }; error?: string }>;
+    getInfo(): Promise<{ success: boolean; data?: { workspace: CurrentWorkspaceInfo | null }; error?: string }>;
+    searchFiles(pattern: string, maxResults?: number): Promise<{ success: boolean; data?: { files: FileSearchResult[] }; error?: string }>;
+    fuzzySearch(query: string, maxResults?: number): Promise<{ success: boolean; data?: { files: FileSearchResult[] }; error?: string }>;
   };
   proposal: {
     generateFromResponse(response: string, context?: { workspaceRoot?: string; projectId?: string }): Promise<{ success: boolean; data?: { intents: ExecutionIntent[]; proposals: ProposalCardData[] }; error?: string }>;
@@ -95,6 +138,13 @@ export interface VibeCodeAPI {
     minimize(): void;
     maximize(): void;
     close(): void;
+  };
+  telemetry: {
+    getMetrics(): Promise<{ success: boolean; data?: TelemetryMetrics; error?: string }>;
+    getRecentLogs(count?: number, level?: string): Promise<{ success: boolean; data?: { logs: LogEntry[] }; error?: string }>;
+    getCrashDumps(): Promise<{ success: boolean; data?: { dumps: CrashDump[] }; error?: string }>;
+    sendHeartbeat(data?: { fps?: number }): Promise<{ success: boolean; data?: { received: boolean }; error?: string }>;
+    clearCrashDumps(): Promise<{ success: boolean; data?: { cleared: boolean }; error?: string }>;
   };
 }
 
@@ -119,11 +169,10 @@ export interface ChatMessageMetadata {
 }
 
 export interface ChatOptions {
-  temperature?: number;
-  maxTokens?: number;
-  topP?: number;
-  stopSequences?: string[];
-  systemPrompt?: string;
+  temperature: number;
+  maxTokens: number;
+  streaming: boolean;
+  model?: string;
 }
 
 // ---- Memory ----
@@ -154,11 +203,25 @@ export interface Provider {
   baseUrl?: string;
   models: ModelInfo[];
   isAvailable: boolean;
+  lastChecked: number;
   latency: number;
   priority: number;
+  isActive?: boolean;
+  isFallback?: boolean;
+  chatOptions?: ChatOptions;
 }
 
-export type ProviderType = 'openai' | 'anthropic' | 'google' | 'local' | 'custom';
+export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'lmstudio' | 'custom';
+
+export interface ProviderConfig {
+  name: string;
+  type: ProviderType;
+  apiKey?: string;
+  baseUrl?: string;
+  models?: ModelInfo[];
+  priority?: number;
+  chatOptions?: ChatOptions;
+}
 
 export interface ModelInfo {
   id: string;
@@ -218,6 +281,15 @@ export interface FileStats {
   isDirectory: boolean;
   modified: number;
   created: number;
+}
+
+// ---- File Search ----
+
+export interface FileSearchResult {
+  path: string;
+  name: string;
+  extension: string;
+  relativePath: string;
 }
 
 // ---- Proposals ----
@@ -316,31 +388,26 @@ export interface SessionState {
 }
 
 export interface EnhancedSessionState extends SessionState {
-  // Enhanced execution state
   execution: ExecutionState & {
     activePlans: Array<ActivePlanInfo>;
     recentPlans: Array<RecentPlanInfo>;
     proposalQueue: string[];
   };
 
-  // Enhanced conversation with full metadata
   conversation: ConversationState & {
     messages: Array<EnhancedChatMessage>;
   };
 
-  // Enhanced layout state
   layout: LayoutState & {
     workspacePanel?: 'editor' | 'terminal' | 'welcome';
   };
 
-  // Enhanced workspace details
   workspace: WorkspaceState & {
     rootPath: string;
     expandedFolders: string[];
     recentFiles: string[];
   };
 
-  // Recovery metadata
   recovery: RecoveryState;
 }
 
@@ -426,6 +493,39 @@ export interface WorkspaceAnalysis {
   totalSize: number;
 }
 
+/** Full workspace info returned by workspace:open and workspace:analyze */
+export interface WorkspaceInfo {
+  rootPath: string;
+  name: string;
+  type: 'node' | 'python' | 'rust' | 'go' | 'java' | 'generic';
+  hasGit: boolean;
+  hasPackageJson: boolean;
+  hasReadme: boolean;
+  files: string[];
+  directories: string[];
+  languages: Record<string, number>;
+  totalFiles: number;
+  totalSize: number;
+}
+
+/** Current workspace info (lighter version) */
+export interface CurrentWorkspaceInfo {
+  rootPath: string;
+  name: string;
+  type: 'node' | 'python' | 'rust' | 'go' | 'java' | 'generic';
+  hasGit: boolean;
+  totalFiles: number;
+  languages: Record<string, number>;
+}
+
+/** Recent workspace entry from workspace store */
+export interface RecentWorkspaceInfo {
+  path: string;
+  name: string;
+  lastOpened: number;
+  projectType: 'node' | 'python' | 'rust' | 'go' | 'java' | 'generic';
+}
+
 // ---- Command Palette ----
 
 export interface Command {
@@ -452,6 +552,148 @@ export interface TerminalInstance {
   cwd: string;
   history: string[];
   active: boolean;
+}
+
+// ---- Diff Engine ----
+
+export interface DiffLine {
+  type: 'add' | 'remove' | 'context';
+  content: string;
+  lineNumber: number;
+  /** Line number in the "before" file for remove/context lines */
+  oldLineNumber?: number;
+  /** Line number in the "after" file for add/context lines */
+  newLineNumber?: number;
+}
+
+export interface DiffResult {
+  filePath: string;
+  additions: number;
+  deletions: number;
+  lines: DiffLine[];
+}
+
+// ---- Execution Queue ----
+
+export interface ExecutionQueueEntry {
+  id: string;
+  planId: string;
+  title: string;
+  description: string;
+  priority: number;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  addedAt: number;
+  startedAt?: number;
+  completedAt?: number;
+  stepTimeout: number;
+}
+
+export interface ExecutionHistoryEntry {
+  planId: string;
+  title: string;
+  description: string;
+  status: string;
+  stepCount: number;
+  completedSteps: number;
+  failedSteps: number;
+  createdAt: number;
+  completedAt?: number;
+  duration?: number;
+  stepSummaries: Array<{
+    id: string;
+    title: string;
+    type: string;
+    status: string;
+    duration?: number;
+    error?: string;
+  }>;
+}
+
+export interface StepOutput {
+  stepId: string;
+  planId: string;
+  title: string;
+  type: string;
+  status: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  duration?: number;
+  truncated: boolean;
+}
+
+// ---- Telemetry ----
+
+export interface TelemetryMetrics {
+  memory: {
+    rss: number;
+    heapUsed: number;
+    heapTotal: number;
+    external: number;
+    arrayBuffers: number;
+  };
+  execution: {
+    activePlans: number;
+    completedPlans: number;
+    failedPlans: number;
+    avgDuration: number;
+  };
+  ipc: {
+    avgLatency: number;
+    p95Latency: number;
+    totalCalls: number;
+  };
+  cache: {
+    hitRate: number;
+    size: number;
+    evictions: number;
+  };
+  timestamps: {
+    lastUpdated: number;
+    uptime: number;
+  };
+}
+
+export interface CrashDump {
+  timestamp: number;
+  error: {
+    message: string;
+    stack?: string;
+    name: string;
+  };
+  context?: Record<string, unknown>;
+  memory: {
+    rss: number;
+    heapUsed: number;
+    heapTotal: number;
+    external: number;
+    arrayBuffers: number;
+  };
+  recentIpcCalls: Array<{
+    channel: string;
+    durationMs: number;
+    timestamp: number;
+  }>;
+  recentExecutionEvents: Array<{
+    type: string;
+    durationMs?: number;
+    timestamp: number;
+  }>;
+  uptime: number;
+  platform: string;
+  nodeVersion: string;
+  electronVersion: string;
+}
+
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogCategory = 'ipc' | 'execution' | 'memory' | 'provider' | 'session' | 'workspace' | 'watchdog' | 'crash-dump' | 'telemetry' | 'general';
+
+export interface LogEntry {
+  timestamp: string;
+  level: LogLevel;
+  module: LogCategory;
+  message: string;
+  data?: Record<string, unknown>;
 }
 
 // ---- Global Window Declaration ----

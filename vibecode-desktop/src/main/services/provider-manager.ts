@@ -1,11 +1,14 @@
 import { v4 as uuidv4 } from 'uuid';
+import { ProviderStore, PersistedProvider, maskApiKey } from './provider-store';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
+
+export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'lmstudio' | 'custom';
 
 export interface Provider {
   id: string;
   name: string;
-  type: 'openai' | 'anthropic' | 'google' | 'ollama' | 'custom';
+  type: ProviderType;
   apiKey?: string;
   baseUrl?: string;
   models: ModelInfo[];
@@ -13,6 +16,9 @@ export interface Provider {
   lastChecked: number;
   latency: number;
   priority: number;
+  isActive?: boolean;
+  isFallback?: boolean;
+  chatOptions?: ChatOptions;
 }
 
 export interface ModelInfo {
@@ -26,11 +32,19 @@ export interface ModelInfo {
 
 export interface ProviderConfig {
   name: string;
-  type: Provider['type'];
+  type: ProviderType;
   apiKey?: string;
   baseUrl?: string;
   models?: ModelInfo[];
   priority?: number;
+  chatOptions?: ChatOptions;
+}
+
+export interface ChatOptions {
+  temperature: number;
+  maxTokens: number;
+  streaming: boolean;
+  model?: string;
 }
 
 export interface ChatMessage {
@@ -54,12 +68,12 @@ export interface RouteRequirements {
   requiresTools?: boolean;
   requiresVision?: boolean;
   minContextWindow?: number;
-  preferredType?: Provider['type'];
+  preferredType?: ProviderType;
 }
 
 // ─── Default Models Per Provider Type ────────────────────────────────────────
 
-const DEFAULT_MODELS: Record<Provider['type'], ModelInfo[]> = {
+const DEFAULT_MODELS: Record<ProviderType, ModelInfo[]> = {
   openai: [
     {
       id: 'gpt-4o',
@@ -140,21 +154,107 @@ const DEFAULT_MODELS: Record<Provider['type'], ModelInfo[]> = {
       supportsVision: false,
     },
   ],
+  lmstudio: [
+    {
+      id: 'default',
+      name: 'Default Model',
+      contextWindow: 128000,
+      supportsStreaming: true,
+      supportsTools: false,
+      supportsVision: false,
+    },
+  ],
   custom: [],
 };
 
-const DEFAULT_BASE_URLS: Record<Provider['type'], string> = {
+const DEFAULT_BASE_URLS: Record<ProviderType, string> = {
   openai: 'https://api.openai.com/v1',
   anthropic: 'https://api.anthropic.com/v1',
   google: 'https://generativelanguage.googleapis.com/v1beta',
   ollama: 'http://localhost:11434/api',
+  lmstudio: 'http://localhost:1234/v1',
   custom: '',
+};
+
+const DEFAULT_CHAT_OPTIONS: ChatOptions = {
+  temperature: 0.7,
+  maxTokens: 4096,
+  streaming: true,
 };
 
 // ─── ProviderManager ────────────────────────────────────────────────────────
 
 export class ProviderManager {
   private providers: Map<string, Provider> = new Map();
+  private activeProviderId: string | null = null;
+  private fallbackProviderId: string | null = null;
+  private store: ProviderStore;
+
+  constructor() {
+    this.store = new ProviderStore();
+    this.loadFromStore();
+  }
+
+  // ─── Persistence ──────────────────────────────────────────────────────
+
+  private loadFromStore(): void {
+    const data = this.store.loadProviders();
+
+    for (const persisted of data.providers) {
+      const provider: Provider = {
+        id: persisted.id,
+        name: persisted.name,
+        type: persisted.type as ProviderType,
+        apiKey: persisted.apiKey,
+        baseUrl: persisted.baseUrl ?? DEFAULT_BASE_URLS[persisted.type as ProviderType] ?? '',
+        models: persisted.models ?? DEFAULT_MODELS[persisted.type as ProviderType] ?? [],
+        isAvailable: false,
+        lastChecked: 0,
+        latency: -1,
+        priority: persisted.priority ?? 10,
+        isActive: persisted.isActive ?? false,
+        isFallback: persisted.isFallback ?? false,
+        chatOptions: persisted.chatOptions ?? { ...DEFAULT_CHAT_OPTIONS },
+      };
+
+      this.providers.set(persisted.id, provider);
+
+      // Log masked key for debugging
+      if (provider.apiKey) {
+        console.log(`[ProviderManager] Loaded provider ${provider.name} with key: ${maskApiKey(provider.apiKey)}`);
+      }
+    }
+
+    // Restore active/fallback
+    if (data.activeProviderId && this.providers.has(data.activeProviderId)) {
+      this.activeProviderId = data.activeProviderId;
+    }
+    if (data.fallbackProviderId && this.providers.has(data.fallbackProviderId)) {
+      this.fallbackProviderId = data.fallbackProviderId;
+    }
+
+    // Do background health checks for all loaded providers
+    this.checkHealth().catch(() => {});
+
+    console.log(`[ProviderManager] Loaded ${this.providers.size} providers from store`);
+  }
+
+  private persistToStore(): void {
+    const persisted: PersistedProvider[] = Array.from(this.providers.values()).map((p) => ({
+      id: p.id,
+      name: p.name,
+      type: p.type,
+      apiKey: p.apiKey,
+      baseUrl: p.baseUrl,
+      models: p.models,
+      priority: p.priority,
+      isActive: p.isActive,
+      isFallback: p.isFallback,
+      chatOptions: p.chatOptions,
+    }));
+
+    this.store.saveProviders(persisted, this.activeProviderId ?? undefined, this.fallbackProviderId ?? undefined);
+  }
 
   // ─── Provider Management ──────────────────────────────────────────────
 
@@ -172,21 +272,49 @@ export class ProviderManager {
       lastChecked: 0,
       latency: -1,
       priority: config.priority ?? 10,
+      chatOptions: config.chatOptions ?? { ...DEFAULT_CHAT_OPTIONS },
     };
 
     this.providers.set(id, provider);
 
+    // If this is the first provider, make it active
+    if (this.providers.size === 1) {
+      this.activeProviderId = id;
+      provider.isActive = true;
+    }
+
+    // Auto-persist
+    this.persistToStore();
+
     // Do a background health check
-    this.testProvider(id).catch(() => {
-      // Provider marked as unavailable
-    });
+    this.testProvider(id).catch(() => {});
 
     return provider;
   }
 
   /** Remove a provider */
   removeProvider(id: string): boolean {
-    return this.providers.delete(id);
+    const existed = this.providers.delete(id);
+
+    if (existed) {
+      // Clear active/fallback if this provider was set
+      if (this.activeProviderId === id) {
+        this.activeProviderId = null;
+        // Set a new active provider if available
+        const first = this.listProviders()[0];
+        if (first) {
+          this.activeProviderId = first.id;
+          first.isActive = true;
+        }
+      }
+      if (this.fallbackProviderId === id) {
+        this.fallbackProviderId = null;
+      }
+
+      this.persistToStore();
+    }
+
+    return existed;
   }
 
   /** Get a provider by ID */
@@ -197,6 +325,122 @@ export class ProviderManager {
   /** List all registered providers */
   listProviders(): Provider[] {
     return Array.from(this.providers.values()).sort((a, b) => a.priority - b.priority);
+  }
+
+  /** Update a provider's configuration */
+  updateProvider(id: string, updates: Partial<Omit<ProviderConfig, 'type'>> & { type?: ProviderType }): Provider | null {
+    const provider = this.providers.get(id);
+    if (!provider) return null;
+
+    if (updates.name !== undefined) provider.name = updates.name;
+    if (updates.type !== undefined) provider.type = updates.type;
+    if (updates.apiKey !== undefined) provider.apiKey = updates.apiKey;
+    if (updates.baseUrl !== undefined) provider.baseUrl = updates.baseUrl;
+    if (updates.models !== undefined) provider.models = updates.models;
+    if (updates.priority !== undefined) provider.priority = updates.priority;
+    if (updates.chatOptions !== undefined) provider.chatOptions = updates.chatOptions;
+
+    this.persistToStore();
+    return provider;
+  }
+
+  // ─── Active / Fallback ────────────────────────────────────────────────
+
+  /** Set the active provider by ID */
+  setActiveProvider(id: string): boolean {
+    if (!this.providers.has(id)) return false;
+
+    // Clear isActive flag on previous active provider
+    if (this.activeProviderId) {
+      const prev = this.providers.get(this.activeProviderId);
+      if (prev) prev.isActive = false;
+    }
+
+    this.activeProviderId = id;
+    const provider = this.providers.get(id);
+    if (provider) provider.isActive = true;
+
+    this.persistToStore();
+    return true;
+  }
+
+  /** Get the active provider */
+  getActiveProvider(): Provider | null {
+    if (this.activeProviderId) {
+      return this.providers.get(this.activeProviderId) ?? null;
+    }
+    // Fallback to first available
+    const available = this.listProviders().filter((p) => p.isAvailable);
+    return available[0] ?? this.listProviders()[0] ?? null;
+  }
+
+  /** Set the fallback provider by ID */
+  setFallbackProvider(id: string): boolean {
+    if (!this.providers.has(id)) return false;
+
+    // Clear isFallback flag on previous fallback provider
+    if (this.fallbackProviderId) {
+      const prev = this.providers.get(this.fallbackProviderId);
+      if (prev) prev.isFallback = false;
+    }
+
+    this.fallbackProviderId = id;
+    const provider = this.providers.get(id);
+    if (provider) provider.isFallback = true;
+
+    this.persistToStore();
+    return true;
+  }
+
+  /** Get the fallback provider */
+  getFallbackProvider(): Provider | null {
+    if (this.fallbackProviderId) {
+      return this.providers.get(this.fallbackProviderId) ?? null;
+    }
+    return null;
+  }
+
+  /** Get sanitized config for a provider (no full API key) */
+  getSanitizedConfig(id: string): Record<string, unknown> | null {
+    const provider = this.providers.get(id);
+    if (!provider) return null;
+
+    return {
+      id: provider.id,
+      name: provider.name,
+      type: provider.type,
+      apiKey: maskApiKey(provider.apiKey),
+      baseUrl: provider.baseUrl,
+      models: provider.models,
+      isAvailable: provider.isAvailable,
+      lastChecked: provider.lastChecked,
+      latency: provider.latency,
+      priority: provider.priority,
+      isActive: provider.isActive ?? false,
+      isFallback: provider.isFallback ?? false,
+      chatOptions: provider.chatOptions,
+    };
+  }
+
+  /** Get chat options for a provider */
+  getChatOptions(id: string): ChatOptions | null {
+    const provider = this.providers.get(id);
+    if (!provider) return null;
+    return provider.chatOptions ?? { ...DEFAULT_CHAT_OPTIONS };
+  }
+
+  /** Set chat options for a provider */
+  setChatOptions(id: string, options: Partial<ChatOptions>): boolean {
+    const provider = this.providers.get(id);
+    if (!provider) return false;
+
+    provider.chatOptions = {
+      ...(provider.chatOptions ?? DEFAULT_CHAT_OPTIONS),
+      ...options,
+    };
+
+    this.persistToStore();
+    return true;
   }
 
   // ─── Health & Testing ─────────────────────────────────────────────────
@@ -237,6 +481,18 @@ export class ProviderManager {
 
   /** Route a request to the best available provider */
   routeRequest(requirements: RouteRequirements = {}): Provider {
+    // Prefer active provider if available
+    const active = this.getActiveProvider();
+    if (active && active.isAvailable) {
+      return active;
+    }
+
+    // Try fallback provider
+    const fallback = this.getFallbackProvider();
+    if (fallback && fallback.isAvailable) {
+      return fallback;
+    }
+
     const available = this.listProviders().filter((p) => p.isAvailable);
 
     if (available.length === 0) {
@@ -332,6 +588,9 @@ export class ProviderManager {
       case 'ollama':
         yield* this.ollamaChatCompletion(provider, model, messages, options, stream);
         break;
+      case 'lmstudio':
+        yield* this.lmStudioChatCompletion(provider, model, messages, options, stream);
+        break;
       case 'custom':
         yield* this.customChatCompletion(provider, model, messages, options, stream);
         break;
@@ -360,7 +619,6 @@ export class ProviderManager {
           return res.ok;
         }
         case 'anthropic': {
-          // Anthropic doesn't have a simple health endpoint; send a minimal request
           const res = await fetch(`${provider.baseUrl}/messages`, {
             method: 'POST',
             headers: {
@@ -375,7 +633,7 @@ export class ProviderManager {
             }),
             signal: AbortSignal.timeout(15000),
           });
-          return res.ok || res.status === 400; // 400 = auth works but bad request
+          return res.ok || res.status === 400;
         }
         case 'google': {
           const res = await fetch(
@@ -386,6 +644,12 @@ export class ProviderManager {
         }
         case 'ollama': {
           const res = await fetch(`${provider.baseUrl}/tags`, {
+            signal: AbortSignal.timeout(5000),
+          });
+          return res.ok;
+        }
+        case 'lmstudio': {
+          const res = await fetch(`${provider.baseUrl}/models`, {
             signal: AbortSignal.timeout(5000),
           });
           return res.ok;
@@ -424,8 +688,8 @@ export class ProviderManager {
       model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       stream,
-      temperature: options.temperature ?? 0.7,
-      max_tokens: options.maxTokens ?? 4096,
+      temperature: options.temperature ?? provider.chatOptions?.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? provider.chatOptions?.maxTokens ?? 4096,
       top_p: options.topP,
       stop: options.stop,
     };
@@ -453,7 +717,6 @@ export class ProviderManager {
       return;
     }
 
-    // Stream SSE
     yield* this.parseSSEStream(response);
   }
 
@@ -471,7 +734,6 @@ export class ProviderManager {
       'anthropic-version': '2023-06-01',
     };
 
-    // Separate system message from conversation messages
     let systemPrompt: string | undefined;
     const conversationMessages = messages.filter((m) => {
       if (m.role === 'system') {
@@ -487,9 +749,9 @@ export class ProviderManager {
         role: m.role,
         content: m.content,
       })),
-      max_tokens: options.maxTokens ?? 4096,
+      max_tokens: options.maxTokens ?? provider.chatOptions?.maxTokens ?? 4096,
       stream,
-      temperature: options.temperature ?? 0.7,
+      temperature: options.temperature ?? provider.chatOptions?.temperature ?? 0.7,
       top_p: options.topP,
       stop_sequences: options.stop,
     };
@@ -517,7 +779,6 @@ export class ProviderManager {
       return;
     }
 
-    // Parse Anthropic SSE format
     const reader = response.body?.getReader();
     if (!reader) throw new Error('No response body for streaming');
 
@@ -565,7 +826,6 @@ export class ProviderManager {
       stream ? 'streamGenerateContent' : 'generateContent'
     }?key=${provider.apiKey}`;
 
-    // Convert to Google's format
     const contents = messages
       .filter((m) => m.role !== 'system')
       .map((m) => ({
@@ -578,8 +838,8 @@ export class ProviderManager {
     const body: Record<string, unknown> = {
       contents,
       generationConfig: {
-        temperature: options.temperature ?? 0.7,
-        maxOutputTokens: options.maxTokens ?? 4096,
+        temperature: options.temperature ?? provider.chatOptions?.temperature ?? 0.7,
+        maxOutputTokens: options.maxTokens ?? provider.chatOptions?.maxTokens ?? 4096,
         topP: options.topP,
         stopSequences: options.stop,
       },
@@ -610,11 +870,8 @@ export class ProviderManager {
       return;
     }
 
-    // Google streaming format
     const text = await response.text();
-    // Google returns JSON arrays for streaming
     try {
-      // Try to parse as concatenated JSON objects
       const cleaned = text.replace(/\]\s*\[/g, ',');
       const parsed = JSON.parse(`[${cleaned}]`);
       for (const chunk of Array.isArray(parsed) ? parsed : [parsed]) {
@@ -622,7 +879,6 @@ export class ProviderManager {
         if (content) yield content;
       }
     } catch {
-      // Fallback: return raw
       yield text;
     }
   }
@@ -641,8 +897,8 @@ export class ProviderManager {
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       stream,
       options: {
-        temperature: options.temperature ?? 0.7,
-        num_predict: options.maxTokens ?? 4096,
+        temperature: options.temperature ?? provider.chatOptions?.temperature ?? 0.7,
+        num_predict: options.maxTokens ?? provider.chatOptions?.maxTokens ?? 4096,
         top_p: options.topP,
         stop: options.stop,
       },
@@ -666,7 +922,6 @@ export class ProviderManager {
       return;
     }
 
-    // Ollama streams newline-delimited JSON
     const reader = response.body?.getReader();
     if (!reader) throw new Error('No response body for streaming');
 
@@ -700,6 +955,53 @@ export class ProviderManager {
     }
   }
 
+  private async *lmStudioChatCompletion(
+    provider: Provider,
+    model: string,
+    messages: ChatMessage[],
+    options: ChatCompletionOptions,
+    stream: boolean
+  ): AsyncGenerator<string> {
+    // LM Studio uses an OpenAI-compatible API
+    const url = `${provider.baseUrl}/chat/completions`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (provider.apiKey) {
+      headers.Authorization = `Bearer ${provider.apiKey}`;
+    }
+
+    const body: Record<string, unknown> = {
+      model,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      stream,
+      temperature: options.temperature ?? provider.chatOptions?.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? provider.chatOptions?.maxTokens ?? 4096,
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`LM Studio API error (${response.status}): ${errorText}`);
+    }
+
+    if (!stream) {
+      const data = (await response.json()) as any;
+      const content = data.choices?.[0]?.message?.content ?? '';
+      yield content;
+      return;
+    }
+
+    yield* this.parseSSEStream(response);
+  }
+
   private async *customChatCompletion(
     provider: Provider,
     model: string,
@@ -721,8 +1023,8 @@ export class ProviderManager {
       model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       stream,
-      temperature: options.temperature ?? 0.7,
-      max_tokens: options.maxTokens ?? 4096,
+      temperature: options.temperature ?? provider.chatOptions?.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? provider.chatOptions?.maxTokens ?? 4096,
     };
 
     const response = await fetch(url, {

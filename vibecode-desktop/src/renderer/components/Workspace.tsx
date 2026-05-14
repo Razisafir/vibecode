@@ -1,4 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { RecentWorkspaceInfo, CurrentWorkspaceInfo } from '../types';
+import SkeletonLine from './SkeletonLine';
 
 interface WorkspaceProps {
   className?: string;
@@ -50,6 +52,15 @@ const SYNTAX_COLORS: Record<string, string> = {
   default: '#e8e8f0',
 };
 
+const PROJECT_TYPE_ICONS: Record<string, string> = {
+  node: '🟢',
+  python: '🐍',
+  rust: '🦀',
+  go: '🔵',
+  java: '☕',
+  generic: '📁',
+};
+
 const highlightSyntax = (content: string, language: string): string => {
   if (language === 'text' || !content) {
     return content
@@ -63,107 +74,41 @@ const highlightSyntax = (content: string, language: string): string => {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
-  // Comments (single-line)
   escaped = escaped.replace(
     /(\/\/.*$)/gm,
     `<span style="color:${SYNTAX_COLORS.comment}">$1</span>`,
   );
 
-  // Comments (multi-line)
   escaped = escaped.replace(
     /(\/\*[\s\S]*?\*\/)/g,
     `<span style="color:${SYNTAX_COLORS.comment}">$1</span>`,
   );
 
-  // Strings (double-quoted)
   escaped = escaped.replace(
     /("(?:[^"\\]|\\.)*")/g,
     `<span style="color:${SYNTAX_COLORS.string}">$1</span>`,
   );
 
-  // Strings (single-quoted)
   escaped = escaped.replace(
     /('(?:[^'\\]|\\.)*')/g,
     `<span style="color:${SYNTAX_COLORS.string}">$1</span>`,
   );
 
-  // Template literals
   escaped = escaped.replace(
     /(`(?:[^`\\]|\\.)*`)/g,
     `<span style="color:${SYNTAX_COLORS.string}">$1</span>`,
   );
 
-  // Keywords
   const keywords = [
-    'import',
-    'export',
-    'default',
-    'from',
-    'const',
-    'let',
-    'var',
-    'function',
-    'return',
-    'if',
-    'else',
-    'for',
-    'while',
-    'do',
-    'switch',
-    'case',
-    'break',
-    'continue',
-    'class',
-    'extends',
-    'new',
-    'this',
-    'super',
-    'try',
-    'catch',
-    'finally',
-    'throw',
-    'async',
-    'await',
-    'yield',
-    'type',
-    'interface',
-    'enum',
-    'implements',
-    'abstract',
-    'private',
-    'protected',
-    'public',
-    'static',
-    'readonly',
-    'declare',
-    'as',
-    'is',
-    'in',
-    'of',
-    'true',
-    'false',
-    'null',
-    'undefined',
-    'void',
-    'never',
-    'def',
-    'self',
-    'print',
-    'lambda',
-    'elif',
-    'pass',
-    'raise',
-    'with',
-    'fn',
-    'impl',
-    'pub',
-    'mod',
-    'use',
-    'mut',
-    'struct',
-    'trait',
-    'match',
-    'loop',
+    'import', 'export', 'default', 'from', 'const', 'let', 'var', 'function',
+    'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break',
+    'continue', 'class', 'extends', 'new', 'this', 'super', 'try', 'catch',
+    'finally', 'throw', 'async', 'await', 'yield', 'type', 'interface', 'enum',
+    'implements', 'abstract', 'private', 'protected', 'public', 'static',
+    'readonly', 'declare', 'as', 'is', 'in', 'of', 'true', 'false', 'null',
+    'undefined', 'void', 'never', 'def', 'self', 'print', 'lambda', 'elif',
+    'pass', 'raise', 'with', 'fn', 'impl', 'pub', 'mod', 'use', 'mut',
+    'struct', 'trait', 'match', 'loop',
   ];
 
   const kwPattern = new RegExp(`\\b(${keywords.join('|')})\\b`, 'g');
@@ -172,7 +117,6 @@ const highlightSyntax = (content: string, language: string): string => {
     `<span style="color:${SYNTAX_COLORS.keyword}">$1</span>`,
   );
 
-  // Numbers
   escaped = escaped.replace(
     /\b(\d+\.?\d*)\b/g,
     `<span style="color:${SYNTAX_COLORS.number}">$1</span>`,
@@ -184,8 +128,35 @@ const highlightSyntax = (content: string, language: string): string => {
 const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activeFileIndex, setActiveFileIndex] = useState<number>(-1);
+  const [currentWorkspace, setCurrentWorkspace] = useState<CurrentWorkspaceInfo | null>(null);
+  const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspaceInfo[]>([]);
+  const [isLoadingFile, setIsLoadingFile] = useState(false);
 
   const activeFile = activeFileIndex >= 0 ? openFiles[activeFileIndex] : null;
+
+  // Load current workspace info and recent workspaces
+  useEffect(() => {
+    const loadWorkspaceInfo = async () => {
+      try {
+        const infoResult = await window.vibecode?.workspace.getInfo();
+        if (infoResult?.success && infoResult.data?.workspace) {
+          setCurrentWorkspace(infoResult.data.workspace);
+        }
+      } catch {
+        // Not available
+      }
+
+      try {
+        const recentResult = await window.vibecode?.workspace.recent(5);
+        if (recentResult?.success && recentResult.data?.workspaces) {
+          setRecentWorkspaces(recentResult.data.workspaces);
+        }
+      } catch {
+        // Not available
+      }
+    };
+    loadWorkspaceInfo();
+  }, []);
 
   const openFile = useCallback(
     async (filePath: string) => {
@@ -195,6 +166,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
         return;
       }
 
+      setIsLoadingFile(true);
       try {
         const result = await window.vibecode?.fs.readFile(filePath);
         if (result?.success && result.data !== undefined) {
@@ -211,6 +183,8 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
         }
       } catch {
         // File read failed
+      } finally {
+        setIsLoadingFile(false);
       }
     },
     [openFiles],
@@ -268,11 +242,69 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
     [activeFileIndex],
   );
 
+  const handleSwitchWorkspace = useCallback(async (wsPath: string) => {
+    try {
+      const result = await window.vibecode?.workspace.switchWorkspace(wsPath);
+      if (result?.success && result.data?.workspace) {
+        setCurrentWorkspace({
+          rootPath: result.data.workspace.rootPath,
+          name: result.data.workspace.name,
+          type: result.data.workspace.type,
+          hasGit: result.data.workspace.hasGit,
+          totalFiles: result.data.workspace.totalFiles,
+          languages: result.data.workspace.languages,
+        });
+        // Close all open files since we switched workspace
+        setOpenFiles([]);
+        setActiveFileIndex(-1);
+      }
+    } catch {
+      // Switch failed
+    }
+  }, []);
+
+  const handleOpenWorkspace = useCallback(async () => {
+    try {
+      const result = await window.vibecode?.workspace.open('');
+      if (result?.success && result.data?.workspace) {
+        const ws = result.data.workspace;
+        setCurrentWorkspace({
+          rootPath: ws.rootPath,
+          name: ws.name,
+          type: ws.type,
+          hasGit: ws.hasGit,
+          totalFiles: ws.totalFiles,
+          languages: ws.languages,
+        });
+        setOpenFiles([]);
+        setActiveFileIndex(-1);
+        // Reload recent workspaces
+        const recentResult = await window.vibecode?.workspace.recent(5);
+        if (recentResult?.success && recentResult.data?.workspaces) {
+          setRecentWorkspaces(recentResult.data.workspaces);
+        }
+      }
+    } catch {
+      // Open failed
+    }
+  }, []);
+
+  const formatTimeAgo = (timestamp: number): string => {
+    const diff = Date.now() - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
   const renderBreadcrumb = () => {
     if (!activeFile) return null;
     const parts = activeFile.path.split('/');
     return (
-      <div className="flex items-center gap-1 px-4 py-1.5 text-xs text-text-muted">
+      <div className="flex items-center gap-1 px-4 py-1.5 text-xs text-text-muted bg-bg-secondary/50">
         {parts.map((part, index) => (
           <React.Fragment key={index}>
             {index > 0 && (
@@ -283,7 +315,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
-                className="text-text-muted opacity-50"
+                className="text-text-muted opacity-40"
               >
                 <polyline points="3,2 7,5 3,8" />
               </svg>
@@ -291,14 +323,47 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
             <span
               className={
                 index === parts.length - 1
-                  ? 'text-text-secondary'
-                  : 'hover:text-text-primary cursor-pointer'
+                  ? 'text-text-primary font-medium'
+                  : 'text-text-muted hover:text-text-secondary cursor-pointer transition-colors'
               }
             >
               {part}
             </span>
           </React.Fragment>
         ))}
+      </div>
+    );
+  };
+
+  const renderWorkspaceInfoBar = () => {
+    if (!currentWorkspace) return null;
+
+    const topLangs = Object.entries(currentWorkspace.languages)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3);
+
+    return (
+      <div className="flex items-center gap-3 px-4 py-1 text-[11px] text-text-muted border-b border-border bg-bg-secondary">
+        <span className="flex items-center gap-1">
+          <span>{PROJECT_TYPE_ICONS[currentWorkspace.type] ?? '📁'}</span>
+          <span className="text-text-primary font-medium">{currentWorkspace.name}</span>
+        </span>
+        <span className="text-border">|</span>
+        <span>{currentWorkspace.type}</span>
+        {currentWorkspace.hasGit && (
+          <>
+            <span className="text-border">|</span>
+            <span className="text-emerald-400">git</span>
+          </>
+        )}
+        <span className="text-border">|</span>
+        <span>{currentWorkspace.totalFiles} files</span>
+        {topLangs.length > 0 && (
+          <>
+            <span className="text-border">|</span>
+            <span>{topLangs.map(([lang]) => lang).join(', ')}</span>
+          </>
+        )}
       </div>
     );
   };
@@ -320,20 +385,19 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
         </svg>
       </div>
       <h2 className="mb-2 text-xl font-semibold text-text-primary">
-        Open a file or ask AI to create one
+        {currentWorkspace ? currentWorkspace.name : 'Open a workspace to get started'}
       </h2>
       <p className="mb-8 max-w-sm text-center text-sm text-text-muted">
-        Use the file explorer on the left, or ask the AI assistant to generate code for you.
+        {currentWorkspace
+          ? 'Use the file explorer on the left, or ask the AI assistant to generate code for you.'
+          : 'Choose a project directory to start coding with AI assistance.'}
       </p>
 
       {/* Quick Actions */}
       <div className="flex gap-3">
         <button
           className="btn btn-secondary rounded-lg"
-          onClick={() => {
-            /* Trigger file open dialog via IPC */
-            window.vibecode?.workspace.open('').catch(() => {});
-          }}
+          onClick={handleOpenWorkspace}
         >
           <svg
             width="16"
@@ -345,7 +409,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
           >
             <path d="M2 4h4l1.5 1.5H14v7H2V4z" />
           </svg>
-          Open Project
+          {currentWorkspace ? 'Switch Workspace' : 'Open Project'}
         </button>
         <button
           className="btn btn-primary rounded-lg"
@@ -368,39 +432,42 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
         </button>
       </div>
 
-      {/* Recent Files (placeholder) */}
-      <div className="mt-12 w-full max-w-md">
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
-          Recent
-        </h3>
-        <div className="space-y-1">
-          {['src/App.tsx', 'lib/engine.ts', 'README.md'].map((file) => (
-            <button
-              key={file}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-              onClick={() => openFile(file)}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                className="text-text-muted"
+      {/* Recent Workspaces */}
+      {recentWorkspaces.length > 0 && (
+        <div className="mt-12 w-full max-w-md">
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
+            Recent Workspaces
+          </h3>
+          <div className="space-y-1">
+            {recentWorkspaces.map((ws) => (
+              <button
+                key={ws.path}
+                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                onClick={() => handleSwitchWorkspace(ws.path)}
               >
-                <path d="M2 2h4l1.5 1.5H12a1 1 0 011 1v7a1 1 0 01-1 1H2a1 1 0 01-1-1V3a1 1 0 011-1z" />
-              </svg>
-              {file}
-            </button>
-          ))}
+                <span className="flex-shrink-0 text-base">
+                  {PROJECT_TYPE_ICONS[ws.projectType] ?? '📁'}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium">{ws.name}</div>
+                  <div className="truncate text-xs text-text-muted">{ws.path}</div>
+                </div>
+                <span className="flex-shrink-0 text-xs text-text-muted">
+                  {formatTimeAgo(ws.lastOpened)}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 
   return (
     <div className={`flex h-full flex-col bg-bg-primary ${className || ''}`}>
+      {/* Workspace Info Bar */}
+      {renderWorkspaceInfoBar()}
+
       {/* Tab Bar */}
       {openFiles.length > 0 && (
         <div className="flex items-center border-b border-border bg-bg-secondary overflow-x-auto scrollbar-hidden">
@@ -409,6 +476,27 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
               key={`${file.path}-${index}`}
               className={`workspace-tab ${index === activeFileIndex ? 'active' : ''}`}
               onClick={() => setActiveFileIndex(index)}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('text/plain', String(index));
+                e.dataTransfer.effectAllowed = 'move';
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                if (fromIndex === index) return;
+                setOpenFiles((prev) => {
+                  const updated = [...prev];
+                  const [moved] = updated.splice(fromIndex, 1);
+                  updated.splice(index, 0, moved);
+                  return updated;
+                });
+                setActiveFileIndex(index);
+              }}
             >
               <span className="truncate max-w-[120px]">
                 {file.name}
@@ -443,7 +531,20 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden">
-        {activeFile ? (
+        {isLoadingFile ? (
+          <div className="p-6 space-y-3">
+            <SkeletonLine width="80%" height="16px" />
+            <SkeletonLine width="95%" height="16px" />
+            <SkeletonLine width="60%" height="16px" />
+            <SkeletonLine width="90%" height="16px" />
+            <SkeletonLine width="75%" height="16px" />
+            <SkeletonLine width="85%" height="16px" />
+            <SkeletonLine width="50%" height="16px" />
+            <SkeletonLine width="92%" height="16px" />
+            <SkeletonLine width="70%" height="16px" />
+            <SkeletonLine width="65%" height="16px" />
+          </div>
+        ) : activeFile ? (
           <div className="flex h-full">
             {/* Line Numbers */}
             <div className="flex-shrink-0 select-none border-r border-border bg-bg-secondary px-3 py-4 text-right font-mono text-xs leading-6 text-text-muted">
@@ -454,7 +555,6 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
 
             {/* Code Area */}
             <div className="relative flex-1 overflow-auto">
-              {/* Syntax highlighted display */}
               <pre className="absolute inset-0 overflow-auto p-4 font-mono text-sm leading-6 text-text-primary">
                 <code
                   dangerouslySetInnerHTML={{
@@ -462,7 +562,6 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
                   }}
                 />
               </pre>
-              {/* Editable textarea overlay */}
               <textarea
                 className="absolute inset-0 resize-none bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-accent outline-none"
                 value={activeFile.content}

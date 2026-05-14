@@ -4,28 +4,52 @@
 
 /* ============================================================
    VibeCode Desktop — Base Styles
+   Phase 7 — Dark Theme Refinement
    ============================================================ */
 
 @layer base {
   :root {
+    /* ── Primary Backgrounds ── */
     --bg-primary: #0a0a0f;
     --bg-secondary: #111118;
     --bg-tertiary: #1a1a24;
     --bg-hover: #222233;
-    --border: #2a2a3a;
-    --text-primary: #e8e8f0;
-    --text-secondary: #8888a0;
-    --text-muted: #555570;
+
+    /* ── Borders — slightly lighter for visibility ── */
+    --border: #32324a;
+    --border-subtle: #262638;
+    --border-emphasis: #404060;
+
+    /* ── Text — improved contrast for WCAG AA ── */
+    --text-primary: #eeeef4;
+    --text-secondary: #9898b0;
+    --text-muted: #606078;
+
+    /* ── Accent ── */
     --accent: #6366f1;
     --accent-hover: #818cf8;
+    --accent-muted: rgba(99, 102, 241, 0.15);
+
+    /* ── Semantic Colors ── */
     --success: #22c55e;
     --warning: #eab308;
     --error: #ef4444;
     --info: #3b82f6;
+
+    /* ── Typography ── */
     --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+
+    /* ── Transitions ── */
     --transition-speed: 150ms;
-    --transition-easing: ease;
+    --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* ── Depth / Gradients ── */
+    --gradient-subtle: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, transparent 100%);
+    --gradient-panel: linear-gradient(135deg, rgba(99, 102, 241, 0.03) 0%, transparent 60%);
+
+    /* ── Focus Ring ── */
+    --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent);
   }
 
   * {
@@ -53,10 +77,10 @@
     flex-direction: column;
   }
 
-  /* Focus ring styles */
+  /* Focus ring styles — WCAG AA accessible */
   :focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
+    outline: none;
+    box-shadow: var(--focus-ring);
     border-radius: 4px;
   }
 
@@ -102,12 +126,12 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--border);
+    background: var(--border-subtle);
     border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
+    background: var(--border-emphasis);
   }
 
   ::-webkit-scrollbar-corner {
@@ -117,13 +141,13 @@
   /* Firefox scrollbar */
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
+    scrollbar-color: var(--border-subtle) transparent;
   }
 
   /* Utility: Custom scrollbar for specific containers */
   .scrollbar-custom {
     scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
+    scrollbar-color: var(--border-subtle) transparent;
   }
 
   .scrollbar-custom::-webkit-scrollbar {
@@ -136,12 +160,12 @@
   }
 
   .scrollbar-custom::-webkit-scrollbar-thumb {
-    background: var(--border);
+    background: var(--border-subtle);
     border-radius: 3px;
   }
 
   .scrollbar-custom::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
+    background: var(--border-emphasis);
   }
 
   /* Hide scrollbar utility */
@@ -172,6 +196,15 @@
   .no-select {
     -webkit-user-select: none;
     user-select: none;
+  }
+
+  /* Subtle gradient overlay for depth */
+  .depth-gradient {
+    background-image: var(--gradient-subtle);
+  }
+
+  .panel-gradient {
+    background-image: var(--gradient-panel);
   }
 }
 
@@ -209,6 +242,7 @@
 
   .btn-primary:hover:not(:disabled) {
     background-color: var(--accent-hover);
+    box-shadow: 0 0 0 1px var(--accent-hover);
   }
 
   .btn-secondary {
@@ -219,6 +253,7 @@
 
   .btn-secondary:hover:not(:disabled) {
     background-color: var(--bg-hover);
+    border-color: var(--border-emphasis);
   }
 
   .btn-ghost {
@@ -272,7 +307,7 @@
   .input:focus {
     outline: none;
     border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    box-shadow: 0 0 0 2px var(--accent-muted);
   }
 
   .input::placeholder {
@@ -339,7 +374,7 @@
 
   /* Toast slide-up animation */
   .animate-slide-up {
-    animation: slideUp 0.3s ease-out;
+    animation: slideUp 0.3s ease-out forwards;
   }
 
   @keyframes slideUp {

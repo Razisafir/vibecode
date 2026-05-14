@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { FileInfo } from '../../types';
+import SkeletonLine from '../SkeletonLine';
 
 interface FileTreeNodeProps {
   item: FileInfo;
@@ -372,8 +373,12 @@ const FileExplorer: React.FC = () => {
       {/* File Tree */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 scrollbar-custom">
         {isLoading && rootItems.length === 0 ? (
-          <div className="flex items-center justify-center py-8">
-            <span className="spinner" />
+          <div className="space-y-2 px-2 py-4">
+            <SkeletonLine width="70%" height="16px" />
+            <SkeletonLine width="85%" height="16px" />
+            <SkeletonLine width="55%" height="16px" />
+            <SkeletonLine width="90%" height="16px" />
+            <SkeletonLine width="60%" height="16px" />
           </div>
         ) : rootItems.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-text-muted">

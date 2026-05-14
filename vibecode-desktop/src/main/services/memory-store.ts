@@ -533,6 +533,23 @@ export class MemoryStore {
     };
   }
 
+  /** Get cache statistics for telemetry integration */
+  getCacheStats(): { totalEntries: number; cachedProjects: number; estimatedBytes: number; dirtyCount: number } {
+    let estimatedBytes = 0;
+    for (const [, cache] of this.projectCaches) {
+      for (const [, entry] of cache.entries) {
+        estimatedBytes += JSON.stringify(entry).length * 2;
+      }
+    }
+
+    return {
+      totalEntries: this.totalEntryCount,
+      cachedProjects: this.projectCaches.size,
+      estimatedBytes,
+      dirtyCount: this.dirtyProjects.size,
+    };
+  }
+
   /** Force compaction of a specific project file — rewrites removing tombstoned entries */
   compact(projectId: string): void {
     this.ensureProjectLoaded(projectId);
@@ -550,6 +567,25 @@ export class MemoryStore {
   compactAll(): void {
     for (const [projectId] of this.index) {
       this.compact(projectId);
+    }
+  }
+
+  /** Immediately rewrite all project files (force compact for memory reclamation) */
+  forceCompact(): void {
+    // First, flush any pending dirty projects
+    this.flush();
+
+    // Then, load and compact all known projects
+    for (const [projectId] of this.index) {
+      this.ensureProjectLoaded(projectId);
+      const cache = this.projectCaches.get(projectId);
+      if (!cache) continue;
+
+      this.rewriteProjectFile(projectId);
+      cache.deletedIds.clear();
+      cache.appendedCount = 0;
+      cache.dirty = false;
+      this.dirtyProjects.delete(projectId);
     }
   }
 

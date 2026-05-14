@@ -249,6 +249,123 @@ export class ResourceDisposalBag {
 }
 
 /**
+ * Event listener leak detector. Tracks the number of active event listeners
+ * per event name and warns when they exceed a configurable threshold.
+ * Also supports auto-cleanup of stale listeners.
+ */
+export class EventListenerTracker {
+  private listeners: Map<string, Array<{ handler: Function; registeredAt: number }>> = new Map();
+  private readonly warningThreshold: number;
+  private readonly staleTimeoutMs: number;
+
+  constructor(warningThreshold: number = 10, staleTimeoutMs: number = 30 * 60 * 1000) {
+    this.warningThreshold = warningThreshold;
+    this.staleTimeoutMs = staleTimeoutMs;
+  }
+
+  /** Track a listener for a given event */
+  trackListener(event: string, handler: Function): void {
+    let listeners = this.listeners.get(event);
+    if (!listeners) {
+      listeners = [];
+      this.listeners.set(event, listeners);
+    }
+
+    listeners.push({ handler, registeredAt: Date.now() });
+
+    // Warn if threshold exceeded
+    if (listeners.length > this.warningThreshold) {
+      console.warn(
+        `[EventListenerTracker] Warning: Event "${event}" has ${listeners.length} listeners ` +
+        `(threshold: ${this.warningThreshold}). Possible leak detected.`
+      );
+    }
+  }
+
+  /** Remove a tracked listener */
+  removeTrackedListener(event: string, handler: Function): void {
+    const listeners = this.listeners.get(event);
+    if (!listeners) return;
+
+    const index = listeners.findIndex((l) => l.handler === handler);
+    if (index >= 0) {
+      listeners.splice(index, 1);
+    }
+
+    if (listeners.length === 0) {
+      this.listeners.delete(event);
+    }
+  }
+
+  /** Get the number of listeners for an event (or total if no event specified) */
+  getListenerCount(event?: string): number {
+    if (event) {
+      return this.listeners.get(event)?.length ?? 0;
+    }
+
+    let total = 0;
+    for (const listeners of this.listeners.values()) {
+      total += listeners.length;
+    }
+    return total;
+  }
+
+  /** Detect events that exceed the warning threshold */
+  detectLeaks(): Array<{ event: string; count: number; threshold: number }> {
+    const leaks: Array<{ event: string; count: number; threshold: number }> = [];
+
+    for (const [event, listeners] of this.listeners) {
+      if (listeners.length > this.warningThreshold) {
+        leaks.push({
+          event,
+          count: listeners.length,
+          threshold: this.warningThreshold,
+        });
+      }
+    }
+
+    return leaks;
+  }
+
+  /** Clean up stale listeners that have been registered longer than staleTimeoutMs */
+  cleanupStaleListeners(): number {
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [event, listeners] of this.listeners) {
+      const staleIndices: number[] = [];
+
+      for (let i = listeners.length - 1; i >= 0; i--) {
+        if (now - listeners[i].registeredAt > this.staleTimeoutMs) {
+          staleIndices.push(i);
+        }
+      }
+
+      // Remove stale listeners (in reverse order to maintain indices)
+      for (const idx of staleIndices) {
+        listeners.splice(idx, 1);
+        cleaned++;
+      }
+
+      if (listeners.length === 0) {
+        this.listeners.delete(event);
+      }
+    }
+
+    return cleaned;
+  }
+
+  /** Get a summary of all tracked events and their listener counts */
+  getSummary(): Record<string, number> {
+    const summary: Record<string, number> = {};
+    for (const [event, listeners] of this.listeners) {
+      summary[event] = listeners.length;
+    }
+    return summary;
+  }
+}
+
+/**
  * Memory pressure monitor. Periodically checks process memory usage
  * and fires a callback when memory usage exceeds a threshold.
  */

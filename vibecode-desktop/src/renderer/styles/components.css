@@ -80,7 +80,32 @@
   width: 6px;
   height: 1.5px;
   background: rgba(0, 0, 0, 0.5);
-  /* X shape via border-radius not possible with pseudo, rely on parent hover */
+}
+
+/* Titlebar action buttons — smoother hover than btn-icon btn-ghost */
+.titlebar-action-btn {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.titlebar-action-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+  transform: scale(1.05);
+}
+
+.titlebar-action-btn:active {
+  transform: scale(0.95);
 }
 
 /* ---- Sidebar Panel Transitions ---- */
@@ -104,13 +129,12 @@
 }
 
 .sidebar-panel {
-  width: 280px;
   flex-shrink: 0;
   background-color: var(--bg-secondary);
   overflow-y: auto;
   overflow-x: hidden;
-  transition: width var(--transition-speed, 150ms) ease,
-              opacity var(--transition-speed, 150ms) ease;
+  transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 200ms ease-out;
 }
 
 .sidebar-panel.collapsed {
@@ -130,13 +154,18 @@
   border: none;
   background: transparent;
   color: var(--text-muted);
-  transition: all var(--transition-speed, 150ms) ease;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
 
 .sidebar-icon-btn:hover {
   color: var(--text-primary);
   background-color: var(--bg-hover);
+  transform: scale(1.05);
+}
+
+.sidebar-icon-btn:active {
+  transform: scale(0.95);
 }
 
 .sidebar-icon-btn.active {
@@ -159,14 +188,13 @@
 /* ---- AI Panel ---- */
 
 .ai-panel {
-  width: 400px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-secondary);
   border-left: 1px solid var(--border);
-  transition: width var(--transition-speed, 150ms) ease,
-              opacity var(--transition-speed, 150ms) ease;
+  transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 200ms ease-out;
 }
 
 .ai-panel.collapsed {
@@ -317,12 +345,14 @@
 .proposal-details {
   max-height: 0;
   overflow: hidden;
-  transition: max-height 200ms ease-out, padding 200ms ease-out;
+  transition: max-height 300ms cubic-bezier(0.4, 0, 0.2, 1), padding 300ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease-out;
+  opacity: 0;
 }
 
 .proposal-details.expanded {
-  max-height: 500px;
+  max-height: 600px;
   padding-top: 12px;
+  opacity: 1;
 }
 
 /* ---- Terminal Container ---- */

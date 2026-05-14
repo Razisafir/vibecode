@@ -3,13 +3,15 @@ import type { ChatMessage, ProposalCard as ProposalCardType, ProposalCardData } 
 import { useAIChat } from '../hooks/useAIChat';
 import { useProposals } from '../hooks/useProposals';
 import ProposalCardComponent from './ProposalCard';
+import SkeletonCard from './SkeletonCard';
 
 interface AIPanelProps {
   isOpen: boolean;
   onToggle: () => void;
+  width?: number;
 }
 
-const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle }) => {
+const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle, width = 400 }) => {
   const {
     proposals,
     approve: approveProposal,
@@ -194,7 +196,7 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="ai-panel">
+    <div className="ai-panel ai-panel-transition" style={{ width: `${width}px` }}>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <div className="flex items-center gap-2">
@@ -325,7 +327,7 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle }) => {
           /* Message List */
           <>
             {messages.map((message) => (
-              <div key={message.id} className="flex flex-col">
+              <div key={message.id} className="flex flex-col message-fade-in">
                 <div className={`ai-message ai-message-${message.role}`}>
                   {message.role === 'assistant' ? (
                     <div className="whitespace-pre-wrap">
@@ -358,14 +360,10 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle }) => {
               </div>
             ))}
 
-            {/* Thinking Indicator */}
+            {/* Thinking Indicator — skeleton card while AI is thinking */}
             {isThinking && (
-              <div className="ai-message ai-message-assistant">
-                <div className="thinking-dots">
-                  <span />
-                  <span />
-                  <span />
-                </div>
+              <div className="message-fade-in">
+                <SkeletonCard lines={3} showAvatar={false} />
               </div>
             )}
 
