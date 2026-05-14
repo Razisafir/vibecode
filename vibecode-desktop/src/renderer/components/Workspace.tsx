@@ -353,7 +353,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
         {currentWorkspace.hasGit && (
           <>
             <span className="text-border">|</span>
-            <span className="text-emerald-400">git</span>
+            <span className="text-success">git</span>
           </>
         )}
         <span className="text-border">|</span>

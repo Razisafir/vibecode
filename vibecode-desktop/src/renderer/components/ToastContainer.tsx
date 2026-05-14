@@ -73,28 +73,28 @@ const TOAST_ICONS: Record<ToastType, React.ReactNode> = {
 
 const TOAST_COLORS: Record<ToastType, { bg: string; border: string; text: string; icon: string }> = {
   success: {
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/30',
-    text: 'text-emerald-400',
-    icon: 'text-emerald-400',
+    bg: 'bg-success/10',
+    border: 'border-success/30',
+    text: 'text-success',
+    icon: 'text-success',
   },
   error: {
-    bg: 'bg-red-500/10',
-    border: 'border-red-500/30',
-    text: 'text-red-400',
-    icon: 'text-red-400',
+    bg: 'bg-error/10',
+    border: 'border-error/30',
+    text: 'text-error',
+    icon: 'text-error',
   },
   warning: {
-    bg: 'bg-yellow-500/10',
-    border: 'border-yellow-500/30',
-    text: 'text-yellow-400',
-    icon: 'text-yellow-400',
+    bg: 'bg-warning/10',
+    border: 'border-warning/30',
+    text: 'text-warning',
+    icon: 'text-warning',
   },
   info: {
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/30',
-    text: 'text-blue-400',
-    icon: 'text-blue-400',
+    bg: 'bg-info/10',
+    border: 'border-info/30',
+    text: 'text-info',
+    icon: 'text-info',
   },
 };
 

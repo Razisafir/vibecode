@@ -23,9 +23,9 @@ const PROVIDER_TYPES: { value: ProviderType; label: string; needsApiKey: boolean
 // ─── Health indicator colors ────────────────────────────────────────────────
 
 function getHealthColor(provider: Provider): string {
-  if (provider.latency > 0 && provider.isAvailable) return 'bg-emerald-400';
-  if (provider.latency > 0 && !provider.isAvailable) return 'bg-red-400';
-  return 'bg-yellow-400'; // Unknown
+  if (provider.latency > 0 && provider.isAvailable) return 'bg-success';
+  if (provider.latency > 0 && !provider.isAvailable) return 'bg-error';
+  return 'bg-warning'; // Unknown
 }
 
 function getHealthLabel(provider: Provider): string {
@@ -254,7 +254,7 @@ const SettingsPanel: React.FC = () => {
                           {getTypeLabel(provider.type)}
                         </span>
                         {provider.isFallback && (
-                          <span className="badge bg-yellow-500/20 text-yellow-400 flex-shrink-0">
+                          <span className="badge bg-warning/20 text-warning flex-shrink-0">
                             Fallback
                           </span>
                         )}
@@ -304,7 +304,7 @@ const SettingsPanel: React.FC = () => {
                         </button>
                         {/* Remove */}
                         <button
-                          className="btn btn-ghost btn-sm rounded p-1 text-red-400 hover:text-red-300"
+                          className="btn btn-ghost btn-sm rounded p-1 text-error hover:text-error/80"
                           onClick={() => handleRemoveProvider(provider.id)}
                           title="Remove provider"
                         >
@@ -333,11 +333,11 @@ const SettingsPanel: React.FC = () => {
                               : null);
                           if (!result) return null;
                           return result.success ? (
-                            <span className="text-emerald-400">
+                            <span className="text-success">
                               Connected ({result.latency}ms)
                             </span>
                           ) : (
-                            <span className="text-red-400">Connection failed</span>
+                            <span className="text-error">Connection failed</span>
                           );
                         })()}
                       </div>
@@ -450,7 +450,7 @@ const SettingsPanel: React.FC = () => {
                           </div>
                           <button
                             className={`relative h-5 w-9 rounded-full transition-colors ${
-                              provider.isFallback ? 'bg-yellow-500' : 'bg-border'
+                              provider.isFallback ? 'bg-warning' : 'bg-border'
                             }`}
                             onClick={() => handleSetFallback(provider.id)}
                             role="switch"

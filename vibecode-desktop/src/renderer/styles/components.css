@@ -1,5 +1,6 @@
 /* ============================================================
    VibeCode Desktop — Component-Specific Styles
+   ARC 7 — Design System Unification
    ============================================================ */
 
 /* ---- Custom Titlebar ---- */
@@ -219,7 +220,7 @@
   border-radius: 12px;
   font-size: 13px;
   line-height: 1.6;
-  animation: slideInUp var(--transition-speed, 150ms) ease-out;
+  animation: slideUp 250ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .ai-message-user {
@@ -254,11 +255,6 @@
   margin-left: 1px;
 }
 
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
 /* Thinking dots animation */
 .thinking-dots {
   display: inline-flex;
@@ -282,17 +278,6 @@
   animation-delay: 0.4s;
 }
 
-@keyframes thinkingBounce {
-  0%, 80%, 100% {
-    transform: scale(0.6);
-    opacity: 0.4;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
 /* ---- Proposal Card ---- */
 
 .proposal-card {
@@ -302,7 +287,7 @@
   padding: 12px 14px;
   border-left: 3px solid var(--border);
   transition: all var(--transition-speed, 150ms) ease;
-  animation: slideInUp var(--transition-speed, 150ms) ease-out;
+  animation: slideUp 250ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .proposal-card-risk-low {
@@ -331,15 +316,6 @@
   border-radius: 8px;
   animation: pendingPulse 2s ease-in-out infinite;
   pointer-events: none;
-}
-
-@keyframes pendingPulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
-  }
-  50% {
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
-  }
 }
 
 .proposal-details {
@@ -495,10 +471,6 @@
   border-width: 3px;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 /* ---- Pulse Animation for Active Executions ---- */
 
 .pulse-active {
@@ -516,55 +488,6 @@
   background-color: var(--success);
   border-radius: 50%;
   animation: pulseActive 2s ease-in-out infinite;
-}
-
-@keyframes pulseActive {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
-  }
-}
-
-/* ---- Slide-in Animations for Panels ---- */
-
-@keyframes slideInLeft {
-  from {
-    transform: translateX(-100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-@keyframes slideInUp {
-  from {
-    transform: translateY(8px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }
 
 /* ---- Command Palette ---- */
@@ -590,7 +513,7 @@
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  animation: slideInUp 150ms ease-out;
+  animation: slideUp 250ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
   display: flex;
   flex-direction: column;
 }
@@ -647,7 +570,7 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   overflow: hidden;
-  animation: slideInUp 300ms ease-out;
+  animation: slideUp 250ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .onboarding-illustration {

@@ -44,9 +44,9 @@ export default function CrashRecoveryModal({ crashInfo, onRestore, onStartFresh 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="mx-4 w-full max-w-lg rounded-xl border border-border-primary bg-bg-secondary shadow-2xl">
+      <div className="mx-4 w-full max-w-lg rounded-xl border border-border bg-bg-secondary shadow-2xl">
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-border-primary px-6 py-4">
+        <div className="flex items-center gap-3 border-b border-border px-6 py-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warning/10 text-warning">
             <svg
               className="h-6 w-6"
@@ -109,7 +109,7 @@ export default function CrashRecoveryModal({ crashInfo, onRestore, onStartFresh 
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                         plan.status === 'executing'
-                          ? 'bg-accent-primary/10 text-accent-primary'
+                          ? 'bg-accent/10 text-accent'
                           : plan.status === 'planning'
                             ? 'bg-warning/10 text-warning'
                             : 'bg-bg-tertiary text-text-tertiary'
@@ -151,7 +151,7 @@ export default function CrashRecoveryModal({ crashInfo, onRestore, onStartFresh 
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-border-primary px-6 py-4">
+        <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
           <button
             onClick={onStartFresh}
             disabled={isRestoring}
@@ -162,7 +162,7 @@ export default function CrashRecoveryModal({ crashInfo, onRestore, onStartFresh 
           <button
             onClick={handleRestore}
             disabled={isRestoring}
-            className="rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-primary/90 disabled:opacity-50"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
           >
             {isRestoring ? (
               <span className="flex items-center gap-2">

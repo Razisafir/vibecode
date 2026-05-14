@@ -207,3 +207,57 @@ Stage Summary:
 - Two GA blockers identified (API key encryption, code signing certs)
 - Beta release ready: YES
 - Full incident response plan with severity classification
+
+---
+Task ID: 1
+Agent: ARC 7 Phase 1 — Design System Unification
+Task: ARC 7 Phase 1 — Design Token System Unification
+
+Work Log:
+- Rewrote tailwind.config.js with comprehensive design token system:
+  - Nested color objects (bg, border, text, accent, success, warning, error, info)
+  - Each semantic color has DEFAULT, muted, subtle variants
+  - Full typography scale (2xs → 2xl) with line heights
+  - Explicit spacing scale (4px base unit)
+  - Border radius system (sm → full)
+  - 6-level shadow depth system + focus rings
+  - Generic animation keyframes (fadeIn, fadeOut, slideUp, slideDown, scaleIn, pulseSubtle, shimmer)
+  - Motion tokens (duration scale, easing functions: default, spring, smooth)
+- Updated index.css CSS variables:
+  - Added all new tokens as CSS custom properties matching Tailwind values
+  - Added --bg-active, --bg-elevated, --border-focus, --text-tertiary, --text-inverse
+  - Added --accent-subtle, --accent-strong
+  - Added --success-muted, --success-subtle, --warning-muted, --warning-subtle, --error-muted, --error-subtle, --info-muted, --info-subtle
+  - Added --space-* scale, --duration-* scale, --easing-* functions, --shadow-* values
+  - Added --focus-ring-error
+  - Updated --text-muted from #606078 to #6b6b82 (better contrast)
+  - Kept legacy aliases (--transition-speed, --transition-easing) for backward compatibility
+- Deleted src/renderer/tailwind.config.js (duplicate renderer-local config)
+- Consolidated animations.css:
+  - Removed all generic keyframes (fadeIn, fadeOut, slideUp, slideDown, slideInRight, slideInLeft, scaleIn, pulse, shimmer)
+  - Kept only component-specific keyframes (blink, thinkingBounce, pendingPulse, pulseActive, spin, toastSlideIn, toastSlideOut)
+  - Updated utility classes to use Tailwind-defined keyframe names
+  - Updated .animate-slide-up to use slideUp with new easing/duration
+  - Updated .message-fade-in to use new slideUp timing
+- Fixed components.css:
+  - Removed duplicate @keyframes: slideInLeft, slideInRight, slideInUp, fadeIn, spin, blink, thinkingBounce, pendingPulse, pulseActive
+  - Updated .ai-message animation from slideInUp to slideUp with standardized timing
+  - Updated .proposal-card animation from slideInUp to slideUp with standardized timing
+  - Updated .command-palette animation from slideInUp to slideUp with standardized timing
+  - Updated .onboarding-card animation from slideInUp to slideUp with standardized timing
+- Fixed index.css:
+  - Removed duplicate @keyframes slideUp
+  - Removed duplicate .animate-slide-up class
+- Created DESIGN_SYSTEM.md — comprehensive token reference documentation
+- Created UI_TOKEN_ARCHITECTURE.md — architectural decision records (7 ADRs)
+- Verified: TypeScript compiles cleanly (0 errors)
+- Verified: All 226 tests pass
+
+Stage Summary:
+- Single source of truth for design tokens (tailwind.config.js + index.css synchronized)
+- Eliminated all duplicate keyframe definitions across 4 CSS files
+- Deleted duplicate renderer-local Tailwind config
+- Complete token coverage: colors, typography, spacing, radius, shadows, animations, motion
+- Nested color structure enables natural Tailwind modifier syntax
+- 7 architectural decision records documented
+- Zero regressions: all 226 tests pass, TypeScript compiles cleanly

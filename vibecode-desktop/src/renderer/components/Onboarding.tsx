@@ -40,7 +40,7 @@ const STEPS: OnboardingStep[] = [
     title: 'Set Up Your Workspace',
     description:
       'Choose a directory for your projects. VibeCode will analyze your codebase, remember decisions, and provide context-aware assistance.',
-    gradient: 'from-purple-500/20 via-bg-tertiary to-bg-secondary',
+    gradient: 'from-accent/20 via-bg-tertiary to-bg-secondary',
   },
   {
     id: 'ready',
@@ -561,7 +561,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
-                className="text-purple-400"
+                className="text-accent"
               >
                 <path d="M6 6h10l3 3h15a2 2 0 012 2v20a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2z" />
               </svg>
