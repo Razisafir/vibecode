@@ -352,7 +352,7 @@ const SettingsPanel: React.FC = () => {
                             className={`rounded px-1.5 py-0.5 text-[10px] ${
                               chatOpts.model === model.id
                                 ? 'bg-accent/20 text-accent'
-                                : 'bg-bg-primary text-text-muted'
+                                : 'bg-bg-deep text-text-muted'
                             }`}
                           >
                             {model.name}

@@ -44,7 +44,7 @@ export default function CrashRecoveryModal({ crashInfo, onRestore, onStartFresh 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="mx-4 w-full max-w-lg rounded-xl border border-border bg-bg-secondary shadow-2xl">
+      <div className="mx-4 w-full max-w-lg rounded-xl border border-border bg-bg-surface shadow-2xl">
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-border px-6 py-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warning/10 text-warning">
@@ -66,7 +66,7 @@ export default function CrashRecoveryModal({ crashInfo, onRestore, onStartFresh 
             <h2 className="text-lg font-semibold text-text-primary">
               Session Recovery
             </h2>
-            <p className="text-sm text-text-tertiary">
+            <p className="text-sm text-text-muted">
               VibeCode recovered from an unexpected close
             </p>
           </div>
@@ -75,7 +75,7 @@ export default function CrashRecoveryModal({ crashInfo, onRestore, onStartFresh 
         {/* Body */}
         <div className="px-6 py-4 space-y-4">
           {/* Crash reason */}
-          <div className="rounded-lg bg-bg-primary p-4">
+          <div className="rounded-lg bg-bg-base p-4">
             <p className="text-sm font-medium text-text-secondary">
               What happened:
             </p>
@@ -83,7 +83,7 @@ export default function CrashRecoveryModal({ crashInfo, onRestore, onStartFresh 
               {crashInfo ? formatReason(crashInfo.reason) : 'An unexpected error occurred'}
             </p>
             {crashInfo?.timestamp && (
-              <p className="mt-2 text-xs text-text-tertiary">
+              <p className="mt-2 text-xs text-text-muted">
                 Last activity: {formatTimestamp(crashInfo.timestamp)}
               </p>
             )}
@@ -91,7 +91,7 @@ export default function CrashRecoveryModal({ crashInfo, onRestore, onStartFresh 
 
           {/* Active executions */}
           {hasActivePlans && (
-            <div className="rounded-lg bg-bg-primary p-4">
+            <div className="rounded-lg bg-bg-base p-4">
               <p className="text-sm font-medium text-text-secondary">
                 Active executions at time of crash:
               </p>
@@ -102,7 +102,7 @@ export default function CrashRecoveryModal({ crashInfo, onRestore, onStartFresh 
                     className="flex items-center gap-2 text-sm text-text-primary"
                   >
                     <span className="inline-block h-2 w-2 rounded-full bg-warning" />
-                    <span className="font-mono text-xs text-text-tertiary">
+                    <span className="font-mono text-xs text-text-muted">
                       {plan.planId.slice(0, 8)}
                     </span>
                     <span className="text-text-secondary">—</span>
@@ -112,12 +112,12 @@ export default function CrashRecoveryModal({ crashInfo, onRestore, onStartFresh 
                           ? 'bg-accent/10 text-accent'
                           : plan.status === 'planning'
                             ? 'bg-warning/10 text-warning'
-                            : 'bg-bg-tertiary text-text-tertiary'
+                            : 'bg-bg-elevated text-text-muted'
                       }`}
                     >
                       {plan.status}
                     </span>
-                    <span className="text-text-tertiary">
+                    <span className="text-text-muted">
                       step {plan.currentStepIndex + 1}
                     </span>
                   </li>
@@ -155,7 +155,7 @@ export default function CrashRecoveryModal({ crashInfo, onRestore, onStartFresh 
           <button
             onClick={onStartFresh}
             disabled={isRestoring}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary disabled:opacity-50"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:opacity-50"
           >
             Start Fresh
           </button>

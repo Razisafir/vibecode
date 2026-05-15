@@ -1,17 +1,13 @@
 import React, { useCallback } from 'react';
 
 interface TitleBarProps {
-  onToggleSidebar: () => void;
-  onToggleAIPanel: () => void;
-  sidebarOpen: boolean;
-  aiPanelOpen: boolean;
+  projectName?: string;
+  onCommandPalette: () => void;
 }
 
 const TitleBar: React.FC<TitleBarProps> = ({
-  onToggleSidebar,
-  onToggleAIPanel,
-  sidebarOpen,
-  aiPanelOpen,
+  projectName,
+  onCommandPalette,
 }) => {
   const handleClose = useCallback(() => {
     window.vibecode?.app.close();
@@ -31,7 +27,7 @@ const TitleBar: React.FC<TitleBarProps> = ({
 
   return (
     <div className="titlebar" onDoubleClick={handleDoubleClick}>
-      {/* Traffic Lights / Window Controls */}
+      {/* Traffic Lights */}
       <div className="traffic-lights flex items-center gap-2 no-drag">
         <button
           className="traffic-light traffic-light-close group"
@@ -65,49 +61,30 @@ const TitleBar: React.FC<TitleBarProps> = ({
         </button>
       </div>
 
-      {/* Center Title */}
-      <div className="titlebar-title no-drag">
-        VibeCode
+      {/* Logo + Project Name */}
+      <div className="flex-1 flex items-center justify-center gap-2 no-drag">
+        <div className="flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-accent opacity-60">
+            <path d="M7 1L1 5l6 4 6-4-6-4z" fill="currentColor" />
+            <path d="M1 9l6 4 6-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="text-xs font-medium text-text-muted tracking-wide">
+            {projectName || 'VibeCode'}
+          </span>
+        </div>
       </div>
 
-      {/* Right Controls */}
+      {/* Command Palette Trigger + Window Controls */}
       <div className="flex items-center gap-1 no-drag">
         <button
           className="titlebar-action-btn"
-          onClick={onToggleSidebar}
-          aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-          title={sidebarOpen ? 'Close sidebar (Cmd+B)' : 'Open sidebar (Cmd+B)'}
+          onClick={onCommandPalette}
+          aria-label="Command palette"
+          title="Command Palette (Ctrl+K)"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          >
-            <rect x="1" y="1" width="14" height="14" rx="2" />
-            <line x1="5.5" y1="1" x2="5.5" y2="15" />
-          </svg>
-        </button>
-        <button
-          className="titlebar-action-btn"
-          onClick={onToggleAIPanel}
-          aria-label={aiPanelOpen ? 'Close AI panel' : 'Open AI panel'}
-          title={aiPanelOpen ? 'Close AI panel (Cmd+J)' : 'Open AI panel (Cmd+J)'}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          >
-            <circle cx="8" cy="8" r="5" />
-            <path d="M8 5v3l2 2" />
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
+            <rect x="1" y="3" width="12" height="8" rx="2" />
+            <path d="M4 7h6M7 5v4" />
           </svg>
         </button>
       </div>

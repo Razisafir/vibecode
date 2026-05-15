@@ -517,7 +517,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
             {steps.length > 0 && (
               <button
                 className={`px-2 py-1 text-xs rounded-t transition-colors whitespace-nowrap ${
-                  activeTab === 'steps' ? 'bg-bg-primary text-accent border-b-2 border-accent' : 'text-text-muted hover:text-text-secondary'
+                  activeTab === 'steps' ? 'bg-bg-base text-accent border-b-2 border-accent' : 'text-text-muted hover:text-text-secondary'
                 }`}
                 onClick={() => setActiveTab('steps')}
               >
@@ -527,7 +527,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
             {affectedFiles.length > 0 && (
               <button
                 className={`px-2 py-1 text-xs rounded-t transition-colors whitespace-nowrap ${
-                  activeTab === 'files' ? 'bg-bg-primary text-accent border-b-2 border-accent' : 'text-text-muted hover:text-text-secondary'
+                  activeTab === 'files' ? 'bg-bg-base text-accent border-b-2 border-accent' : 'text-text-muted hover:text-text-secondary'
                 }`}
                 onClick={() => setActiveTab('files')}
               >
@@ -537,7 +537,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
             {hasDiffContent && (
               <button
                 className={`px-2 py-1 text-xs rounded-t transition-colors whitespace-nowrap ${
-                  activeTab === 'diff' ? 'bg-bg-primary text-accent border-b-2 border-accent' : 'text-text-muted hover:text-text-secondary'
+                  activeTab === 'diff' ? 'bg-bg-base text-accent border-b-2 border-accent' : 'text-text-muted hover:text-text-secondary'
                 }`}
                 onClick={() => setActiveTab('diff')}
               >
@@ -547,7 +547,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
             {hasDetails && (
               <button
                 className={`px-2 py-1 text-xs rounded-t transition-colors whitespace-nowrap ${
-                  activeTab === 'details' ? 'bg-bg-primary text-accent border-b-2 border-accent' : 'text-text-muted hover:text-text-secondary'
+                  activeTab === 'details' ? 'bg-bg-base text-accent border-b-2 border-accent' : 'text-text-muted hover:text-text-secondary'
                 }`}
                 onClick={() => setActiveTab('details')}
               >
@@ -556,7 +556,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
             )}
           </div>
 
-          <div className="rounded-md bg-bg-primary p-3 font-mono text-xs text-text-secondary max-h-96 overflow-y-auto scrollbar-custom">
+          <div className="rounded-md bg-bg-base p-3 font-mono text-xs text-text-secondary max-h-96 overflow-y-auto scrollbar-custom">
             {/* Steps Tab — With Execution Timeline when executing/completed/failed */}
             {activeTab === 'steps' && steps.length > 0 && (
               <div className="space-y-0">
@@ -621,7 +621,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                       const stepRisk = RISK_COLORS[step.riskLevel];
                       return (
                         <div key={index} className="flex items-start gap-2 py-1 border-b border-border/50 last:border-0">
-                          <span className="flex-shrink-0 w-5 h-5 rounded bg-bg-tertiary flex items-center justify-center text-text-muted text-2xs">
+                          <span className="flex-shrink-0 w-5 h-5 rounded bg-bg-elevated flex items-center justify-center text-text-muted text-2xs">
                             {index + 1}
                           </span>
                           <div className="flex-1 min-w-0">
@@ -749,7 +749,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                             </div>
                           ) : fileDiff ? (
                             <>
-                              <div className="px-2 py-1 bg-bg-tertiary text-2xs flex items-center gap-3 border-b border-border">
+                              <div className="px-2 py-1 bg-bg-elevated text-2xs flex items-center gap-3 border-b border-border">
                                 <span className="text-text-primary font-medium">{fileDiff.filePath}</span>
                                 <span className="text-success">+{fileDiff.additions} additions</span>
                                 <span className="text-error">-{fileDiff.deletions} deletions</span>
@@ -808,7 +808,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
                     )}
                   </div>
                   {output.stdout && (
-                    <pre className="p-2 text-2xs font-mono text-text-secondary bg-bg-primary max-h-32 overflow-y-auto whitespace-pre-wrap">
+                    <pre className="p-2 text-2xs font-mono text-text-secondary bg-bg-base max-h-32 overflow-y-auto whitespace-pre-wrap">
                       {output.stdout}
                     </pre>
                   )}
@@ -856,7 +856,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
         <div className="mt-2 border-t border-border pt-2">
           <div className="flex items-center gap-2">
             {proposal.status === 'executing' && (
-              <div className="flex-1 h-1.5 bg-bg-primary rounded-full overflow-hidden">
+              <div className="flex-1 h-1.5 bg-bg-base rounded-full overflow-hidden">
                 <div
                   className="h-full bg-accent rounded-full transition-all duration-300"
                   style={{ width: `${Math.min(100, ((steps.length > 0 ? 1 : 0) / Math.max(steps.length, 1)) * 100)}%` }}
@@ -864,12 +864,12 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
               </div>
             )}
             {proposal.status === 'completed' && (
-              <div className="flex-1 h-1.5 bg-bg-primary rounded-full overflow-hidden">
+              <div className="flex-1 h-1.5 bg-bg-base rounded-full overflow-hidden">
                 <div className="h-full bg-success rounded-full w-full" />
               </div>
             )}
             {proposal.status === 'failed' && (
-              <div className="flex-1 h-1.5 bg-bg-primary rounded-full overflow-hidden">
+              <div className="flex-1 h-1.5 bg-bg-base rounded-full overflow-hidden">
                 <div className="h-full bg-error rounded-full" style={{ width: `${Math.min(100, ((steps.length > 0 ? steps.length - 1 : 0) / Math.max(steps.length, 1)) * 100)}%` }} />
               </div>
             )}

@@ -3,32 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0a0a0f" />
-    <meta name="description" content="VibeCode Desktop — AI-Native Desktop Operating Environment" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:;" />
+    <meta name="theme-color" content="#050507" />
+    <meta name="description" content="VibeCode Desktop — AI-Native Desktop IDE" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com;" />
     <title>VibeCode</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <style>
       html, body {
         margin: 0;
         padding: 0;
-        background-color: #0a0a0f;
-        color: #e8e8f0;
+        background-color: #050507;
+        color: #e4e4e9;
         overflow: hidden;
         height: 100%;
+        font-family: 'Inter', -apple-system, system-ui, sans-serif;
       }
       #root {
         height: 100%;
       }
-      /* Prevent flash of unstyled content */
       .app-loading {
         display: flex;
         align-items: center;
         justify-content: center;
         height: 100%;
-        background-color: #0a0a0f;
-        color: #555570;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-size: 14px;
+        background-color: #050507;
+        color: #65657a;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 13px;
       }
     </style>
   </head>

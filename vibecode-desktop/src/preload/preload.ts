@@ -1,20 +1,41 @@
+// ─── Preload Bridge ──────────────────────────────────────────────────────────
+//
+// Exposes all IPC APIs to the renderer via window.vibecode.
+// Namespaces:
+//   vibecode.fs.*         — File system operations
+//   vibecode.terminal.*   — Terminal management
+//   vibecode.providers.*  — Provider CRUD + streaming chat + test
+//   vibecode.memory.*     — Memory vault
+//   vibecode.workspace.*  — Workspace operations + analyze
+//   vibecode.app.*        — App info
+//   vibecode.proposal.*   — Proposal operations
+//   vibecode.session.*    — Session management
+//   vibecode.execution.*  — Execution engine
+//   vibecode.updater.*    — Auto-updater
+//   vibecode.telemetry.*  — Telemetry & diagnostics
+//   vibecode.analytics.*  — Analytics (opt-in)
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { contextBridge, ipcRenderer } from 'electron';
 
 const vibecode = {
+  // ─── File System ───────────────────────────────────────────────────────
   fs: {
-    readFile: (path: string) => ipcRenderer.invoke('fs:readFile', path),
-    writeFile: (path: string, content: string) => ipcRenderer.invoke('fs:writeFile', path, content),
-    listDir: (path: string) => ipcRenderer.invoke('fs:listDir', path),
-    watch: (path: string, callback: (event: string, file: string) => void) => {
-      ipcRenderer.send('fs:watch', path);
-      ipcRenderer.on('fs:watch:change', (_event, filePath, eventType) => callback(eventType, filePath));
+    readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath),
+    writeFile: (filePath: string, content: string) => ipcRenderer.invoke('fs:writeFile', filePath, content),
+    listDir: (dirPath: string) => ipcRenderer.invoke('fs:listDir', dirPath),
+    watch: (filePath: string, callback: (event: string, file: string) => void) => {
+      ipcRenderer.send('fs:watch', filePath);
+      ipcRenderer.on('fs:watch:change', (_event, changedPath, eventType) => callback(eventType, changedPath));
     },
-    stat: (path: string) => ipcRenderer.invoke('fs:stat', path),
-    mkdir: (path: string) => ipcRenderer.invoke('fs:mkdir', path),
-    delete: (path: string) => ipcRenderer.invoke('fs:delete', path),
+    stat: (filePath: string) => ipcRenderer.invoke('fs:stat', filePath),
+    mkdir: (dirPath: string) => ipcRenderer.invoke('fs:mkdir', dirPath),
+    delete: (filePath: string) => ipcRenderer.invoke('fs:delete', filePath),
     rename: (oldPath: string, newPath: string) => ipcRenderer.invoke('fs:rename', oldPath, newPath),
     setWorkspaceRoot: (rootPath: string) => ipcRenderer.invoke('fs:setWorkspaceRoot', rootPath),
   },
+
+  // ─── Terminal ──────────────────────────────────────────────────────────
   terminal: {
     create: (cwd?: string) => ipcRenderer.invoke('terminal:create', cwd),
     write: (id: string, data: string) => ipcRenderer.invoke('terminal:write', id, data),
@@ -23,27 +44,76 @@ const vibecode = {
     onData: (callback: (id: string, data: string) => void) => {
       ipcRenderer.on('terminal:data', (_event, id, data) => callback(id, data));
     },
+    isAvailable: () => ipcRenderer.invoke('terminal:isAvailable'),
+    list: () => ipcRenderer.invoke('terminal:list'),
+    getOutput: (id: string) => ipcRenderer.invoke('terminal:getOutput', id),
   },
-  provider: {
+
+  // ─── Providers (enhanced with streaming, testing, friendly errors) ─────
+  providers: {
+    // CRUD
     list: () => ipcRenderer.invoke('provider:list'),
+    add: (providerData: any, apiKey?: string) => ipcRenderer.invoke('provider:add', providerData, apiKey),
     configure: (config: any) => ipcRenderer.invoke('provider:configure', config),
-    update: (id: string, updates: any) => ipcRenderer.invoke('provider:update', id, updates),
+    update: (id: string, updates: any, apiKey?: string) => ipcRenderer.invoke('provider:update', id, updates, apiKey),
     remove: (id: string) => ipcRenderer.invoke('provider:remove', id),
-    test: (id: string) => ipcRenderer.invoke('provider:test', id),
-    route: (requirements: any) => ipcRenderer.invoke('provider:route', requirements),
-    chat: (providerId: string, model: string, messages: any[], options?: any) =>
-      ipcRenderer.invoke('provider:chat', providerId, model, messages, options),
-    models: (id: string) => ipcRenderer.invoke('provider:models', id),
+    getConfig: (id: string) => ipcRenderer.invoke('provider:getConfig', id),
+
+    // Default / Active / Fallback
+    setDefault: (id: string) => ipcRenderer.invoke('provider:setDefault', id),
+    getDefault: () => ipcRenderer.invoke('provider:getDefault'),
     setActive: (id: string) => ipcRenderer.invoke('provider:setActive', id),
     getActive: () => ipcRenderer.invoke('provider:getActive'),
     setFallback: (id: string) => ipcRenderer.invoke('provider:setFallback', id),
-    getConfig: (id: string) => ipcRenderer.invoke('provider:getConfig', id),
+
+    // Chat options
     getChatOptions: (id: string) => ipcRenderer.invoke('provider:getChatOptions', id),
     setChatOptions: (id: string, options: any) => ipcRenderer.invoke('provider:setChatOptions', id, options),
+
+    // Models
+    models: (id: string) => ipcRenderer.invoke('provider:models', id),
+    getModels: (id: string) => ipcRenderer.invoke('provider:getModels', id),
+
+    // Testing (enhanced with friendly errors)
+    test: (id: string) => ipcRenderer.invoke('provider:test', id),
+    testConnection: (id: string) => ipcRenderer.invoke('provider:testConnection', id),
+    checkHealth: () => ipcRenderer.invoke('provider:checkHealth'),
+
+    // Chat (non-streaming)
+    chat: (providerId: string, model: string, messages: any[], options?: any) =>
+      ipcRenderer.invoke('provider:chat', providerId, model, messages, options),
+
+    // Streaming SSE chat (new)
+    chatStream: (providerId: string, messages: any[], requestId?: string) =>
+      ipcRenderer.invoke('provider:chatStream', providerId, messages, requestId),
+    chatAbort: (requestId: string) =>
+      ipcRenderer.invoke('provider:chatAbort', requestId),
+
+    // Streaming events
     onStream: (callback: (chunk: string) => void) => {
       ipcRenderer.on('provider:stream', (_event, chunk) => callback(chunk));
     },
+    onChatChunk: (callback: (data: { requestId: string; content: string }) => void) => {
+      ipcRenderer.on('provider:chatChunk', (_event, data) => callback(data));
+    },
+    onChatDone: (callback: (data: { requestId: string; aborted?: boolean }) => void) => {
+      ipcRenderer.on('provider:chatDone', (_event, data) => callback(data));
+    },
+    onChatError: (callback: (data: { requestId: string; error: string }) => void) => {
+      ipcRenderer.on('provider:chatError', (_event, data) => callback(data));
+    },
+    onChatUpdate: (callback: (data: any) => void) => {
+      ipcRenderer.on('provider:chat:chunk', (_event, data) => callback(data));
+    },
+    onChatComplete: (callback: (data: any) => void) => {
+      ipcRenderer.on('provider:chat:done', (_event, data) => callback(data));
+    },
+
+    // Routing
+    route: (requirements: any) => ipcRenderer.invoke('provider:route', requirements),
   },
+
+  // ─── Memory Vault ──────────────────────────────────────────────────────
   memory: {
     store: (entry: any) => ipcRenderer.invoke('memory:store', entry),
     retrieve: (id: string) => ipcRenderer.invoke('memory:retrieve', id),
@@ -55,6 +125,8 @@ const vibecode = {
     summarize: (projectId: string) => ipcRenderer.invoke('memory:summarize', projectId),
     update: (id: string, updates: any) => ipcRenderer.invoke('memory:update', id, updates),
   },
+
+  // ─── Session Management ────────────────────────────────────────────────
   session: {
     save: (state: any) => ipcRenderer.invoke('session:save', state),
     restore: (sessionId: string) => ipcRenderer.invoke('session:restore', sessionId),
@@ -78,6 +150,8 @@ const vibecode = {
     archiveCrashedSession: (sessionId: string) =>
       ipcRenderer.invoke('session:archiveCrashedSession', sessionId),
   },
+
+  // ─── Execution Engine ──────────────────────────────────────────────────
   execution: {
     plan: (title: string, description: string, steps: any[]) =>
       ipcRenderer.invoke('execution:plan', title, description, steps),
@@ -104,37 +178,44 @@ const vibecode = {
     onStepUpdate: (callback: (update: any) => void) => {
       ipcRenderer.on('execution:step:update', (_event, update) => callback(update));
     },
-    // ── Diff Preview ──────────────────────────────────────────────────────
+    // Diff Preview
     getDiff: (stepId: string) => ipcRenderer.invoke('execution:getDiff', stepId),
     getPlanDiffs: (planId: string) => ipcRenderer.invoke('execution:getPlanDiffs', planId),
     getStepResult: (stepId: string) => ipcRenderer.invoke('execution:getStepResult', stepId),
     getStepOutput: (stepId: string) => ipcRenderer.invoke('execution:getStepOutput', stepId),
-    // ── Execution Queue ───────────────────────────────────────────────────
+    // Execution Queue
     queue: {
       list: () => ipcRenderer.invoke('execution:queue:list'),
       add: (planId: string, priority?: number, stepTimeout?: number) =>
         ipcRenderer.invoke('execution:queue:add', planId, priority, stepTimeout),
       cancel: (entryId: string) => ipcRenderer.invoke('execution:queue:cancel', entryId),
     },
-    // ── Execution History ─────────────────────────────────────────────────
+    // Execution History
     getHistory: () => ipcRenderer.invoke('execution:getHistory'),
-    // ── Queue Update Events ───────────────────────────────────────────────
+    // Queue Update Events
     onQueueUpdate: (callback: (update: any) => void) => {
       ipcRenderer.on('execution:queue:update', (_event, update) => callback(update));
     },
   },
+
+  // ─── Workspace (enhanced with deep analysis) ──────────────────────────
   workspace: {
-    analyze: (path: string) => ipcRenderer.invoke('workspace:analyze', path),
-    open: (path: string) => ipcRenderer.invoke('workspace:open', path),
+    analyze: (wsPath: string) => ipcRenderer.invoke('workspace:analyze', wsPath),
+    open: (wsPath?: string) => ipcRenderer.invoke('workspace:open', wsPath),
     close: () => ipcRenderer.invoke('workspace:close'),
     recent: (limit?: number) => ipcRenderer.invoke('workspace:recent', limit),
-    addRecent: (path: string, name?: string, type?: string) => ipcRenderer.invoke('workspace:addRecent', path, name, type),
-    removeRecent: (path: string) => ipcRenderer.invoke('workspace:removeRecent', path),
-    switchWorkspace: (path: string) => ipcRenderer.invoke('workspace:switchWorkspace', path),
+    addRecent: (wsPath: string, name?: string, type?: string) =>
+      ipcRenderer.invoke('workspace:addRecent', wsPath, name, type),
+    removeRecent: (wsPath: string) => ipcRenderer.invoke('workspace:removeRecent', wsPath),
+    switchWorkspace: (wsPath: string) => ipcRenderer.invoke('workspace:switchWorkspace', wsPath),
     getInfo: () => ipcRenderer.invoke('workspace:getInfo'),
-    searchFiles: (pattern: string, maxResults?: number) => ipcRenderer.invoke('workspace:searchFiles', pattern, maxResults),
-    fuzzySearch: (query: string, maxResults?: number) => ipcRenderer.invoke('workspace:fuzzySearch', query, maxResults),
+    searchFiles: (pattern: string, maxResults?: number) =>
+      ipcRenderer.invoke('workspace:searchFiles', pattern, maxResults),
+    fuzzySearch: (query: string, maxResults?: number) =>
+      ipcRenderer.invoke('workspace:fuzzySearch', query, maxResults),
   },
+
+  // ─── Proposals ─────────────────────────────────────────────────────────
   proposal: {
     generateFromResponse: (response: string, context?: { workspaceRoot?: string; projectId?: string }) =>
       ipcRenderer.invoke('proposal:generateFromResponse', response, context),
@@ -151,6 +232,8 @@ const vibecode = {
       ipcRenderer.on('proposal:updated', (_event, update) => callback(update));
     },
   },
+
+  // ─── App Info ──────────────────────────────────────────────────────────
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     quit: () => ipcRenderer.send('app:quit'),
@@ -158,6 +241,8 @@ const vibecode = {
     maximize: () => ipcRenderer.send('app:maximize'),
     close: () => ipcRenderer.send('app:close'),
   },
+
+  // ─── Auto-Updater ──────────────────────────────────────────────────────
   updater: {
     check: (force?: boolean) => ipcRenderer.invoke('updater:check', force),
     download: () => ipcRenderer.invoke('updater:download'),
@@ -181,13 +266,19 @@ const vibecode = {
       ipcRenderer.on('updater:update:error', (_event, error) => callback(error));
     },
   },
+
+  // ─── Telemetry & Diagnostics ───────────────────────────────────────────
   telemetry: {
     getMetrics: () => ipcRenderer.invoke('telemetry:getMetrics'),
-    getRecentLogs: (count?: number, level?: string) => ipcRenderer.invoke('telemetry:getRecentLogs', count, level),
+    getRecentLogs: (count?: number, level?: string) =>
+      ipcRenderer.invoke('telemetry:getRecentLogs', count, level),
     getCrashDumps: () => ipcRenderer.invoke('telemetry:getCrashDumps'),
-    sendHeartbeat: (data?: { fps?: number }) => ipcRenderer.invoke('telemetry:sendHeartbeat', data),
+    sendHeartbeat: (data?: { fps?: number }) =>
+      ipcRenderer.invoke('telemetry:sendHeartbeat', data),
     clearCrashDumps: () => ipcRenderer.invoke('telemetry:clearCrashDumps'),
   },
+
+  // ─── Analytics (opt-in, privacy-first) ─────────────────────────────────
   analytics: {
     getConfig: () => ipcRenderer.invoke('analytics:getConfig'),
     grantConsent: (options?: any) => ipcRenderer.invoke('analytics:grantConsent', options),

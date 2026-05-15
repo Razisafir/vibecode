@@ -16,31 +16,24 @@
   "main": "dist/main/main.js",
   "scripts": {
     "_comment_core": "--- CORE COMMANDS (use these daily) ---",
-
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
     "build": "tsc -p tsconfig.main.json && vite build && tsc -p tsconfig.preload.json",
     "test": "vitest run",
     "lint": "eslint src/ --max-warnings=10",
-
     "_comment_preview": "--- PREVIEW LAYER (supervised process mode) ---",
-
     "preview:start": "npm run build && VIBECODE_HEALTH_PORT=9876 npx pm2 start ecosystem.config.js --env preview",
     "preview:stop": "npx pm2 stop vibecode-desktop && npx pm2 delete vibecode-desktop",
     "preview:restart": "npx pm2 restart vibecode-desktop --env preview",
     "preview:logs": "npx pm2 logs vibecode-desktop",
     "preview:status": "npx pm2 status",
-
     "_comment_system": "--- SYSTEM LAYER (health & watchdog) ---",
-
     "health": "curl -s http://localhost:9876/api/health || echo 'Health endpoint not responding (app not running in preview mode)'",
     "health:ready": "curl -s http://localhost:9876/api/health/ready || echo 'Readiness endpoint not responding'",
     "health:live": "curl -s http://localhost:9876/api/health/live || echo 'Liveness endpoint not responding'",
     "watchdog:start": "node watchdog.js --enable",
     "watchdog:status": "node watchdog.js --status",
     "watchdog:stop": "node watchdog.js --disable",
-
     "_comment_diag": "--- DIAGNOSTICS (CI & repo integrity) ---",
-
     "status": "node scripts/status.cjs",
     "status:json": "node scripts/status.cjs -- --json",
     "ci": "npm run typecheck && npm run lint && npm run test && npm run build",
@@ -49,9 +42,7 @@
     "check:secrets": "bash scripts/check-no-secrets-staged.sh",
     "check:gitignore": "bash scripts/verify-gitignore.sh .gitignore",
     "check:all": "npm run check:env && npm run check:secrets && npm run check:gitignore",
-
     "_comment_build": "--- BUILD (sub-steps & distribution) ---",
-
     "dev:vite": "vite",
     "dev:electron": "tsc -p tsconfig.main.json && electron .",
     "build:main": "tsc -p tsconfig.main.json",
@@ -79,8 +70,10 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.3.0",
+    "monaco-editor": "^0.55.1",
     "uuid": "^9.0.0",
     "zod": "^3.22.0"
   },

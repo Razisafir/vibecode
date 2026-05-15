@@ -28,6 +28,10 @@ export function getProvidersConfigPath(): string {
   return path.join(getVibeCodeDir(), 'providers.json');
 }
 
+export function getSecretsConfigPath(): string {
+  return path.join(getVibeCodeDir(), 'secrets.json');
+}
+
 export function ensureDirectories(): void {
   const dirs = [getVibeCodeDir(), getMemoryDir(), getSessionsDir(), getWorkspacesDir()];
   dirs.forEach(dir => {

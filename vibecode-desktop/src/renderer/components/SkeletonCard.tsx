@@ -8,7 +8,7 @@ interface SkeletonCardProps {
 
 /**
  * A card-shaped skeleton placeholder with optional avatar circle and multiple shimmer lines.
- * Uses design tokens (bg-bg-tertiary / bg-bg-hover) via the animate-shimmer CSS class.
+ * Uses design tokens (bg-bg-elevated / bg-bg-hover) via the animate-shimmer CSS class.
  */
 const SkeletonCard: React.FC<SkeletonCardProps> = ({
   lines = 3,
@@ -17,14 +17,14 @@ const SkeletonCard: React.FC<SkeletonCardProps> = ({
 }) => {
   return (
     <div
-      className={`rounded-lg border border-border bg-bg-tertiary p-4 animate-fade-in ${className}`}
+      className={`rounded-lg border border-border bg-bg-elevated p-4 animate-fade-in ${className}`}
       role="status"
       aria-label="Loading..."
     >
       <div className="flex gap-3">
         {showAvatar && (
           <div
-            className="animate-shimmer h-10 w-10 flex-shrink-0 rounded-full bg-bg-tertiary"
+            className="animate-shimmer h-10 w-10 flex-shrink-0 rounded-full bg-bg-elevated"
           />
         )}
         <div className="flex-1 space-y-2.5">
@@ -34,7 +34,7 @@ const SkeletonCard: React.FC<SkeletonCardProps> = ({
             return (
               <div
                 key={i}
-                className="animate-shimmer rounded bg-bg-tertiary"
+                className="animate-shimmer rounded bg-bg-elevated"
                 style={{
                   width: widthPct,
                   height: heights[i] ?? '10px',

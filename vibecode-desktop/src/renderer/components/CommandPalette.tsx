@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import type { SidebarTab, FileSearchResult } from '../types';
+import type { ActivityTab, FileSearchResult } from '../types';
 
 interface CommandPaletteProps {
   onClose: () => void;
   onToggleSidebar: () => void;
   onToggleAIPanel: () => void;
-  onTabChange: (tab: SidebarTab) => void;
+  onTabChange: (tab: ActivityTab) => void;
   sidebarOpen: boolean;
   aiPanelOpen: boolean;
 }
@@ -404,7 +404,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                   Files
                 </span>
               )}
-              <kbd className="rounded border border-border bg-bg-primary px-1.5 py-0.5 text-xs text-text-muted">
+              <kbd className="rounded border border-border bg-bg-base px-1.5 py-0.5 text-xs text-text-muted">
                 Esc
               </kbd>
             </div>
@@ -462,7 +462,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                         </div>
                       </div>
                       {item.shortcut && (
-                        <kbd className="rounded border border-border bg-bg-primary px-1.5 py-0.5 text-xs text-text-muted flex-shrink-0">
+                        <kbd className="rounded border border-border bg-bg-base px-1.5 py-0.5 text-xs text-text-muted flex-shrink-0">
                           {item.shortcut}
                         </kbd>
                       )}
@@ -478,19 +478,19 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         <div className="flex items-center justify-between border-t border-border px-4 py-2 text-xs text-text-muted">
           <div className="flex items-center gap-3">
             <span>
-              <kbd className="rounded border border-border bg-bg-primary px-1">&uarr;&darr;</kbd>{' '}
+              <kbd className="rounded border border-border bg-bg-base px-1">&uarr;&darr;</kbd>{' '}
               Navigate
             </span>
             <span>
-              <kbd className="rounded border border-border bg-bg-primary px-1">&crarr;</kbd>{' '}
+              <kbd className="rounded border border-border bg-bg-base px-1">&crarr;</kbd>{' '}
               Select
             </span>
             <span>
-              <kbd className="rounded border border-border bg-bg-primary px-1">Esc</kbd>{' '}
+              <kbd className="rounded border border-border bg-bg-base px-1">Esc</kbd>{' '}
               Close
             </span>
             <span>
-              <kbd className="rounded border border-border bg-bg-primary px-1">Cmd+P</kbd>{' '}
+              <kbd className="rounded border border-border bg-bg-base px-1">Cmd+P</kbd>{' '}
               Files
             </span>
           </div>

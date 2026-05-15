@@ -271,7 +271,7 @@ const TerminalPanel: React.FC = () => {
   return (
     <div className="flex h-full flex-col">
       {/* Terminal Tabs */}
-      <div className="flex items-center border-b border-border bg-bg-primary px-2 py-1">
+      <div className="flex items-center border-b border-border bg-bg-deep px-2 py-1">
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-hidden">
           {terminals.map((term) => (
             <div
@@ -357,7 +357,7 @@ const TerminalPanel: React.FC = () => {
       </div>
 
       {/* Terminal Input */}
-      <div className="flex items-center border-t border-border bg-bg-primary px-3 py-1.5">
+      <div className="flex items-center border-t border-border bg-bg-deep px-3 py-1.5">
         <span className="mr-2 text-xs text-success">$</span>
         <input
           ref={inputRef}

@@ -1,11 +1,21 @@
+// ─── Workspace IPC Handlers ─────────────────────────────────────────────────
+//
+// Enhanced with the WorkspaceAnalyzer service for deeper project intelligence.
+// The `workspace:analyze` IPC now uses the full analyzer with caching,
+// while workspace open/switch still uses the fast synchronous analyzer
+// for quick UI updates.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { setExecutionWorkspaceRoot } from './execution-handlers';
 import { WorkspaceStore, detectProjectType } from '../services/workspace-store';
+import { analyzeWorkspace as deepAnalyzeWorkspace, clearAnalysisCache, WorkspaceAnalysis } from '../services/workspace-analyzer';
 import { validateWithError } from '../utils/validation';
 import { WorkspacePathSchema } from '../utils/schemas';
 import { auditLog } from '../utils/audit-log';
+import { logger } from '../utils/logger';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -66,7 +76,7 @@ let currentWorkspace: WorkspaceInfo | null = null;
 // ─── Handler Registration ───────────────────────────────────────────────────
 
 export function registerWorkspaceHandlers(): void {
-  // ── workspace:analyze ──────────────────────────────────────────────────
+  // ── workspace:analyze (enhanced: uses WorkspaceAnalyzer with caching) ──
   ipcMain.handle('workspace:analyze', async (_event, workspacePath: string) => {
     try {
       const pathV = validateWithError(WorkspacePathSchema, workspacePath);
@@ -77,9 +87,11 @@ export function registerWorkspaceHandlers(): void {
       const stat = fs.statSync(resolved);
       if (!stat.isDirectory()) return err(`Path is not a directory: ${resolved}`);
 
-      const info = analyzeWorkspace(resolved);
-      return ok({ workspace: info });
+      // Use the deep analyzer with caching
+      const analysis = await deepAnalyzeWorkspace(resolved);
+      return ok({ workspace: analysis });
     } catch (error) {
+      logger.error('workspace', 'Failed to analyze workspace', { error: String(error) });
       return err(error instanceof Error ? error.message : String(error));
     }
   });
@@ -116,6 +128,9 @@ export function registerWorkspaceHandlers(): void {
       currentWorkspace = info;
       workspaceStore.addRecent(resolved, info.name, info.type);
       setExecutionWorkspaceRoot(resolved);
+
+      // Clear the deep analysis cache for this workspace (might have changed)
+      clearAnalysisCache(resolved);
 
       auditLog.auditLog('workspace.open', { rootPath: resolved, name: info.name, type: info.type });
       return ok({ canceled: false, workspace: info });
@@ -190,6 +205,9 @@ export function registerWorkspaceHandlers(): void {
       workspaceStore.addRecent(resolved, info.name, info.type);
       setExecutionWorkspaceRoot(resolved);
 
+      // Clear the deep analysis cache for this workspace
+      clearAnalysisCache(resolved);
+
       auditLog.auditLog('workspace.switch', { rootPath: resolved, name: info.name });
       return ok({ workspace: info });
     } catch (error) {
@@ -236,10 +254,10 @@ export function registerWorkspaceHandlers(): void {
     }
   });
 
-  console.log('[IPC] Workspace handlers registered (with validation)');
+  logger.info('ipc', 'Workspace handlers registered (with enhanced analyzer)');
 }
 
-// ─── Workspace Analysis ─────────────────────────────────────────────────────
+// ─── Fast Workspace Analysis (for open/switch) ─────────────────────────────
 
 function analyzeWorkspace(rootPath: string): WorkspaceInfo {
   const name = path.basename(rootPath);

@@ -218,7 +218,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
       return (
         <div className="space-y-4">
           {/* Skip provider option */}
-          <div className="rounded-lg bg-bg-primary px-3 py-2">
+          <div className="rounded-lg bg-bg-base px-3 py-2">
             <Toggle
               enabled={skipProvider}
               onChange={setSkipProvider}
@@ -237,7 +237,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
                     className={`rounded-lg border px-3 py-2.5 text-left transition-all ${
                       providerType === option.type
                         ? 'border-accent bg-accent/10 text-accent'
-                        : 'border-border bg-bg-primary text-text-secondary hover:border-accent/50'
+                        : 'border-border bg-bg-base text-text-secondary hover:border-accent/50'
                     }`}
                     onClick={() => {
                       setProviderType(option.type);
@@ -439,7 +439,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
             ].map((suggestion) => (
               <div
                 key={suggestion}
-                className="flex items-center gap-2 rounded-md bg-bg-primary px-3 py-2 text-sm text-text-secondary"
+                className="flex items-center gap-2 rounded-md bg-bg-base px-3 py-2 text-sm text-text-secondary"
               >
                 <svg
                   width="14"
@@ -483,7 +483,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
           </div>
 
           {/* Center Icon */}
-          <div className="relative z-10 flex h-20 w-20 items-center justify-center rounded-2xl border border-border bg-bg-tertiary/80 shadow-lg backdrop-blur-sm">
+          <div className="relative z-10 flex h-20 w-20 items-center justify-center rounded-2xl border border-border bg-bg-elevated/80 shadow-lg backdrop-blur-sm">
             {currentStep === 0 && (
               <svg
                 width="40"
@@ -575,7 +575,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
           <div className="flex items-center justify-between">
             {/* Trust message + Skip */}
             <div className="flex items-center gap-3">
-              <p className="text-2xs text-text-tertiary mr-auto">
+              <p className="text-2xs text-text-muted mr-auto">
                 Your data stays on your device
               </p>
             </div>

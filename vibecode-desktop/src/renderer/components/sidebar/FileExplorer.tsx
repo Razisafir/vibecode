@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { FileInfo } from '../../types';
-import SkeletonLine from '../SkeletonLine';
 
 interface FileTreeNodeProps {
   item: FileInfo;
@@ -23,14 +22,11 @@ const FILE_ICONS: Record<string, { icon: string; className: string }> = {
   html: { icon: '</>', className: 'file-icon-html' },
   yml: { icon: 'Y', className: 'file-icon-json' },
   yaml: { icon: 'Y', className: 'file-icon-json' },
-  toml: { icon: 'T', className: 'file-icon-json' },
   rs: { icon: 'RS', className: 'file-icon-ts' },
   go: { icon: 'GO', className: 'file-icon-ts' },
   sql: { icon: 'DB', className: 'file-icon-py' },
   sh: { icon: '$_', className: 'file-icon-css' },
-  bash: { icon: '$_', className: 'file-icon-css' },
   gitignore: { icon: 'G', className: 'file-icon-folder' },
-  lock: { icon: 'L', className: 'file-icon-css' },
   env: { icon: 'E', className: 'file-icon-py' },
 };
 
@@ -101,12 +97,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
         {/* Chevron for directories */}
         <div className={`file-tree-chevron ${isExpanded ? 'expanded' : ''}`}>
           {item.isDirectory ? (
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              fill="currentColor"
-            >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
               <path d="M4 2l4 4-4 4z" />
             </svg>
           ) : (
@@ -117,12 +108,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
         {/* File/Folder Icon */}
         <span className={`file-icon ${iconInfo.className}`}>
           {item.isDirectory ? (
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="currentColor"
-            >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
               <path d="M1.5 2.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1v7a1 1 0 01-1 1h-9a1 1 0 01-1-1v-8.5z" />
             </svg>
           ) : (
@@ -131,7 +117,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
         </span>
 
         {/* Name */}
-        <span className="truncate">{item.name}</span>
+        <span className="truncate flex-1">{item.name}</span>
 
         {/* Loading indicator */}
         {isLoading && (
@@ -196,19 +182,33 @@ const FileExplorer: React.FC = () => {
     const loadRoot = async () => {
       setIsLoading(true);
       try {
-        // Try to get a default workspace path
-        const homeDir = process.env.HOME || process.env.USERPROFILE || '~';
-        const defaultPath = `${homeDir}/projects`;
-
-        const result = await window.vibecode?.fs.listDir(defaultPath);
-        if (result?.success && result.data) {
-          setWorkspaceRoot(defaultPath);
-          const sorted = result.data.sort((a, b) => {
-            if (a.isDirectory && !b.isDirectory) return -1;
-            if (!a.isDirectory && b.isDirectory) return 1;
-            return a.name.localeCompare(b.name);
-          });
-          setRootItems(sorted);
+        const infoResult = await window.vibecode?.workspace.getInfo();
+        if (infoResult?.success && infoResult.data?.workspace) {
+          const rootPath = infoResult.data.workspace.rootPath;
+          setWorkspaceRoot(rootPath);
+          const result = await window.vibecode?.fs.listDir(rootPath);
+          if (result?.success && result.data) {
+            const sorted = result.data.sort((a, b) => {
+              if (a.isDirectory && !b.isDirectory) return -1;
+              if (!a.isDirectory && b.isDirectory) return 1;
+              return a.name.localeCompare(b.name);
+            });
+            setRootItems(sorted);
+          }
+        } else {
+          // Try default home directory
+          const homeDir = process.env.HOME || process.env.USERPROFILE || '~';
+          const defaultPath = `${homeDir}/projects`;
+          const result = await window.vibecode?.fs.listDir(defaultPath);
+          if (result?.success && result.data) {
+            setWorkspaceRoot(defaultPath);
+            const sorted = result.data.sort((a, b) => {
+              if (a.isDirectory && !b.isDirectory) return -1;
+              if (!a.isDirectory && b.isDirectory) return 1;
+              return a.name.localeCompare(b.name);
+            });
+            setRootItems(sorted);
+          }
         }
       } catch {
         // Failed to load root
@@ -222,18 +222,15 @@ const FileExplorer: React.FC = () => {
   // Close context menu on click outside
   useEffect(() => {
     if (!contextMenu.visible) return;
-
     const handleClick = () => {
       setContextMenu((prev) => ({ ...prev, visible: false }));
     };
-
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
   }, [contextMenu.visible]);
 
   const handleFileOpen = useCallback((path: string) => {
     setActiveFilePath(path);
-    // Dispatch custom event for workspace to listen to
     window.dispatchEvent(
       new CustomEvent('vibecode:open-file', { detail: { path } }),
     );
@@ -268,7 +265,7 @@ const FileExplorer: React.FC = () => {
   }, [workspaceRoot]);
 
   const handleCreateItem = useCallback(
-    async (type: 'file' | 'folder') => {
+    (type: 'file' | 'folder') => {
       setIsCreating(type);
       setNewItemName('');
     },
@@ -295,56 +292,54 @@ const FileExplorer: React.FC = () => {
     }
   }, [newItemName, workspaceRoot, contextMenu, isCreating, handleRefresh]);
 
-  const handleDelete = useCallback(async (path: string) => {
+  const handleOpenFolder = useCallback(async () => {
     try {
-      await window.vibecode?.fs.delete(path);
-      handleRefresh();
-    } catch {
-      // Delete failed
-    }
-  }, [handleRefresh]);
-
-  const handleRename = useCallback(
-    async (oldPath: string) => {
-      const newName = prompt('New name:', oldPath.split('/').pop());
-      if (!newName) return;
-      const parentDir = oldPath.substring(0, oldPath.lastIndexOf('/'));
-      const newPath = `${parentDir}/${newName}`;
-      try {
-        await window.vibecode?.fs.rename(oldPath, newPath);
-        handleRefresh();
-      } catch {
-        // Rename failed
+      const result = await window.vibecode?.workspace.open('');
+      if (result?.success && result.data?.workspace) {
+        const ws = result.data.workspace;
+        setWorkspaceRoot(ws.rootPath);
+        const listResult = await window.vibecode?.fs.listDir(ws.rootPath);
+        if (listResult?.success && listResult.data) {
+          setRootItems(listResult.data.sort((a, b) => {
+            if (a.isDirectory && !b.isDirectory) return -1;
+            if (!a.isDirectory && b.isDirectory) return 1;
+            return a.name.localeCompare(b.name);
+          }));
+        }
       }
-    },
-    [handleRefresh],
-  );
+    } catch {
+      // Open failed
+    }
+  }, []);
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header with actions */}
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <span className="truncate text-xs font-medium text-text-secondary">
-          {workspaceRoot ? workspaceRoot.split('/').pop() : 'No Workspace'}
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+        <span className="truncate text-xs font-semibold uppercase tracking-wider text-text-muted">
+          Explorer
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
             className="btn-icon btn-ghost rounded p-1"
             onClick={() => handleCreateItem('file')}
             title="New File"
             aria-label="New File"
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M2 3h4l1 1h5v8H2V3z" />
               <line x1="7" y1="6" x2="7" y2="9" />
               <line x1="5.5" y1="7.5" x2="8.5" y2="7.5" />
+            </svg>
+          </button>
+          <button
+            className="btn-icon btn-ghost rounded p-1"
+            onClick={() => handleCreateItem('folder')}
+            title="New Folder"
+            aria-label="New Folder"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M2 3h4l1 1h5v7H2V3z" />
             </svg>
           </button>
           <button
@@ -353,15 +348,7 @@ const FileExplorer: React.FC = () => {
             title="Refresh"
             aria-label="Refresh file tree"
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M2 7a5 5 0 019-2M12 7a5 5 0 01-9 2" />
               <polyline points="11,2 12,5 9,5.5" />
               <polyline points="3,12 2,9 5,8.5" />
@@ -370,28 +357,31 @@ const FileExplorer: React.FC = () => {
         </div>
       </div>
 
+      {/* Workspace Name */}
+      {workspaceRoot && (
+        <div className="flex items-center gap-1.5 px-4 py-1.5 text-xs text-text-secondary border-b border-border bg-bg-elevated/30">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2">
+            <path d="M1.5 2.5a1 1 0 011-1h2.5l1 1h3.5a1 1 0 011 1v5a1 1 0 01-1 1h-7a1 1 0 01-1-1v-6z" />
+          </svg>
+          <span className="truncate font-medium">{workspaceRoot.split('/').pop()}</span>
+        </div>
+      )}
+
       {/* File Tree */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 scrollbar-custom">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-2">
         {isLoading && rootItems.length === 0 ? (
-          <div className="space-y-2 px-2 py-4">
-            <SkeletonLine width="70%" height="16px" />
-            <SkeletonLine width="85%" height="16px" />
-            <SkeletonLine width="55%" height="16px" />
-            <SkeletonLine width="90%" height="16px" />
-            <SkeletonLine width="60%" height="16px" />
+          <div className="flex items-center justify-center py-8">
+            <span className="spinner" />
           </div>
         ) : rootItems.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-text-muted">
-            <p className="mb-2">No workspace open</p>
+          <div className="px-4 py-8 text-center">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.2" className="mx-auto mb-3 text-text-muted opacity-40">
+              <path d="M8 8h10l4 4h10a2 2 0 012 2v18a2 2 0 01-2 2H8a2 2 0 01-2-2V10a2 2 0 012-2z" />
+            </svg>
+            <p className="text-xs text-text-muted mb-3">No workspace open</p>
             <button
-              className="btn btn-primary btn-sm rounded-md"
-              onClick={async () => {
-                try {
-                  await window.vibecode?.workspace.open('');
-                } catch {
-                  // Open dialog not available
-                }
-              }}
+              className="btn btn-primary btn-sm rounded"
+              onClick={handleOpenFolder}
             >
               Open Folder
             </button>
@@ -427,17 +417,10 @@ const FileExplorer: React.FC = () => {
               autoFocus
             />
             <button
-              className="btn btn-primary btn-sm rounded-md px-2"
+              className="btn btn-primary btn-sm rounded px-2"
               onClick={confirmCreate}
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="2,6 5,9 10,3" />
               </svg>
             </button>
@@ -451,50 +434,20 @@ const FileExplorer: React.FC = () => {
           className="context-menu"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
-          <div
-            className="context-menu-item"
-            onClick={() => {
-              handleFileOpen(contextMenu.path);
-              setContextMenu((prev) => ({ ...prev, visible: false }));
-            }}
-          >
+          <div className="context-menu-item" onClick={() => { handleFileOpen(contextMenu.path); setContextMenu((p) => ({ ...p, visible: false })); }}>
             Open
           </div>
-          <div
-            className="context-menu-item"
-            onClick={() => {
-              handleRename(contextMenu.path);
-              setContextMenu((prev) => ({ ...prev, visible: false }));
-            }}
-          >
+          <div className="context-menu-item" onClick={() => { setContextMenu((p) => ({ ...p, visible: false })); }}>
             Rename
           </div>
-          <div
-            className="context-menu-item"
-            onClick={() => {
-              handleCreateItem('file');
-              setContextMenu((prev) => ({ ...prev, visible: false }));
-            }}
-          >
+          <div className="context-menu-item" onClick={() => { handleCreateItem('file'); setContextMenu((p) => ({ ...p, visible: false })); }}>
             New File
           </div>
-          <div
-            className="context-menu-item"
-            onClick={() => {
-              handleCreateItem('folder');
-              setContextMenu((prev) => ({ ...prev, visible: false }));
-            }}
-          >
+          <div className="context-menu-item" onClick={() => { handleCreateItem('folder'); setContextMenu((p) => ({ ...p, visible: false })); }}>
             New Folder
           </div>
           <div className="context-menu-separator" />
-          <div
-            className="context-menu-item context-menu-item-danger"
-            onClick={() => {
-              handleDelete(contextMenu.path);
-              setContextMenu((prev) => ({ ...prev, visible: false }));
-            }}
-          >
+          <div className="context-menu-item context-menu-item-danger" onClick={() => { setContextMenu((p) => ({ ...p, visible: false })); }}>
             Delete
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { SessionState, LayoutState, ChatMessage } from '../types';
+import type { SessionState, LayoutState, ChatMessage, ActivityTab } from '../types';
 
 const SESSION_KEY = 'vibecode:session';
 const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
@@ -99,7 +99,9 @@ export function useSession(): UseSessionReturn {
       sidebarWidth: 280,
       aiPanelOpen: true,
       aiPanelWidth: 400,
-      activeSidebarTab: 'files',
+      activeSidebarTab: 'files' as ActivityTab,
+      bottomPanelOpen: false,
+      bottomPanelHeight: 200,
     },
     lastSaved: Date.now(),
     createdAt: Date.now(),

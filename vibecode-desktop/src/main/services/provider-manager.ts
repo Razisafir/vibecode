@@ -198,9 +198,9 @@ export class ProviderManager {
   // ─── Persistence ──────────────────────────────────────────────────────
 
   private loadFromStore(): void {
-    const data = this.store.loadProviders();
+    const persistedProviders = this.store.list();
 
-    for (const persisted of data.providers) {
+    for (const persisted of persistedProviders) {
       const provider: Provider = {
         id: persisted.id,
         name: persisted.name,
@@ -226,11 +226,13 @@ export class ProviderManager {
     }
 
     // Restore active/fallback
-    if (data.activeProviderId && this.providers.has(data.activeProviderId)) {
-      this.activeProviderId = data.activeProviderId;
+    const activeId = this.store.getActiveId();
+    if (activeId && this.providers.has(activeId)) {
+      this.activeProviderId = activeId;
     }
-    if (data.fallbackProviderId && this.providers.has(data.fallbackProviderId)) {
-      this.fallbackProviderId = data.fallbackProviderId;
+    const fallbackId = this.store.getFallbackId();
+    if (fallbackId && this.providers.has(fallbackId)) {
+      this.fallbackProviderId = fallbackId;
     }
 
     // Do background health checks for all loaded providers
@@ -240,20 +242,44 @@ export class ProviderManager {
   }
 
   private persistToStore(): void {
-    const persisted: PersistedProvider[] = Array.from(this.providers.values()).map((p) => ({
-      id: p.id,
-      name: p.name,
-      type: p.type,
-      apiKey: p.apiKey,
-      baseUrl: p.baseUrl,
-      models: p.models,
-      priority: p.priority,
-      isActive: p.isActive,
-      isFallback: p.isFallback,
-      chatOptions: p.chatOptions,
-    }));
+    // Update each provider in the store individually
+    for (const provider of this.providers.values()) {
+      const existing = this.store.get(provider.id);
+      if (existing) {
+        this.store.update(provider.id, {
+          name: provider.name,
+          type: provider.type,
+          apiKey: provider.apiKey,
+          baseUrl: provider.baseUrl,
+          models: provider.models,
+          priority: provider.priority,
+          isActive: provider.isActive,
+          isFallback: provider.isFallback,
+          chatOptions: provider.chatOptions,
+        });
+      } else {
+        this.store.add({
+          id: provider.id,
+          name: provider.name,
+          type: provider.type,
+          apiKey: provider.apiKey,
+          baseUrl: provider.baseUrl,
+          models: provider.models,
+          priority: provider.priority,
+          isActive: provider.isActive,
+          isFallback: provider.isFallback,
+          chatOptions: provider.chatOptions,
+        });
+      }
+    }
 
-    this.store.saveProviders(persisted, this.activeProviderId ?? undefined, this.fallbackProviderId ?? undefined);
+    // Save active/fallback IDs
+    if (this.activeProviderId) {
+      this.store.setActiveId(this.activeProviderId);
+    }
+    if (this.fallbackProviderId) {
+      this.store.setFallbackId(this.fallbackProviderId);
+    }
   }
 
   // ─── Provider Management ──────────────────────────────────────────────

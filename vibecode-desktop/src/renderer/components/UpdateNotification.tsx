@@ -104,7 +104,7 @@ export const UpdateNotification: React.FC = () => {
     <div className="fixed bottom-4 right-4 z-50 max-w-sm">
       {/* Update Available */}
       {view === 'available' && updateInfo && (
-        <div className="bg-bg-secondary border border-border rounded-lg p-4 shadow-2xl">
+        <div className="bg-bg-surface border border-border rounded-lg p-4 shadow-2xl">
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
               <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -140,7 +140,7 @@ export const UpdateNotification: React.FC = () => {
 
       {/* Downloading */}
       {view === 'downloading' && progress && (
-        <div className="bg-bg-secondary border border-border rounded-lg p-4 shadow-2xl">
+        <div className="bg-bg-surface border border-border rounded-lg p-4 shadow-2xl">
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
               <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -168,7 +168,7 @@ export const UpdateNotification: React.FC = () => {
 
       {/* Ready to Install */}
       {view === 'downloaded' && updateInfo && (
-        <div className="bg-bg-secondary border border-success/30 rounded-lg p-4 shadow-2xl">
+        <div className="bg-bg-surface border border-success/30 rounded-lg p-4 shadow-2xl">
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center flex-shrink-0 mt-0.5">
               <svg className="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -201,7 +201,7 @@ export const UpdateNotification: React.FC = () => {
 
       {/* Error */}
       {view === 'error' && error && (
-        <div className="bg-bg-secondary border border-error/30 rounded-lg p-4 shadow-2xl">
+        <div className="bg-bg-surface border border-error/30 rounded-lg p-4 shadow-2xl">
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-full bg-error/20 flex items-center justify-center flex-shrink-0 mt-0.5">
               <svg className="w-4 h-4 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">

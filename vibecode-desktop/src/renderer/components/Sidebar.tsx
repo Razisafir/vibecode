@@ -1,5 +1,5 @@
 import React from 'react';
-import type { SidebarTab } from '../types';
+import type { ActivityTab } from '../types';
 import FileExplorer from './sidebar/FileExplorer';
 import TerminalPanel from './sidebar/TerminalPanel';
 import MemoryPanel from './sidebar/MemoryPanel';
@@ -7,8 +7,8 @@ import SettingsPanel from './sidebar/SettingsPanel';
 
 interface SidebarProps {
   isOpen: boolean;
-  activeTab: SidebarTab;
-  onTabChange: (tab: SidebarTab) => void;
+  activeTab: ActivityTab;
+  onTabChange: (tab: ActivityTab) => void;
   onToggle: () => void;
   width?: number;
 }
@@ -31,20 +31,28 @@ const SidebarIcon: React.FC<SidebarIconProps> = ({ active, onClick, label, child
   </button>
 );
 
-const TAB_CONFIG: { id: SidebarTab; label: string }[] = [
+const TAB_CONFIG: { id: ActivityTab; label: string }[] = [
   { id: 'files', label: 'Files' },
+  { id: 'search', label: 'Search' },
   { id: 'terminal', label: 'Terminal' },
   { id: 'memory', label: 'Memory' },
   { id: 'settings', label: 'Settings' },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeTab, onTabChange, onToggle, width = 280 }) => {
-  const renderTabIcon = (tab: SidebarTab) => {
+  const renderTabIcon = (tab: ActivityTab) => {
     switch (tab) {
       case 'files':
         return (
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 3h5l2 2h7a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1z" />
+          </svg>
+        );
+      case 'search':
+        return (
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="8" cy="8" r="5" />
+            <line x1="12" y1="12" x2="17" y2="17" />
           </svg>
         );
       case 'terminal':
@@ -62,6 +70,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeTab, onTabChange, onTog
             <path d="M10 6v4l3 3" />
           </svg>
         );
+      case 'ai':
+        return (
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10 2L2 6l8 4 8-4-8-4z" />
+            <path d="M2 10l8 4 8-4" />
+            <path d="M2 14l8 4 8-4" />
+          </svg>
+        );
       case 'settings':
         return (
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -75,11 +91,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeTab, onTabChange, onTog
   const renderPanelContent = () => {
     switch (activeTab) {
       case 'files':
+      case 'search':
         return <FileExplorer />;
       case 'terminal':
         return <TerminalPanel />;
       case 'memory':
         return <MemoryPanel />;
+      case 'ai':
+        return <FileExplorer />;
       case 'settings':
         return <SettingsPanel />;
     }
@@ -106,10 +125,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeTab, onTabChange, onTog
           </SidebarIcon>
         ))}
 
-        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Collapse button */}
         <button
           className="sidebar-icon-btn"
           onClick={onToggle}
@@ -139,14 +156,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeTab, onTabChange, onTog
         className={`sidebar-panel sidebar-transition ${isOpen ? '' : 'collapsed'}`}
         style={isOpen ? { width: `${width}px` } : undefined}
       >
-        {/* Panel Header */}
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
             {TAB_CONFIG.find((t) => t.id === activeTab)?.label}
           </h2>
         </div>
 
-        {/* Panel Content */}
         <div className="flex-1 overflow-hidden">
           {renderPanelContent()}
         </div>

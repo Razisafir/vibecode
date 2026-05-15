@@ -1,10 +1,7 @@
 /* ============================================================
    VibeCode Desktop — CSS Animations & Transitions
-   ARC 7 — Unified Animation System
+   ARC 8 — Premium AI IDE
    ============================================================ */
-
-/* ---- Component-Specific Keyframes ---- */
-/* These are NOT in Tailwind config because they're used by CSS classes, not utility classes */
 
 @keyframes blink {
   0%, 100% { opacity: 1; }
@@ -22,22 +19,29 @@
   }
 }
 
-@keyframes pendingPulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
-  }
-  50% {
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
-  }
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }
 
-@keyframes pulseActive {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
-  }
+@keyframes fadeOut {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes slideUp {
+  0% { transform: translateY(8px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideDown {
+  0% { transform: translateY(-8px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes scaleIn {
+  0% { transform: scale(0.96); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 @keyframes spin {
@@ -66,8 +70,17 @@
   }
 }
 
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+  50% { box-shadow: 0 0 20px 2px rgba(99, 102, 241, 0.15); }
+}
+
 /* ---- Animation Utility Classes ---- */
-/* These map to the Tailwind animation config but provide CSS class alternatives */
 
 .animate-fade-in {
   animation: fadeIn 200ms ease-out forwards;
@@ -78,30 +91,31 @@
 }
 
 .animate-slide-up {
-  animation: slideUp 250ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-.animate-slide-down {
-  animation: slideDown 250ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: slideUp 200ms var(--easing-default) forwards;
 }
 
 .animate-scale-in {
   animation: scaleIn 200ms ease-out forwards;
 }
 
-.animate-pulse-subtle {
-  animation: pulseSubtle 2s ease-in-out infinite;
-}
-
 .animate-shimmer {
   background: linear-gradient(
     90deg,
-    var(--bg-tertiary) 25%,
+    var(--bg-elevated) 25%,
     var(--bg-hover) 37%,
-    var(--bg-tertiary) 63%
+    var(--bg-elevated) 63%
   );
   background-size: 800px 100%;
   animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradientShift 3s ease infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
 }
 
 /* ---- Panel Transition Classes ---- */
@@ -112,23 +126,14 @@
               transform 200ms ease-out;
 }
 
-.sidebar-transition {
-  transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 200ms ease-out;
-}
-
 .ai-panel-transition {
-  transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1),
+  transition: width 300ms cubic-bezier(0.16, 1, 0.3, 1),
               opacity 200ms ease-out;
-}
-
-.resize-handle-transition {
-  transition: background-color 150ms ease;
 }
 
 .message-fade-in {
   animation: fadeIn 200ms ease-out forwards,
-             slideUp 250ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+             slideUp 200ms var(--easing-default) forwards;
 }
 
 /* ---- Toast Animations ---- */

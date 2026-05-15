@@ -1,5 +1,6 @@
 // ============================================================
 // VibeCode Desktop — TypeScript Type Definitions
+// ARC 8 — Premium AI IDE
 // ============================================================
 
 // ---- Window API (exposed via preload script) ----
@@ -75,7 +76,7 @@ export interface VibeCodeAPI {
   execution: {
     plan(title: string, description: string, steps: any[]): Promise<{ success: boolean; data?: { plan: ExecutionPlan }; error?: string }>;
     execute(planId: string): Promise<{ success: boolean; data?: { plan: ExecutionPlan }; error?: string }>;
-    status(planId: string): Promise<{ success: boolean; data?: { plan: { id: string; title: string; description: string; status: string; createdAt: number; updatedAt: number }; steps: Array<{ id: string; title: string; type: string; status: string; riskLevel: RiskLevel; requiresApproval: boolean; error?: string; retryCount: number; startedAt?: number; completedAt?: number }>; progress: { total: number; completed: number; failed: number; running: number; pending: number } }; error?: string }>;
+    status(planId: string): Promise<{ success: boolean; data?: any; error?: string }>;
     cancel(planId: string): Promise<{ success: boolean; data?: { plan: ExecutionPlan | null }; error?: string }>;
     retry(stepId: string): Promise<{ success: boolean; data?: { step: ExecutionStep }; error?: string }>;
     history(planId: string): Promise<{ success: boolean; data?: { history: any[]; planId: string }; error?: string }>;
@@ -92,23 +93,16 @@ export interface VibeCodeAPI {
     setWorkspace(workspaceRoot: string): Promise<{ success: boolean; data?: { workspaceRoot: string }; error?: string }>;
     onStatus(callback: (status: any) => void): void;
     onStepUpdate(callback: (update: any) => void): void;
-    /** Get diff preview for a single step */
     getDiff(stepId: string): Promise<{ success: boolean; data?: DiffResult; error?: string }>;
-    /** Get diff previews for all file-related steps in a plan */
     getPlanDiffs(planId: string): Promise<{ success: boolean; data?: { diffs: DiffResult[] }; error?: string }>;
-    /** Get full step result including stdout for command steps */
     getStepResult(stepId: string): Promise<{ success: boolean; data?: { step: ExecutionStep; output?: StepOutput }; error?: string }>;
-    /** Get truncated stdout/stderr for command steps */
     getStepOutput(stepId: string): Promise<{ success: boolean; data?: StepOutput; error?: string }>;
-    /** Queue operations */
     queue: {
       list(): Promise<{ success: boolean; data?: { entries: ExecutionQueueEntry[] }; error?: string }>;
       add(planId: string, priority?: number, stepTimeout?: number): Promise<{ success: boolean; data?: ExecutionQueueEntry; error?: string }>;
       cancel(entryId: string): Promise<{ success: boolean; data?: { cancelled: boolean }; error?: string }>;
     };
-    /** Get all completed execution history */
     getHistory(): Promise<{ success: boolean; data?: { history: ExecutionHistoryEntry[] }; error?: string }>;
-    /** Queue update events */
     onQueueUpdate(callback: (update: any) => void): void;
   };
   workspace: {
@@ -170,6 +164,47 @@ export interface VibeCodeAPI {
   };
 }
 
+// ---- App Views ----
+
+export type AppView = 'home' | 'project-setup' | 'ide';
+
+export type ProjectType = 'web-app' | 'api-server' | 'cli-tool' | 'library' | 'data-pipeline' | 'custom';
+
+export type ExecutionMode = 'assisted' | 'semi-autonomous' | 'autonomous';
+
+export type SafetyLevel = 'low' | 'medium' | 'high';
+
+export interface ProjectConfig {
+  name: string;
+  type: ProjectType;
+  providerId: string;
+  model: string;
+  workspacePath: string;
+  executionMode: ExecutionMode;
+  safetyLevel: SafetyLevel;
+  objective: string;
+}
+
+export interface RecentProject {
+  name: string;
+  path: string;
+  type: ProjectType;
+  lastOpened: number;
+  thumbnail?: string;
+}
+
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  description: string;
+  type: ProjectType;
+  icon: string;
+}
+
+// ---- Activity Bar ----
+
+export type ActivityTab = 'files' | 'search' | 'ai' | 'terminal' | 'memory' | 'settings';
+
 // ---- Chat ----
 
 export interface ChatMessage {
@@ -196,6 +231,8 @@ export interface ChatOptions {
   streaming: boolean;
   model?: string;
 }
+
+export type AIMode = 'chat' | 'edit' | 'agent' | 'architect';
 
 // ---- Memory ----
 
@@ -254,6 +291,9 @@ export interface ModelInfo {
   supportsVision: boolean;
 }
 
+/** Alias for ModelInfo – used throughout UI code */
+export type Model = ModelInfo;
+
 // ---- Execution ----
 
 export interface ExecutionPlan {
@@ -305,8 +345,6 @@ export interface FileStats {
   created: number;
 }
 
-// ---- File Search ----
-
 export interface FileSearchResult {
   path: string;
   name: string;
@@ -329,7 +367,6 @@ export interface ProposalCard {
 
 export type ProposalStatus = 'pending' | 'approved' | 'rejected' | 'executing' | 'completed' | 'failed';
 
-/** Enhanced proposal card data generated from AI responses */
 export interface ProposalCardData {
   id: string;
   type: 'file_create' | 'file_edit' | 'command' | 'analysis' | 'multi_step';
@@ -361,7 +398,6 @@ export interface ProposalStepData {
   dependsOn?: string[];
 }
 
-/** Intent extracted from an LLM response */
 export interface ExecutionIntent {
   id: string;
   type: 'file_create' | 'file_edit' | 'command' | 'analysis' | 'multi_step';
@@ -374,7 +410,6 @@ export interface ExecutionIntent {
   canRollback: boolean;
 }
 
-/** Modification input for proposal:modify IPC */
 export interface ProposalModification {
   title?: string;
   description?: string;
@@ -389,7 +424,6 @@ export interface ProposalModification {
   }>;
 }
 
-/** Event sent via proposal:onUpdate */
 export interface ProposalUpdateEvent {
   event: string;
   planIds: string[];
@@ -497,12 +531,10 @@ export interface LayoutState {
   sidebarWidth: number;
   aiPanelOpen: boolean;
   aiPanelWidth: number;
-  activeSidebarTab: SidebarTab;
+  activeSidebarTab: ActivityTab;
+  bottomPanelOpen: boolean;
+  bottomPanelHeight: number;
 }
-
-// ---- Sidebar ----
-
-export type SidebarTab = 'files' | 'terminal' | 'memory' | 'settings';
 
 // ---- Workspace ----
 
@@ -515,7 +547,6 @@ export interface WorkspaceAnalysis {
   totalSize: number;
 }
 
-/** Full workspace info returned by workspace:open and workspace:analyze */
 export interface WorkspaceInfo {
   rootPath: string;
   name: string;
@@ -530,7 +561,6 @@ export interface WorkspaceInfo {
   totalSize: number;
 }
 
-/** Current workspace info (lighter version) */
 export interface CurrentWorkspaceInfo {
   rootPath: string;
   name: string;
@@ -540,7 +570,6 @@ export interface CurrentWorkspaceInfo {
   languages: Record<string, number>;
 }
 
-/** Recent workspace entry from workspace store */
 export interface RecentWorkspaceInfo {
   path: string;
   name: string;
@@ -582,9 +611,7 @@ export interface DiffLine {
   type: 'add' | 'remove' | 'context';
   content: string;
   lineNumber: number;
-  /** Line number in the "before" file for remove/context lines */
   oldLineNumber?: number;
-  /** Line number in the "after" file for add/context lines */
   newLineNumber?: number;
 }
 

@@ -165,7 +165,7 @@ const MemoryPanel: React.FC = () => {
           </button>
         </div>
         {summary && (
-          <div className="mt-2 rounded-md bg-bg-primary p-2 text-xs text-text-secondary">
+          <div className="mt-2 rounded-md bg-bg-deep p-2 text-xs text-text-secondary">
             {summary}
           </div>
         )}
@@ -239,7 +239,7 @@ const MemoryPanel: React.FC = () => {
                   return (
                     <div
                       key={entry.id}
-                      className="mb-1 cursor-pointer rounded-md border border-border bg-bg-tertiary p-2.5 transition-colors hover:border-accent/30"
+                      className="mb-1 cursor-pointer rounded-md border border-border bg-bg-elevated p-2.5 transition-colors hover:border-accent/30"
                       onClick={() =>
                         setExpandedId(isExpanded ? null : entry.id)
                       }
