@@ -37,11 +37,12 @@ const proposalStore = new Map<string, ProposalCardData>();
 // ─── Handler Registration ───────────────────────────────────────────────────
 
 export function registerProposalHandlers(): void {
-  // ARC 12: ProposalGenerator now uses ESM instead of legacy ExecutionEngine
+  // ARC 14: ProposalGenerator now uses ExecutionStateMachine directly
   const sm = getStateMachine();
   if (sm) {
     try {
-      resetProposalGenerator(null as any); // Will be refactored to use ESM directly
+      resetProposalGenerator(sm);
+      console.log('[IPC/Proposal] ProposalGenerator initialized with ESM');
     } catch (e) {
       console.warn('[IPC/Proposal] Could not initialize ProposalGenerator:', e);
     }
@@ -57,7 +58,7 @@ export function registerProposalHandlers(): void {
 
         const sm = getStateMachine();
         if (!sm) return err('State machine not initialized');
-        const generator = getProposalGenerator(null as any);
+        const generator = getProposalGenerator(sm);
         const intents = generator.parseLLMResponse(response, context);
         if (intents.length === 0) return ok({ intents: [], proposals: [] });
 

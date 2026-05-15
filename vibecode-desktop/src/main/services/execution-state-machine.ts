@@ -476,7 +476,11 @@ export class ExecutionStateMachine {
   /** Executor registry: stepType → executor function */
   private executorRegistry: Map<string, (node: ExecutionNode) => Promise<NodeResult>> = new Map();
 
-  constructor(workspaceRoot: string) {
+  /** Auto-save debounce timer */
+  private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private autoSaveDelay: number = 1000; // 1s debounce
+
+  constructor(workspaceRoot: string, autoLoad: boolean = true) {
     this.workspaceRoot = path.resolve(workspaceRoot);
     this.graph = {
       nodes: new Map(),
@@ -485,6 +489,11 @@ export class ExecutionStateMachine {
       workspaceRoot: this.workspaceRoot,
     };
     this.persistence = new ExecutionPersistence();
+
+    // ARC 14: Auto-load persisted graph on construction
+    if (autoLoad) {
+      this.loadGraph();
+    }
   }
 
   // ─── Graph Queries ──────────────────────────────────────────────────────
@@ -548,6 +557,101 @@ export class ExecutionStateMachine {
       running: children.filter(c => c.state === 'executing').length,
       pending: children.filter(c => c.state === 'planned' || c.state === 'approved').length,
     };
+  }
+
+  // ─── Graph Persistence (ARC 14) ──────────────────────────────────────────
+
+  /** Serialize the execution graph to a JSON-compatible object */
+  serializeGraph(): { nodes: ExecutionNode[]; rootIds: string[]; lastModified: number; workspaceRoot: string } {
+    return {
+      nodes: Array.from(this.graph.nodes.values()),
+      rootIds: [...this.graph.rootIds],
+      lastModified: this.graph.lastModified,
+      workspaceRoot: this.graph.workspaceRoot,
+    };
+  }
+
+  /** Hydrate the execution graph from a serialized object */
+  hydrateGraph(data: { nodes: ExecutionNode[]; rootIds: string[]; lastModified: number; workspaceRoot: string }): void {
+    this.graph.nodes = new Map();
+    for (const node of data.nodes) {
+      this.graph.nodes.set(node.id, node);
+    }
+    this.graph.rootIds = data.rootIds;
+    this.graph.lastModified = data.lastModified;
+    this.graph.workspaceRoot = data.workspaceRoot || this.workspaceRoot;
+    this.workspaceRoot = this.graph.workspaceRoot;
+
+    logger.info('state-machine', `Graph hydrated: ${data.nodes.length} nodes, ${data.rootIds.length} roots`);
+  }
+
+  /** Save the execution graph to disk */
+  saveGraph(): void {
+    try {
+      const graphDir = path.join(
+        process.env.VIBECODE_HOME || path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.vibecode'),
+        'graph'
+      );
+      fs.mkdirSync(graphDir, { recursive: true });
+
+      const serialized = this.serializeGraph();
+      const filePath = path.join(graphDir, 'execution-graph.json');
+      fs.writeFileSync(filePath, JSON.stringify(serialized, null, 2), 'utf-8');
+
+      logger.info('state-machine', `Graph saved: ${serialized.nodes.length} nodes to ${filePath}`);
+    } catch (err) {
+      logger.error('state-machine', `Failed to save graph: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  /** Load the execution graph from disk */
+  loadGraph(): boolean {
+    try {
+      const graphDir = path.join(
+        process.env.VIBECODE_HOME || path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.vibecode'),
+        'graph'
+      );
+      const filePath = path.join(graphDir, 'execution-graph.json');
+
+      if (!fs.existsSync(filePath)) {
+        logger.info('state-machine', 'No persisted graph found — starting with empty graph');
+        return false;
+      }
+
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+      if (!data.nodes || !Array.isArray(data.nodes)) {
+        logger.warn('state-machine', 'Persisted graph is corrupted — starting with empty graph');
+        return false;
+      }
+
+      this.hydrateGraph(data);
+      logger.info('state-machine', `Graph loaded: ${data.nodes.length} nodes from ${filePath}`);
+      return true;
+    } catch (err) {
+      logger.error('state-machine', `Failed to load graph: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
+  }
+
+  /** Schedule a debounced auto-save of the graph */
+  private scheduleAutoSave(): void {
+    if (this.autoSaveTimer) {
+      clearTimeout(this.autoSaveTimer);
+    }
+    this.autoSaveTimer = setTimeout(() => {
+      this.saveGraph();
+      this.autoSaveTimer = null;
+    }, this.autoSaveDelay);
+  }
+
+  /** Flush any pending auto-save immediately — call before app quit */
+  flushPersistence(): void {
+    if (this.autoSaveTimer) {
+      clearTimeout(this.autoSaveTimer);
+      this.autoSaveTimer = null;
+    }
+    this.saveGraph();
   }
 
   // ─── Node Creation ──────────────────────────────────────────────────────
@@ -626,6 +730,9 @@ export class ExecutionStateMachine {
     this.emitEvent('node:created', id, undefined, 'planned', params);
     this.emitEvent('graph:changed', id);
 
+    // ARC 14: Auto-persist on graph mutation
+    this.scheduleAutoSave();
+
     logger.info('state-machine', `Node created: ${node.type}[${id.substring(0, 8)}] "${node.title}"`);
 
     return node;
@@ -666,6 +773,9 @@ export class ExecutionStateMachine {
     this.emitEvent('node:transition', nodeId, oldState, newState, data);
     this.emitEvent('graph:changed', nodeId);
 
+    // ARC 14: Auto-persist on state transitions
+    this.scheduleAutoSave();
+
     // Audit log for safety-critical transitions
     if (['approved', 'executing', 'rolled_back', 'cancelled'].includes(newState)) {
       auditLog.auditLog(`execution:transition`, {
@@ -696,6 +806,9 @@ export class ExecutionStateMachine {
     this.graph.lastModified = Date.now();
     this.emitEvent('node:updated', nodeId);
     this.emitEvent('graph:changed', nodeId);
+
+    // ARC 14: Auto-persist on data updates
+    this.scheduleAutoSave();
 
     return node;
   }
@@ -1309,6 +1422,9 @@ export class ExecutionStateMachine {
 
     this.emitEvent('node:deleted', nodeId);
     this.emitEvent('graph:changed', nodeId);
+
+    // ARC 14: Auto-persist on node deletion
+    this.scheduleAutoSave();
   }
 
   // ─── Private Helpers ──────────────────────────────────────────────────

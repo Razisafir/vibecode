@@ -324,6 +324,25 @@ const EditorArea: React.FC<EditorAreaProps> = ({ className }) => {
     if (!file) return;
 
     try {
+      // ARC 14: Track file mutation in the execution graph
+      // Only create a node if the file was actually modified
+      if (file.content !== file.originalContent) {
+        try {
+          const api = window.vibecode as any;
+          if (api?.sm?.createMonacoEditNode) {
+            await api.sm.createMonacoEditNode({
+              filePath: file.path,
+              originalContent: file.originalContent,
+              newContent: file.content,
+              isAI: false,
+            });
+          }
+        } catch (e) {
+          // Graph tracking failure should not block file save
+          console.warn('[VibeCode/ARC14] Failed to track Monaco edit in graph:', e);
+        }
+      }
+
       await window.vibecode?.fs.writeFile(file.path, file.content);
       setOpenFiles((prev) =>
         prev.map((f, i) =>

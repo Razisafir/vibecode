@@ -1,6 +1,7 @@
 // ============================================================
 // VibeCode Desktop — Proposal Generator
 // Bridges LLM responses → structured execution plans
+// ARC 14: Migrated from legacy ExecutionEngine to ESM
 // ============================================================
 
 import { v4 as uuidv4 } from 'uuid';
@@ -17,10 +18,11 @@ import {
   ExtractedCommand,
 } from './llm-response-parser';
 import {
-  ExecutionEngine,
-  ExecutionPlan,
-  StepInput,
-} from './execution-engine';
+  ExecutionStateMachine,
+  UnifiedStepType,
+  RiskLevel,
+  ExecutionNode,
+} from './execution-state-machine';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -67,13 +69,13 @@ export interface ProposalCardData {
   planId?: string;
 }
 
-// ─── ProposalGenerator ──────────────────────────────────────────────────────
+// ─── ProposalGenerator (ARC 14: ESM-native) ──────────────────────────────────
 
 export class ProposalGenerator {
-  private executionEngine: ExecutionEngine;
+  private stateMachine: ExecutionStateMachine;
 
-  constructor(executionEngine: ExecutionEngine) {
-    this.executionEngine = executionEngine;
+  constructor(stateMachine: ExecutionStateMachine) {
+    this.stateMachine = stateMachine;
   }
 
   /**
@@ -144,31 +146,31 @@ export class ProposalGenerator {
   }
 
   /**
-   * Convert an ExecutionIntent into an ExecutionPlan + ProposalCardData.
+   * Convert an ExecutionIntent into an ExecutionPlan via ESM + ProposalCardData.
    *
-   * The plan is created in 'draft' status, ready for user approval.
+   * ARC 14: Plan is now created via ExecutionStateMachine.createExecutionPlan()
+   * instead of the legacy ExecutionEngine.createPlan().
    */
   generateProposalFromIntent(intent: ExecutionIntent): {
-    plan: ExecutionPlan;
+    plan: ExecutionNode;
     proposalCard: ProposalCardData;
   } {
-    // Convert proposal steps to execution step inputs
-    const stepInputs: StepInput[] = intent.steps.map((step, _idx) => ({
+    // Convert proposal steps to ESM step inputs
+    const esmSteps = intent.steps.map((step) => ({
       title: step.title,
       description: step.description,
-      type: step.type as ExecutionPlan['steps'][number]['type'],
-      dependsOn: step.dependsOn,
+      type: step.type as UnifiedStepType,
       params: step.params,
-      riskLevel: step.riskLevel,
+      riskLevel: step.riskLevel as RiskLevel,
       requiresApproval: step.riskLevel === 'high',
     }));
 
-    // Create the execution plan (in 'draft' status)
-    const plan = this.executionEngine.createPlan(
-      intent.title,
-      intent.description,
-      stepInputs
-    );
+    // ARC 14: Create the plan via ExecutionStateMachine (NOT legacy ExecutionEngine)
+    const planNode = this.stateMachine.createExecutionPlan({
+      title: intent.title,
+      description: intent.description,
+      steps: esmSteps,
+    });
 
     // Build the proposal card data for the renderer
     const proposalCard: ProposalCardData = {
@@ -183,16 +185,16 @@ export class ProposalGenerator {
       estimatedImpact: intent.estimatedImpact,
       canRollback: intent.canRollback,
       details: {
-        planId: plan.id,
+        planId: planNode.id,
         stepCount: intent.steps.length,
         fileCount: intent.files.length,
         createdAt: Date.now(),
       },
       timestamp: Date.now(),
-      planId: plan.id,
+      planId: planNode.id,
     };
 
-    return { plan, proposalCard };
+    return { plan: planNode, proposalCard };
   }
 
   /**
@@ -254,7 +256,6 @@ export class ProposalGenerator {
     _context?: { workspaceRoot?: string; projectId?: string }
   ): ExecutionIntent | null {
     const intentId = uuidv4();
-    const _stepId = uuidv4();
 
     const actionLabel =
       op.type === 'create' ? 'Create' : op.type === 'edit' ? 'Edit' : 'Delete';
@@ -426,23 +427,24 @@ let proposalGenerator: ProposalGenerator | null = null;
 
 /**
  * Initialize or get the proposal generator.
- * Must be called with an execution engine at least once.
+ * ARC 14: Must be called with an ExecutionStateMachine instance.
  */
-export function getProposalGenerator(engine?: ExecutionEngine): ProposalGenerator {
-  if (!proposalGenerator && engine) {
-    proposalGenerator = new ProposalGenerator(engine);
+export function getProposalGenerator(stateMachine?: ExecutionStateMachine): ProposalGenerator {
+  if (!proposalGenerator && stateMachine) {
+    proposalGenerator = new ProposalGenerator(stateMachine);
   }
   if (!proposalGenerator) {
-    throw new Error('ProposalGenerator not initialized — call getProposalGenerator(engine) first');
+    throw new Error('ProposalGenerator not initialized — call getProposalGenerator(stateMachine) first');
   }
   return proposalGenerator;
 }
 
 /**
  * Reset the proposal generator (useful when workspace changes).
+ * ARC 14: Now takes ExecutionStateMachine instead of legacy ExecutionEngine.
  */
-export function resetProposalGenerator(engine: ExecutionEngine): ProposalGenerator {
-  proposalGenerator = new ProposalGenerator(engine);
+export function resetProposalGenerator(stateMachine: ExecutionStateMachine): ProposalGenerator {
+  proposalGenerator = new ProposalGenerator(stateMachine);
   return proposalGenerator;
 }
 

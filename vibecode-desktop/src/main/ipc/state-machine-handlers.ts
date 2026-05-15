@@ -478,6 +478,72 @@ export function registerStateMachineHandlers(mainWindow: BrowserWindow | null): 
     return { success: true, data: { deleted: true, nodeId } };
   });
 
+  // ── Persistence (ARC 14) ───────────────────────────────────────────────
+
+  ipcMain.handle('sm:saveGraph', async () => {
+    if (!stateMachine) return { success: false, error: 'State machine not initialized' };
+    stateMachine.saveGraph();
+    return { success: true, data: { saved: true } };
+  });
+
+  ipcMain.handle('sm:flushPersistence', async () => {
+    if (!stateMachine) return { success: false, error: 'State machine not initialized' };
+    stateMachine.flushPersistence();
+    return { success: true, data: { flushed: true } };
+  });
+
+  // ── Monaco Edit Tracking (ARC 14) ──────────────────────────────────────
+
+  ipcMain.handle('sm:createMonacoEditNode', async (_event, params: {
+    filePath: string;
+    originalContent: string;
+    newContent: string;
+    isAI: boolean;
+    region?: { startLine: number; startCol: number; endLine: number; endCol: number };
+    linkedStepId?: string;
+  }) => {
+    if (!stateMachine) return { success: false, error: 'State machine not initialized' };
+
+    try {
+      const { filePath, originalContent, newContent, isAI, region, linkedStepId } = params;
+
+      // Default region: entire file
+      const editRegion = region || {
+        startLine: 1,
+        startCol: 1,
+        endLine: newContent.split('\n').length,
+        endCol: newContent.split('\n').pop()?.length ?? 0 + 1,
+      };
+
+      const node = stateMachine.createNode({
+        type: 'monaco_edit',
+        title: `Edit: ${filePath.split('/').pop() || filePath}`,
+        description: `${isAI ? 'AI' : 'User'} edited ${filePath} (${originalContent.length} → ${newContent.length} chars)`,
+        data: {
+          kind: 'monaco_edit',
+          filePath,
+          region: editRegion,
+          originalContent,
+          newContent,
+          isAI,
+          linkedStepId,
+        },
+        riskLevel: isAI ? 'medium' : 'low',
+        sourceIds: linkedStepId ? [linkedStepId] : [],
+      });
+
+      // Immediately transition to completed since the edit already happened
+      stateMachine.transitionNode(node.id, 'completed');
+
+      logger.info('state-machine', `Monaco edit tracked: ${filePath} (node ${node.id.substring(0, 8)})`);
+      return { success: true, data: { node: serializeNode(node) } };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error('state-machine', `Failed to track Monaco edit: ${msg}`);
+      return { success: false, error: msg };
+    }
+  });
+
   // ── Push Events to Renderer ───────────────────────────────────────────
 
   if (stateMachine && mainWindow) {

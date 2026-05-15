@@ -420,6 +420,20 @@ const vibecode = {
     // ── Node Deletion ──────────────────────────────────────────────────
     deleteNode: (nodeId: string) => ipcRenderer.invoke('sm:deleteNode', nodeId),
 
+    // ── Persistence (ARC 14) ──────────────────────────────────────────
+    saveGraph: () => ipcRenderer.invoke('sm:saveGraph'),
+    flushPersistence: () => ipcRenderer.invoke('sm:flushPersistence'),
+
+    // ── Monaco Edit Tracking (ARC 14) ────────────────────────────────
+    createMonacoEditNode: (params: {
+      filePath: string;
+      originalContent: string;
+      newContent: string;
+      isAI: boolean;
+      region?: { startLine: number; startCol: number; endLine: number; endCol: number };
+      linkedStepId?: string;
+    }) => ipcRenderer.invoke('sm:createMonacoEditNode', params),
+
     // ── Events ─────────────────────────────────────────────────────────
     onEvent: (callback: (event: any) => void) => {
       ipcRenderer.on('sm:event', (_event, event) => callback(event));

@@ -2,6 +2,8 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 import * as os from 'os';
+import { getStateMachine } from './state-machine-handlers';
+import { TerminalCommandData } from '../services/execution-state-machine';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -13,6 +15,22 @@ interface TerminalSession {
   shell: string;
   pid?: number;
   createdAt: number;
+}
+
+// ─── ARC 14: Terminal Command Tracking ────────────────────────────────────
+// Accumulates output for each command entered via the terminal,
+// then creates a terminal_command ExecutionNode in the ESM graph
+// when the command completes (or on flush).
+
+interface PendingCommand {
+  nodeId: string;          // ESM node ID (created at command start)
+  sessionId: string;       // Terminal session ID
+  command: string;         // The command string
+  cwd: string;             // Working directory
+  stdout: string;          // Accumulated stdout
+  stderr: string;          // Accumulated stderr
+  startTime: number;       // When the command was sent
+  isAI: boolean;           // Whether this was AI-initiated
 }
 
 interface IpcResult<T = unknown> {
@@ -32,6 +50,15 @@ function err(message: string): IpcResult {
 // ─── State ──────────────────────────────────────────────────────────────────
 
 const sessions: Map<string, TerminalSession> = new Map();
+
+// ARC 14: Pending command tracking — maps sessionId → command tracking state
+const sessionCommands: Map<string, {
+  currentCommand: string;         // The current command being typed/entered
+  commandStartIndex: number;      // Output buffer index where this command's output starts
+  pendingNode: PendingCommand | null;
+  outputBuffer: string;           // Accumulated output for current command
+}> = new Map();
+
 let nodePty: any = null;
 let ptyAvailable = false;
 
@@ -56,6 +83,109 @@ function getDefaultShell(): string {
 
 function getHomeDir(): string {
   return os.homedir();
+}
+
+/**
+ * ARC 14: Create a terminal_command ExecutionNode in the ESM graph.
+ * Called when a command is entered in the terminal.
+ */
+function trackTerminalCommandStart(sessionId: string, command: string, cwd: string): void {
+  const sm = getStateMachine();
+  if (!sm) return;
+
+  // Only track meaningful commands (skip empty, whitespace-only, or just pressing Enter)
+  const trimmed = command.trim();
+  if (!trimmed) return;
+
+  // Create the node in the ESM graph
+  const node = sm.createNode({
+    type: 'terminal_command',
+    title: `Terminal: ${trimmed.substring(0, 60)}${trimmed.length > 60 ? '...' : ''}`,
+    description: `Command executed in terminal session ${sessionId}`,
+    data: {
+      kind: 'terminal_command',
+      command: trimmed,
+      cwd,
+      terminalId: sessionId,
+      stdout: '',
+      stderr: '',
+      exitCode: null,
+      truncated: false,
+      isAI: false,
+    } as TerminalCommandData,
+    riskLevel: 'low',
+  });
+
+  // Track as pending
+  const existing = sessionCommands.get(sessionId);
+  if (existing && existing.pendingNode) {
+    // Finalize previous pending command
+    finalizePendingCommand(sessionId, 0);
+  }
+
+  sessionCommands.set(sessionId, {
+    currentCommand: trimmed,
+    commandStartIndex: 0,
+    pendingNode: {
+      nodeId: node.id,
+      sessionId,
+      command: trimmed,
+      cwd,
+      stdout: '',
+      stderr: '',
+      startTime: Date.now(),
+      isAI: false,
+    },
+    outputBuffer: '',
+  });
+
+  console.log(`[Terminal/ARC14] Tracked command start: "${trimmed.substring(0, 40)}" → node ${node.id.substring(0, 8)}`);
+}
+
+/**
+ * ARC 14: Finalize a pending terminal command by updating the ESM node
+ * with the captured output and transitioning to completed.
+ */
+function finalizePendingCommand(sessionId: string, exitCode: number): void {
+  const entry = sessionCommands.get(sessionId);
+  if (!entry || !entry.pendingNode) return;
+
+  const sm = getStateMachine();
+  if (!sm) return;
+
+  const pending = entry.pendingNode;
+  const output = entry.outputBuffer;
+
+  // Truncate output if too large (50KB max stored in graph)
+  const MAX_OUTPUT = 50000;
+  const truncated = output.length > MAX_OUTPUT;
+  const storedOutput = truncated ? output.substring(output.length - MAX_OUTPUT) : output;
+
+  // Update the node data with captured output
+  sm.updateNodeData(pending.nodeId, {
+    kind: 'terminal_command',
+    command: pending.command,
+    cwd: pending.cwd,
+    terminalId: pending.sessionId,
+    stdout: storedOutput,
+    stderr: '',
+    exitCode,
+    truncated,
+    isAI: false,
+  } as TerminalCommandData);
+
+  // Transition to completed
+  try {
+    sm.transitionNode(pending.nodeId, 'completed');
+  } catch {
+    // May already be in a terminal state
+  }
+
+  console.log(`[Terminal/ARC14] Finalized command: "${pending.command.substring(0, 40)}" exit=${exitCode} output=${output.length}chars`);
+
+  // Clear pending
+  entry.pendingNode = null;
+  entry.outputBuffer = '';
 }
 
 // ─── Handler Registration ───────────────────────────────────────────────────
@@ -104,7 +234,15 @@ export function registerTerminalHandlers(): void {
             createdAt: Date.now(),
           };
 
-          // Forward PTY data to renderer
+          // ARC 14: Initialize command tracking for this session
+          sessionCommands.set(id, {
+            currentCommand: '',
+            commandStartIndex: 0,
+            pendingNode: null,
+            outputBuffer: '',
+          });
+
+          // Forward PTY data to renderer + ARC 14: capture output
           ptyProcess.onData((data: string) => {
             try {
               const win = BrowserWindow.fromWebContents(event.sender);
@@ -114,6 +252,12 @@ export function registerTerminalHandlers(): void {
               }
             } catch {
               // Window might be closed
+            }
+
+            // ARC 14: Accumulate output for pending command tracking
+            const entry = sessionCommands.get(id);
+            if (entry) {
+              entry.outputBuffer += data;
             }
           });
 
@@ -126,6 +270,10 @@ export function registerTerminalHandlers(): void {
             } catch {
               // Window might be closed
             }
+
+            // ARC 14: Finalize any pending command on session exit
+            finalizePendingCommand(id, exitCode ?? 0);
+            sessionCommands.delete(id);
             sessions.delete(id);
           });
 
@@ -149,6 +297,14 @@ export function registerTerminalHandlers(): void {
             createdAt: Date.now(),
           };
 
+          // ARC 14: Initialize command tracking for this session
+          sessionCommands.set(id, {
+            currentCommand: '',
+            commandStartIndex: 0,
+            pendingNode: null,
+            outputBuffer: '',
+          });
+
           childProcess.stdout.on('data', (data: Buffer) => {
             try {
               const win = BrowserWindow.fromWebContents(event.sender);
@@ -157,6 +313,12 @@ export function registerTerminalHandlers(): void {
               }
             } catch {
               // Window might be closed
+            }
+
+            // ARC 14: Accumulate output
+            const entry = sessionCommands.get(id);
+            if (entry) {
+              entry.outputBuffer += data.toString('utf-8');
             }
           });
 
@@ -169,6 +331,12 @@ export function registerTerminalHandlers(): void {
             } catch {
               // Window might be closed
             }
+
+            // ARC 14: Accumulate stderr
+            const entry = sessionCommands.get(id);
+            if (entry) {
+              entry.outputBuffer += data.toString('utf-8');
+            }
           });
 
           childProcess.on('close', (exitCode: number, signal: string | null) => {
@@ -180,6 +348,10 @@ export function registerTerminalHandlers(): void {
             } catch {
               // Window might be closed
             }
+
+            // ARC 14: Finalize pending command
+            finalizePendingCommand(id, exitCode ?? 0);
+            sessionCommands.delete(id);
             sessions.delete(id);
           });
 
@@ -200,11 +372,46 @@ export function registerTerminalHandlers(): void {
   );
 
   // ── terminal:write ─────────────────────────────────────────────────────
+  // ARC 14: Intercepts terminal writes to detect and track commands
   ipcMain.handle('terminal:write', async (_event, sessionId: string, data: string) => {
     try {
       const session = sessions.get(sessionId);
       if (!session) {
         return err(`Terminal session not found: ${sessionId}`);
+      }
+
+      // ARC 14: Detect command execution (Enter key = '\r' or '\n')
+      // When the user presses Enter, the data sent to the PTY contains '\r'
+      // We need to detect this to know a command was submitted.
+      const entry = sessionCommands.get(sessionId);
+      if (entry && data.includes('\r')) {
+        // A command was submitted. Extract the command from the data.
+        // In PTY mode, the data before '\r' is the command text.
+        // However, PTY echoes the command back, so we need to be smart about this.
+
+        // Simple approach: track what was typed since last Enter
+        // The data sent to terminal:write before the '\r' IS the command
+        const commandText = entry.currentCommand + data.replace(/\r/g, '').replace(/\n/g, '');
+
+        if (commandText.trim()) {
+          // Track this command in the ESM graph
+          trackTerminalCommandStart(sessionId, commandText, session.cwd);
+
+          // Reset current command tracking
+          entry.currentCommand = '';
+        }
+      } else if (entry) {
+        // Accumulate typed characters (before Enter is pressed)
+        // Only track printable characters for command detection
+        const printable = data.replace(/[\x00-\x1F\x7F]/g, ''); // Strip control chars
+        if (printable) {
+          entry.currentCommand += printable;
+        }
+
+        // Handle backspace
+        if (data.includes('\x7f') || data.includes('\b')) {
+          entry.currentCommand = entry.currentCommand.slice(0, -1);
+        }
       }
 
       if (session.type === 'pty') {
@@ -220,6 +427,23 @@ export function registerTerminalHandlers(): void {
     }
   });
 
+  // ── terminal:trackCommand ──────────────────────────────────────────────
+  // ARC 14: Explicit command tracking for cases where PTY write interception
+  // is insufficient (e.g., programmatic command execution from AI).
+  ipcMain.handle(
+    'terminal:trackCommand',
+    async (_event, sessionId: string, command: string, cwd?: string) => {
+      try {
+        const session = sessions.get(sessionId);
+        const commandCwd = cwd || session?.cwd || getHomeDir();
+        trackTerminalCommandStart(sessionId, command, commandCwd);
+        return ok({ tracked: true, command });
+      } catch (error) {
+        return err(error instanceof Error ? error.message : String(error));
+      }
+    }
+  );
+
   // ── terminal:kill ──────────────────────────────────────────────────────
   ipcMain.handle('terminal:kill', async (_event, sessionId: string, signal?: string) => {
     try {
@@ -228,6 +452,9 @@ export function registerTerminalHandlers(): void {
         return err(`Terminal session not found: ${sessionId}`);
       }
 
+      // ARC 14: Finalize pending command before killing
+      finalizePendingCommand(sessionId, -1);
+
       if (session.type === 'pty') {
         session.pty.kill(signal ?? 'SIGTERM');
       } else {
@@ -235,6 +462,7 @@ export function registerTerminalHandlers(): void {
       }
 
       sessions.delete(sessionId);
+      sessionCommands.delete(sessionId);
       return ok({ sessionId, killed: true });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));
@@ -302,6 +530,9 @@ export function registerTerminalHandlers(): void {
   ipcMain.on('terminal:cleanup', (event) => {
     const _webContentsId = event.sender.id;
     for (const [id, session] of sessions) {
+      // ARC 14: Finalize pending commands
+      finalizePendingCommand(id, -1);
+
       // Kill sessions associated with this renderer
       try {
         if (session.type === 'pty') {
@@ -313,8 +544,9 @@ export function registerTerminalHandlers(): void {
         // Session might already be dead
       }
       sessions.delete(id);
+      sessionCommands.delete(id);
     }
   });
 
-  console.log('[IPC] Terminal handlers registered');
+  console.log('[IPC] Terminal handlers registered (ARC 14 — execution graph binding)');
 }

@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ExecutionPlan } from './execution-engine';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -12,14 +11,13 @@ const EXECUTIONS_DIR = path.join(VIBECODE_HOME, 'executions');
 // ─── Persistence Layer ────────────────────────────────────────────────────────
 
 /**
- * Persists execution plans to disk so they survive app restarts.
+ * Persists arbitrary JSON data to disk so they survive app restarts.
+ * ARC 14: Generalized to work with any JSON-serializable data.
  *
  * Storage layout:
  *   ~/.vibecode/executions/
- *     ├── <planId>.json   ← one file per execution plan
+ *     ├── <id>.json   ← one file per entry
  *     └── ...
- *
- * Plan state is auto-saved (debounced) whenever it changes.
  */
 export class ExecutionPersistence {
   private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
@@ -33,41 +31,39 @@ export class ExecutionPersistence {
 
   // ─── Core CRUD ───────────────────────────────────────────────────────────
 
-  /** Save a plan to disk (overwrites if exists) */
-  savePlan(plan: ExecutionPlan): void {
+  /** Save data to disk (overwrites if exists) */
+  save(id: string, data: unknown): void {
     this.ensureDir();
-    const filePath = this.getPlanPath(plan.id);
-    const data = JSON.stringify(plan, null, 2);
-    fs.writeFileSync(filePath, data, 'utf-8');
+    const filePath = this.getPath(id);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
   }
 
-  /** Load a single plan by ID */
-  loadPlan(planId: string): ExecutionPlan | null {
-    const filePath = this.getPlanPath(planId);
+  /** Load a single entry by ID */
+  load(id: string): unknown | null {
+    const filePath = this.getPath(id);
     try {
-      const data = fs.readFileSync(filePath, 'utf-8');
-      return JSON.parse(data) as ExecutionPlan;
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      return JSON.parse(raw);
     } catch {
       return null;
     }
   }
 
-  /** Load all persisted plans */
-  loadAllPlans(): ExecutionPlan[] {
+  /** Load all persisted entries */
+  loadAll(): unknown[] {
     this.ensureDir();
-    const plans: ExecutionPlan[] = [];
+    const entries: unknown[] = [];
 
     try {
-      const entries = fs.readdirSync(EXECUTIONS_DIR);
-      for (const entry of entries) {
+      const files = fs.readdirSync(EXECUTIONS_DIR);
+      for (const entry of files) {
         if (entry.endsWith('.json')) {
           try {
-            const data = fs.readFileSync(path.join(EXECUTIONS_DIR, entry), 'utf-8');
-            const plan = JSON.parse(data) as ExecutionPlan;
-            plans.push(plan);
+            const raw = fs.readFileSync(path.join(EXECUTIONS_DIR, entry), 'utf-8');
+            entries.push(JSON.parse(raw));
           } catch {
             // Skip corrupted files
-            console.warn(`[Persistence] Skipping corrupted plan file: ${entry}`);
+            console.warn(`[Persistence] Skipping corrupted file: ${entry}`);
           }
         }
       }
@@ -75,12 +71,12 @@ export class ExecutionPersistence {
       // Directory might not exist yet
     }
 
-    return plans;
+    return entries;
   }
 
-  /** Delete a plan from persistence */
-  deletePlan(planId: string): void {
-    const filePath = this.getPlanPath(planId);
+  /** Delete an entry from persistence */
+  delete(id: string): void {
+    const filePath = this.getPath(id);
     try {
       fs.unlinkSync(filePath);
     } catch {
@@ -91,22 +87,22 @@ export class ExecutionPersistence {
   // ─── Debounced Auto-Save ─────────────────────────────────────────────────
 
   /**
-   * Schedule a debounced save of the plan.
+   * Schedule a debounced save.
    * If called multiple times in quick succession, only the last call writes.
    */
-  autoSave(plan: ExecutionPlan): void {
-    // Clear any existing timer for this plan
-    const existing = this.debounceTimers.get(plan.id);
+  autoSave(id: string, data: unknown): void {
+    // Clear any existing timer for this entry
+    const existing = this.debounceTimers.get(id);
     if (existing) {
       clearTimeout(existing);
     }
 
     const timer = setTimeout(() => {
-      this.savePlan(plan);
-      this.debounceTimers.delete(plan.id);
+      this.save(id, data);
+      this.debounceTimers.delete(id);
     }, this.debounceDelay);
 
-    this.debounceTimers.set(plan.id, timer);
+    this.debounceTimers.set(id, timer);
   }
 
   /**
@@ -114,19 +110,16 @@ export class ExecutionPersistence {
    * Call this before app quit to ensure all state is persisted.
    */
   flush(): void {
-    for (const [planId, timer] of this.debounceTimers) {
+    for (const [id, timer] of this.debounceTimers) {
       clearTimeout(timer);
-      this.debounceTimers.delete(planId);
+      this.debounceTimers.delete(id);
     }
-    // Note: plans that were scheduled but not yet saved will be lost
-    // if flush is called without re-reading the in-memory plans.
-    // The caller should save explicitly before flush if needed.
   }
 
-  // ─── List Plan IDs ───────────────────────────────────────────────────────
+  // ─── List Entry IDs ───────────────────────────────────────────────────────
 
-  /** List all persisted plan IDs */
-  listPlanIds(): string[] {
+  /** List all persisted entry IDs */
+  listIds(): string[] {
     this.ensureDir();
     try {
       return fs
@@ -140,8 +133,8 @@ export class ExecutionPersistence {
 
   // ─── Private Helpers ──────────────────────────────────────────────────────
 
-  private getPlanPath(planId: string): string {
-    return path.join(EXECUTIONS_DIR, `${planId}.json`);
+  private getPath(id: string): string {
+    return path.join(EXECUTIONS_DIR, `${id}.json`);
   }
 
   private ensureDir(): void {
