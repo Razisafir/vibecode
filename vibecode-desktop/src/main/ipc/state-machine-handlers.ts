@@ -1,6 +1,7 @@
 // ─── VibeCode Desktop — Execution State Machine IPC Handlers ────────────────
 // Bridges the ExecutionStateMachine to the renderer via IPC.
 // ALL execution-related IPC should flow through here.
+// ARC 12: Converged — legacy execution:* handlers are now routed through sm:*.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { ipcMain, BrowserWindow } from 'electron';
@@ -12,13 +13,16 @@ import {
   UnifiedStepType,
   RiskLevel,
   StateMachineEvent,
+  StepData,
 } from '../services/execution-state-machine';
+import { DiffEngine } from '../services/diff-engine';
 import { logger } from '../utils/logger';
 import { auditLog } from '../utils/audit-log';
 
 // ─── Module State ──────────────────────────────────────────────────────────
 
 let stateMachine: ExecutionStateMachine | null = null;
+let diffEngine: DiffEngine | null = null;
 
 export function getStateMachine(): ExecutionStateMachine | null {
   return stateMachine;
@@ -26,7 +30,13 @@ export function getStateMachine(): ExecutionStateMachine | null {
 
 export function createStateMachine(workspaceRoot: string): ExecutionStateMachine {
   stateMachine = new ExecutionStateMachine(workspaceRoot);
+  diffEngine = new DiffEngine(workspaceRoot);
+  stateMachine.registerExecutorsFromWorkspace();
   return stateMachine;
+}
+
+export function getDiffEngine(): DiffEngine | null {
+  return diffEngine;
 }
 
 // ─── Validation Schemas ────────────────────────────────────────────────────
@@ -93,6 +103,16 @@ function serializeNode(node: ExecutionNode): Record<string, unknown> {
 // ─── Register IPC Handlers ──────────────────────────────────────────────
 
 export function registerStateMachineHandlers(mainWindow: BrowserWindow | null): void {
+  // ── Create state machine if needed ─────────────────────────────────────
+  if (!stateMachine) {
+    const workspaceRoot = process.cwd();
+    stateMachine = new ExecutionStateMachine(workspaceRoot);
+    diffEngine = new DiffEngine(workspaceRoot);
+  }
+
+  // Register real executors from workspace
+  stateMachine.registerExecutorsFromWorkspace();
+
   // ── Graph Queries ─────────────────────────────────────────────────────
 
   ipcMain.handle('sm:getNode', async (_event, nodeId: string) => {
@@ -236,6 +256,136 @@ export function registerStateMachineHandlers(mainWindow: BrowserWindow | null): 
     }
   });
 
+  // ── Propose ──────────────────────────────────────────────────────────
+
+  ipcMain.handle('sm:propose', async (_event, title: string, description: string, steps: unknown) => {
+    if (!stateMachine) return { success: false, error: 'State machine not initialized' };
+
+    const parsed = createPlanSchema.safeParse({ title, description, steps });
+    if (!parsed.success) {
+      return { success: false, error: `Invalid params: ${parsed.error.message}` };
+    }
+
+    try {
+      const planNode = stateMachine.propose(
+        parsed.data.title,
+        parsed.data.description,
+        parsed.data.steps as Array<{
+          title: string;
+          description: string;
+          type: UnifiedStepType;
+          params: Record<string, unknown>;
+          riskLevel?: RiskLevel;
+          requiresApproval?: boolean;
+          dependsOn?: number[];
+        }>,
+      );
+      auditLog.auditLog('execution:propose:created', {
+        planId: planNode.id,
+        title: planNode.title,
+        stepCount: planNode.childIds.length,
+        safetyScore: planNode.safetyScore,
+      });
+      return { success: true, data: { node: serializeNode(planNode) } };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error('state-machine', `Failed to create proposal: ${msg}`);
+      return { success: false, error: msg };
+    }
+  });
+
+  // ── History ──────────────────────────────────────────────────────────
+
+  ipcMain.handle('sm:getHistory', async () => {
+    if (!stateMachine) return { success: false, error: 'State machine not initialized' };
+    const history = stateMachine.getHistory();
+    return { success: true, data: { history: history.map(serializeNode), total: history.length } };
+  });
+
+  // ── Diff ─────────────────────────────────────────────────────────────
+
+  ipcMain.handle('sm:getDiff', async (_event, stepId: string) => {
+    if (!stateMachine || !diffEngine) return { success: false, error: 'State machine not initialized' };
+
+    try {
+      const node = stateMachine.getNode(stepId);
+      if (!node) return { success: false, error: `Node not found: ${stepId}` };
+
+      // Adapt ExecutionNode to the shape DiffEngine expects for step diffs
+      const stepData = node.data as StepData;
+      if (!stepData || stepData.kind !== 'step') {
+        return { success: false, error: `Node is not a step: ${stepId}` };
+      }
+
+      // Build a legacy-compatible step object for DiffEngine
+      const legacyStep = {
+        id: node.id,
+        title: node.title,
+        type: stepData.stepType,
+        params: stepData.params,
+        planId: node.parentId ?? '',
+        status: node.state,
+        riskLevel: node.riskLevel,
+        requiresApproval: node.requiresApproval,
+        error: node.error,
+        retryCount: node.retryCount,
+        startedAt: node.startedAt,
+        completedAt: node.completedAt,
+      };
+
+      const diffResult = await diffEngine.generateFileDiffFromStep(legacyStep as any);
+      if (!diffResult) {
+        return { success: false, error: `Cannot generate diff for step type "${stepData.stepType}" or no file content available` };
+      }
+      return { success: true, data: diffResult };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, error: msg };
+    }
+  });
+
+  ipcMain.handle('sm:getPlanDiffs', async (_event, planId: string) => {
+    if (!stateMachine || !diffEngine) return { success: false, error: 'State machine not initialized' };
+
+    try {
+      const plan = stateMachine.getNode(planId);
+      if (!plan) return { success: false, error: `Plan not found: ${planId}` };
+
+      const children = stateMachine.getChildren(planId);
+      const diffs: any[] = [];
+
+      for (const child of children) {
+        const stepData = child.data as StepData;
+        if (!stepData || stepData.kind !== 'step') continue;
+
+        const legacyStep = {
+          id: child.id,
+          title: child.title,
+          type: stepData.stepType,
+          params: stepData.params,
+          planId: child.parentId ?? '',
+          status: child.state,
+          riskLevel: child.riskLevel,
+          requiresApproval: child.requiresApproval,
+          error: child.error,
+          retryCount: child.retryCount,
+          startedAt: child.startedAt,
+          completedAt: child.completedAt,
+        };
+
+        const diffResult = await diffEngine.generateFileDiffFromStep(legacyStep as any);
+        if (diffResult) {
+          diffs.push(diffResult);
+        }
+      }
+
+      return { success: true, data: { diffs } };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, error: msg };
+    }
+  });
+
   // ── State Transitions ────────────────────────────────────────────────
 
   ipcMain.handle('sm:transition', async (_event, params: unknown) => {
@@ -306,7 +456,17 @@ export function registerStateMachineHandlers(mainWindow: BrowserWindow | null): 
 
   ipcMain.handle('sm:setWorkspace', async (_event, workspaceRoot: string) => {
     if (!stateMachine) return { success: false, error: 'State machine not initialized' };
+
+    // Update workspace root on the state machine
     stateMachine.setWorkspaceRoot(workspaceRoot);
+
+    // Re-register executors for the new workspace
+    stateMachine.registerExecutorsFromWorkspace();
+
+    // Update the DiffEngine for the new workspace
+    diffEngine = new DiffEngine(workspaceRoot);
+
+    logger.info('state-machine', `Workspace set to: ${workspaceRoot} (executors re-registered, diff engine updated)`);
     return { success: true, data: { workspaceRoot: stateMachine.getWorkspaceRoot() } };
   });
 
@@ -329,10 +489,33 @@ export function registerStateMachineHandlers(mainWindow: BrowserWindow | null): 
           previousState: event.previousState,
           newState: event.newState,
           timestamp: event.timestamp,
+          data: event.data,
         });
       }
     });
   }
 
-  logger.info('state-machine', 'IPC handlers registered');
+  // Also forward events to ALL browser windows (like the legacy handlers did)
+  if (stateMachine) {
+    stateMachine.onEvent((event: StateMachineEvent) => {
+      try {
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) {
+            win.webContents.send('sm:event', {
+              type: event.type,
+              nodeId: event.nodeId,
+              previousState: event.previousState,
+              newState: event.newState,
+              timestamp: event.timestamp,
+              data: event.data,
+            });
+          }
+        }
+      } catch {
+        // Windows might be closed
+      }
+    });
+  }
+
+  logger.info('state-machine', 'IPC handlers registered (ARC 12 — converged with propose, getHistory, getDiff, getPlanDiffs, executor registration)');
 }

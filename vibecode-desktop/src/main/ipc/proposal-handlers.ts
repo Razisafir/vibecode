@@ -9,7 +9,7 @@ import {
   resetProposalGenerator,
   ProposalCardData,
 } from '../services/proposal-generator';
-import { getExecutionEngine } from './execution-handlers';
+import { getStateMachine } from './state-machine-handlers';
 import { validateWithError } from '../utils/validation';
 import { ProposalModificationSchema, IdSchema } from '../utils/schemas';
 import { auditLog } from '../utils/audit-log';
@@ -37,10 +37,14 @@ const proposalStore = new Map<string, ProposalCardData>();
 // ─── Handler Registration ───────────────────────────────────────────────────
 
 export function registerProposalHandlers(): void {
-  try {
-    resetProposalGenerator(getExecutionEngine());
-  } catch (e) {
-    console.warn('[IPC/Proposal] Could not initialize ProposalGenerator yet:', e);
+  // ARC 12: ProposalGenerator now uses ESM instead of legacy ExecutionEngine
+  const sm = getStateMachine();
+  if (sm) {
+    try {
+      resetProposalGenerator(null as any); // Will be refactored to use ESM directly
+    } catch (e) {
+      console.warn('[IPC/Proposal] Could not initialize ProposalGenerator:', e);
+    }
   }
 
   // ── proposal:generateFromResponse ────────────────────────────────────
@@ -51,7 +55,9 @@ export function registerProposalHandlers(): void {
         if (!response || typeof response !== 'string') return err('Response is required and must be a string');
         if (response.length > 1000000) return err('Response exceeds maximum length of 1,000,000 characters');
 
-        const generator = getProposalGenerator(getExecutionEngine());
+        const sm = getStateMachine();
+        if (!sm) return err('State machine not initialized');
+        const generator = getProposalGenerator(null as any);
         const intents = generator.parseLLMResponse(response, context);
         if (intents.length === 0) return ok({ intents: [], proposals: [] });
 
@@ -76,21 +82,24 @@ export function registerProposalHandlers(): void {
       const idV = validateWithError(IdSchema, planId);
       if (!idV.success) return err(idV.error!);
 
-      const engine = getExecutionEngine();
-      const plan = engine.approvePlan(planId);
+      // ARC 12: Use ESM for plan approval and execution
+      const sm = getStateMachine();
+      if (!sm) return err('State machine not initialized');
+
+      const planNode = sm.approvePlan(planId);
       for (const [, proposal] of proposalStore) {
         if (proposal.planId === planId) proposal.status = 'approved';
       }
       broadcastProposalUpdate('approved', [planId]);
 
-      engine.executePlan(planId).then((executedPlan) => {
+      sm.executePlan(planId).then((executedNode) => {
         for (const [, proposal] of proposalStore) {
           if (proposal.planId === planId) {
-            proposal.status = executedPlan.status === 'completed' ? 'completed' : executedPlan.status === 'failed' ? 'failed' : 'executing';
+            proposal.status = executedNode.state === 'completed' ? 'completed' : executedNode.state === 'failed' ? 'failed' : 'executing';
           }
         }
-        broadcastProposalUpdate(executedPlan.status === 'completed' ? 'completed' : 'failed', [planId]);
-        auditLog.auditLog('proposal.execute', { planId, status: executedPlan.status, stepCount: executedPlan.steps.length });
+        broadcastProposalUpdate(executedNode.state === 'completed' ? 'completed' : 'failed', [planId]);
+        auditLog.auditLog('proposal.execute', { planId, status: executedNode.state, stepCount: executedNode.childIds.length });
       }).catch(() => {
         for (const [, proposal] of proposalStore) {
           if (proposal.planId === planId) proposal.status = 'failed';
@@ -98,7 +107,7 @@ export function registerProposalHandlers(): void {
         broadcastProposalUpdate('failed', [planId]);
       });
 
-      return ok({ plan });
+      return ok({ plan: { id: planNode.id, title: planNode.title, status: planNode.state } });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));
     }
@@ -117,9 +126,12 @@ export function registerProposalHandlers(): void {
         }
       }
 
-      const engine = getExecutionEngine();
-      const plan = engine.getPlan(planId);
-      if (plan && plan.status === 'draft') engine.cancelPlan(planId);
+      // ARC 12: Use ESM for plan cancellation
+      const sm = getStateMachine();
+      if (sm) {
+        const node = sm.getNode(planId);
+        if (node && node.state === 'planned') sm.cancelPlan(planId);
+      }
 
       broadcastProposalUpdate('rejected', [planId]);
       return ok({ planId, rejected: true });
@@ -139,24 +151,31 @@ export function registerProposalHandlers(): void {
         const modV = validateWithError(ProposalModificationSchema, modifications);
         if (!modV.success) return err(modV.error!);
 
-        const engine = getExecutionEngine();
-        const plan = engine.getPlan(planId);
-        if (!plan) return err(`Plan not found: ${planId}`);
-        if (plan.status !== 'draft') return err(`Can only modify draft proposals — current status: "${plan.status}"`);
+        // ARC 12: Use ESM for plan modification
+        const sm = getStateMachine();
+        if (!sm) return err('State machine not initialized');
+        const planNode = sm.getNode(planId);
+        if (!planNode) return err(`Plan not found: ${planId}`);
+        if (planNode.state !== 'planned') return err(`Can only modify draft proposals — current status: "${planNode.state}"`);
 
         if (modV.data!.stepUpdates) {
+          const children = sm.getChildren(planId);
           for (const stepUpdate of modV.data!.stepUpdates!) {
-            const step = plan.steps[stepUpdate.stepIndex];
-            if (!step) continue;
+            const stepNode = children[stepUpdate.stepIndex];
+            if (!stepNode) continue;
             const update = stepUpdate.updates;
-            if (update.title) step.title = update.title;
-            if (update.description) step.description = update.description;
-            if (update.params) step.params = { ...step.params, ...update.params };
-            if (update.riskLevel) step.riskLevel = update.riskLevel;
+            if (update.title) stepNode.title = update.title;
+            if (update.description) stepNode.description = update.description;
+            if (update.params) {
+              const stepData = stepNode.data as any;
+              stepData.params = { ...stepData.params, ...update.params };
+            }
+            if (update.riskLevel) stepNode.riskLevel = update.riskLevel;
+            stepNode.updatedAt = Date.now();
           }
         }
 
-        plan.updatedAt = Date.now();
+        planNode.updatedAt = Date.now();
         for (const [, proposal] of proposalStore) {
           if (proposal.planId === planId) {
             if (modV.data!.title) proposal.title = modV.data!.title!;

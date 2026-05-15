@@ -9,7 +9,8 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { setExecutionWorkspaceRoot } from './execution-handlers';
+// ARC 12: Import ESM workspace setter instead of legacy execution-handlers
+import { getStateMachine } from './state-machine-handlers';
 import { WorkspaceStore, detectProjectType } from '../services/workspace-store';
 import { analyzeWorkspace as deepAnalyzeWorkspace, clearAnalysisCache, WorkspaceAnalysis } from '../services/workspace-analyzer';
 import { validateWithError } from '../utils/validation';
@@ -127,7 +128,9 @@ export function registerWorkspaceHandlers(): void {
       const info = analyzeWorkspace(resolved);
       currentWorkspace = info;
       workspaceStore.addRecent(resolved, info.name, info.type);
-      setExecutionWorkspaceRoot(resolved);
+      // ARC 12: Set ESM workspace root
+      const sm = getStateMachine();
+      if (sm) { sm.setWorkspaceRoot(resolved); sm.registerExecutorsFromWorkspace(); }
 
       // Clear the deep analysis cache for this workspace (might have changed)
       clearAnalysisCache(resolved);
@@ -203,7 +206,9 @@ export function registerWorkspaceHandlers(): void {
       const info = analyzeWorkspace(resolved);
       currentWorkspace = info;
       workspaceStore.addRecent(resolved, info.name, info.type);
-      setExecutionWorkspaceRoot(resolved);
+      // ARC 12: Set ESM workspace root on switch
+      const sm2 = getStateMachine();
+      if (sm2) { sm2.setWorkspaceRoot(resolved); sm2.registerExecutorsFromWorkspace(); }
 
       // Clear the deep analysis cache for this workspace
       clearAnalysisCache(resolved);

@@ -10,10 +10,11 @@
 //   vibecode.app.*        — App info
 //   vibecode.proposal.*   — Proposal operations
 //   vibecode.session.*    — Session management
-//   vibecode.execution.*  — Execution engine
+//   vibecode.execution.*  — [DEPRECATED] Legacy execution engine — routes to sm:*
 //   vibecode.updater.*    — Auto-updater
 //   vibecode.telemetry.*  — Telemetry & diagnostics
 //   vibecode.analytics.*  — Analytics (opt-in)
+//   vibecode.sm.*         — Execution State Machine (ARC 12 — single source of truth)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { contextBridge, ipcRenderer } from 'electron';
@@ -154,50 +155,128 @@ const vibecode = {
       ipcRenderer.invoke('session:archiveCrashedSession', sessionId),
   },
 
-  // ─── Execution Engine ──────────────────────────────────────────────────
+  // ─── Execution Engine [DEPRECATED — routes to sm:*] ─────────────────
+  // ARC 12: All execution.* methods now route through the state machine.
+  // The old execution:* IPC handlers are replaced by sm:* handlers.
+  // Every method below is a deprecation wrapper that calls the sm: equivalent.
   execution: {
-    plan: (title: string, description: string, steps: any[]) =>
-      ipcRenderer.invoke('execution:plan', title, description, steps),
-    execute: (planId: string) => ipcRenderer.invoke('execution:execute', planId),
-    status: (planId: string) => ipcRenderer.invoke('execution:status', planId),
-    cancel: (planId: string) => ipcRenderer.invoke('execution:cancel', planId),
-    retry: (stepId: string) => ipcRenderer.invoke('execution:retry', stepId),
-    history: (planId: string) => ipcRenderer.invoke('execution:history', planId),
-    propose: (title: string, description: string, steps: any[]) =>
-      ipcRenderer.invoke('execution:propose', title, description, steps),
-    approve: (planId: string) => ipcRenderer.invoke('execution:approve', planId),
-    getPlan: (planId: string) => ipcRenderer.invoke('execution:getPlan', planId),
-    getStep: (stepId: string) => ipcRenderer.invoke('execution:getStep', stepId),
-    executeStep: (stepId: string) => ipcRenderer.invoke('execution:executeStep', stepId),
-    detectBlockers: (planId: string) => ipcRenderer.invoke('execution:detectBlockers', planId),
-    rollbackStep: (stepId: string) => ipcRenderer.invoke('execution:rollbackStep', stepId),
-    rollbackPlan: (planId: string) => ipcRenderer.invoke('execution:rollbackPlan', planId),
-    listPlans: () => ipcRenderer.invoke('execution:listPlans'),
-    deletePlan: (planId: string) => ipcRenderer.invoke('execution:deletePlan', planId),
-    setWorkspace: (workspaceRoot: string) => ipcRenderer.invoke('execution:setWorkspace', workspaceRoot),
+    plan: (title: string, description: string, steps: any[]) => {
+      console.warn('[VibeCode] execution.plan is deprecated, use sm.createPlan');
+      return ipcRenderer.invoke('sm:createPlan', { title, description, steps });
+    },
+    execute: (planId: string) => {
+      console.warn('[VibeCode] execution.execute is deprecated, use sm.executePlan');
+      return ipcRenderer.invoke('sm:executePlan', planId);
+    },
+    status: (planId: string) => {
+      console.warn('[VibeCode] execution.status is deprecated, use sm.getPlanProgress');
+      return ipcRenderer.invoke('sm:getPlanProgress', planId);
+    },
+    cancel: (planId: string) => {
+      console.warn('[VibeCode] execution.cancel is deprecated, use sm.cancelPlan');
+      return ipcRenderer.invoke('sm:cancelPlan', planId);
+    },
+    retry: (stepId: string) => {
+      console.warn('[VibeCode] execution.retry is deprecated, use sm.retryStep');
+      return ipcRenderer.invoke('sm:retryStep', stepId);
+    },
+    history: (planId: string) => {
+      console.warn('[VibeCode] execution.history is deprecated, use sm.getHistory');
+      return ipcRenderer.invoke('sm:getHistory');
+    },
+    propose: (title: string, description: string, steps: any[]) => {
+      console.warn('[VibeCode] execution.propose is deprecated, use sm.propose');
+      return ipcRenderer.invoke('sm:propose', title, description, steps);
+    },
+    approve: (planId: string) => {
+      console.warn('[VibeCode] execution.approve is deprecated, use sm.approvePlan');
+      return ipcRenderer.invoke('sm:approvePlan', planId);
+    },
+    getPlan: (planId: string) => {
+      console.warn('[VibeCode] execution.getPlan is deprecated, use sm.getNode');
+      return ipcRenderer.invoke('sm:getNode', planId);
+    },
+    getStep: (stepId: string) => {
+      console.warn('[VibeCode] execution.getStep is deprecated, use sm.getNode');
+      return ipcRenderer.invoke('sm:getNode', stepId);
+    },
+    executeStep: (stepId: string) => {
+      console.warn('[VibeCode] execution.executeStep is deprecated, use sm.executeStep');
+      return ipcRenderer.invoke('sm:executeStep', stepId);
+    },
+    detectBlockers: (_planId: string) => {
+      console.warn('[VibeCode] execution.detectBlockers is deprecated — graph handles dependencies automatically');
+      return Promise.resolve({ success: true, data: { blockers: [], count: 0 } });
+    },
+    rollbackStep: (stepId: string) => {
+      console.warn('[VibeCode] execution.rollbackStep is deprecated, use sm.rollbackStep');
+      return ipcRenderer.invoke('sm:rollbackStep', stepId);
+    },
+    rollbackPlan: (planId: string) => {
+      console.warn('[VibeCode] execution.rollbackPlan is deprecated, use sm.rollbackPlan');
+      return ipcRenderer.invoke('sm:rollbackPlan', planId);
+    },
+    listPlans: () => {
+      console.warn('[VibeCode] execution.listPlans is deprecated, use sm.getPlans');
+      return ipcRenderer.invoke('sm:getPlans');
+    },
+    deletePlan: (planId: string) => {
+      console.warn('[VibeCode] execution.deletePlan is deprecated, use sm.deleteNode');
+      return ipcRenderer.invoke('sm:deleteNode', planId);
+    },
+    setWorkspace: (workspaceRoot: string) => {
+      console.warn('[VibeCode] execution.setWorkspace is deprecated, use sm.setWorkspace');
+      return ipcRenderer.invoke('sm:setWorkspace', workspaceRoot);
+    },
     onStatus: (callback: (status: any) => void) => {
-      ipcRenderer.on('execution:status', (_event, status) => callback(status));
+      console.warn('[VibeCode] execution.onStatus is deprecated, use sm.onEvent');
+      ipcRenderer.on('sm:event', (_event, event) => callback(event));
     },
     onStepUpdate: (callback: (update: any) => void) => {
-      ipcRenderer.on('execution:step:update', (_event, update) => callback(update));
+      console.warn('[VibeCode] execution.onStepUpdate is deprecated, use sm.onEvent');
+      ipcRenderer.on('sm:event', (_event, event) => callback(event));
     },
     // Diff Preview
-    getDiff: (stepId: string) => ipcRenderer.invoke('execution:getDiff', stepId),
-    getPlanDiffs: (planId: string) => ipcRenderer.invoke('execution:getPlanDiffs', planId),
-    getStepResult: (stepId: string) => ipcRenderer.invoke('execution:getStepResult', stepId),
-    getStepOutput: (stepId: string) => ipcRenderer.invoke('execution:getStepOutput', stepId),
-    // Execution Queue
+    getDiff: (stepId: string) => {
+      console.warn('[VibeCode] execution.getDiff is deprecated, use sm.getDiff');
+      return ipcRenderer.invoke('sm:getDiff', stepId);
+    },
+    getPlanDiffs: (planId: string) => {
+      console.warn('[VibeCode] execution.getPlanDiffs is deprecated, use sm.getPlanDiffs');
+      return ipcRenderer.invoke('sm:getPlanDiffs', planId);
+    },
+    getStepResult: (stepId: string) => {
+      console.warn('[VibeCode] execution.getStepResult is deprecated, use sm.getNode');
+      return ipcRenderer.invoke('sm:getNode', stepId);
+    },
+    getStepOutput: (stepId: string) => {
+      console.warn('[VibeCode] execution.getStepOutput is deprecated, use sm.getNode');
+      return ipcRenderer.invoke('sm:getNode', stepId);
+    },
+    // Execution Queue [DEPRECATED — queues are now part of the graph]
     queue: {
-      list: () => ipcRenderer.invoke('execution:queue:list'),
-      add: (planId: string, priority?: number, stepTimeout?: number) =>
-        ipcRenderer.invoke('execution:queue:add', planId, priority, stepTimeout),
-      cancel: (entryId: string) => ipcRenderer.invoke('execution:queue:cancel', entryId),
+      list: () => {
+        console.warn('[VibeCode] execution.queue.list is deprecated — queues are now part of the graph');
+        return Promise.resolve({ success: true, data: { entries: [] } });
+      },
+      add: (planId: string) => {
+        console.warn('[VibeCode] execution.queue.add is deprecated, use sm.executePlan');
+        return ipcRenderer.invoke('sm:executePlan', planId);
+      },
+      cancel: (entryId: string) => {
+        console.warn('[VibeCode] execution.queue.cancel is deprecated, use sm.cancelPlan');
+        return ipcRenderer.invoke('sm:cancelPlan', entryId);
+      },
     },
     // Execution History
-    getHistory: () => ipcRenderer.invoke('execution:getHistory'),
+    getHistory: () => {
+      console.warn('[VibeCode] execution.getHistory is deprecated, use sm.getHistory');
+      return ipcRenderer.invoke('sm:getHistory');
+    },
     // Queue Update Events
     onQueueUpdate: (callback: (update: any) => void) => {
-      ipcRenderer.on('execution:queue:update', (_event, update) => callback(update));
+      console.warn('[VibeCode] execution.onQueueUpdate is deprecated, use sm.onEvent');
+      ipcRenderer.on('sm:event', (_event, event) => callback(event));
     },
   },
 
@@ -291,8 +370,12 @@ const vibecode = {
     getPendingEvents: () => ipcRenderer.invoke('analytics:getPendingEvents'),
     trackFeature: (feature: string) => ipcRenderer.invoke('analytics:trackFeature', feature),
   },
-  // ── Execution State Machine (ARC 11 — single source of truth) ────────
+
+  // ── Execution State Machine (ARC 12 — single source of truth) ────────
+  // This namespace is the canonical API. The old execution.* namespace
+  // routes here via deprecation wrappers.
   sm: {
+    // ── Graph Queries ──────────────────────────────────────────────────
     getNode: (nodeId: string) => ipcRenderer.invoke('sm:getNode', nodeId),
     getTimeline: () => ipcRenderer.invoke('sm:getTimeline'),
     getGraph: () => ipcRenderer.invoke('sm:getGraph'),
@@ -300,19 +383,44 @@ const vibecode = {
     getPlanProgress: (planId: string) => ipcRenderer.invoke('sm:getPlanProgress', planId),
     getChildren: (parentId: string) => ipcRenderer.invoke('sm:getChildren', parentId),
     getNodesByType: (type: string) => ipcRenderer.invoke('sm:getNodesByType', type),
+
+    // ── Plan Operations ────────────────────────────────────────────────
     createPlan: (params: any) => ipcRenderer.invoke('sm:createPlan', params),
     approvePlan: (planId: string) => ipcRenderer.invoke('sm:approvePlan', planId),
     executePlan: (planId: string) => ipcRenderer.invoke('sm:executePlan', planId),
     cancelPlan: (planId: string) => ipcRenderer.invoke('sm:cancelPlan', planId),
     executeStep: (stepId: string) => ipcRenderer.invoke('sm:executeStep', stepId),
     retryStep: (stepId: string) => ipcRenderer.invoke('sm:retryStep', stepId),
+
+    // ── Propose (ARC 12 — create plan requiring approval) ──────────────
+    propose: (title: string, description: string, steps: any[]) =>
+      ipcRenderer.invoke('sm:propose', title, description, steps),
+
+    // ── History ────────────────────────────────────────────────────────
+    getHistory: () => ipcRenderer.invoke('sm:getHistory'),
+
+    // ── Diff ───────────────────────────────────────────────────────────
+    getDiff: (stepId: string) => ipcRenderer.invoke('sm:getDiff', stepId),
+    getPlanDiffs: (planId: string) => ipcRenderer.invoke('sm:getPlanDiffs', planId),
+
+    // ── State Transitions ──────────────────────────────────────────────
     transition: (params: any) => ipcRenderer.invoke('sm:transition', params),
+
+    // ── Rollback ───────────────────────────────────────────────────────
     rollbackStep: (stepId: string) => ipcRenderer.invoke('sm:rollbackStep', stepId),
     rollbackPlan: (planId: string) => ipcRenderer.invoke('sm:rollbackPlan', planId),
+
+    // ── Safety ─────────────────────────────────────────────────────────
     runSafetyCheck: (params: any) => ipcRenderer.invoke('sm:runSafetyCheck', params),
     getSafetyScore: (planId: string) => ipcRenderer.invoke('sm:getSafetyScore', planId),
+
+    // ── Workspace ──────────────────────────────────────────────────────
     setWorkspace: (workspaceRoot: string) => ipcRenderer.invoke('sm:setWorkspace', workspaceRoot),
+
+    // ── Node Deletion ──────────────────────────────────────────────────
     deleteNode: (nodeId: string) => ipcRenderer.invoke('sm:deleteNode', nodeId),
+
+    // ── Events ─────────────────────────────────────────────────────────
     onEvent: (callback: (event: any) => void) => {
       ipcRenderer.on('sm:event', (_event, event) => callback(event));
     },

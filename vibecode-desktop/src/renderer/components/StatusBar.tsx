@@ -67,14 +67,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
         {/* Safety Indicator */}
         <SafetyIndicator
           safetyScore={safetyScore}
-          warnings={Array.from({ length: safetyWarnings }, (_, i) => ({
-            id: `w-${i}`,
-            type: 'high_risk_operation' as const,
-            message: 'High risk operation detected',
-            stepId: `step-${i}`,
-            timestamp: Date.now(),
-            dismissed: false,
-          }))}
+          warningCount={safetyWarnings}
           hasActivePlan={hasActivePlan}
         />
       </div>

@@ -1,16 +1,16 @@
 // ============================================================
 // VibeCode Desktop — SafetyIndicator Component
 // Visual indicator for current execution safety status
+// ARC 12: Converged to accept raw props derived from ESM
 // ============================================================
 
-import React, { useState, useMemo } from 'react';
-import type { SafetyWarning } from '../../hooks/useExecutionSafety';
+import React, { useState } from 'react';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
 interface SafetyIndicatorProps {
   safetyScore: number;
-  warnings: SafetyWarning[];
+  warningCount: number;
   hasActivePlan: boolean;
   onClick?: () => void;
 }
@@ -73,7 +73,7 @@ const TIER_CONFIG: Record<SafetyTier, { icon: React.ReactNode; label: string; co
 
 const SafetyIndicator: React.FC<SafetyIndicatorProps> = ({
   safetyScore,
-  warnings,
+  warningCount,
   hasActivePlan,
   onClick,
 }) => {
@@ -81,13 +81,6 @@ const SafetyIndicator: React.FC<SafetyIndicatorProps> = ({
 
   const tier = getSafetyTier(safetyScore);
   const config = TIER_CONFIG[tier];
-
-  const activeWarnings = useMemo(
-    () => warnings.filter((w) => !w.dismissed),
-    [warnings],
-  );
-
-  const warningCount = activeWarnings.length;
 
   // Don't render anything if there's no active plan
   if (!hasActivePlan) {
@@ -175,37 +168,16 @@ const SafetyIndicator: React.FC<SafetyIndicatorProps> = ({
             </div>
           </div>
 
-          {/* Tooltip body — warnings list */}
-          <div className="px-3 py-2 max-h-48 overflow-y-auto scrollbar-custom">
-            {activeWarnings.length === 0 ? (
+          {/* Tooltip body — warnings summary */}
+          <div className="px-3 py-2">
+            {warningCount === 0 ? (
               <p className="text-[10px] text-[var(--text-muted)]">
                 No active warnings. All steps look safe.
               </p>
             ) : (
-              <div className="space-y-1.5">
-                {activeWarnings.slice(0, 5).map((warning) => (
-                  <div
-                    key={warning.id}
-                    className="flex items-start gap-1.5 text-[10px]"
-                  >
-                    <span className={`flex-shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full ${
-                      warning.type === 'destructive_action' || warning.type === 'high_risk_operation'
-                        ? 'bg-[var(--danger)]'
-                        : warning.type === 'dependency_conflict' || warning.type === 'config_modification'
-                          ? 'bg-[var(--warning)]'
-                          : 'bg-[var(--text-muted)]'
-                    }`} />
-                    <span className="text-[var(--text-secondary)] leading-tight">
-                      {warning.message}
-                    </span>
-                  </div>
-                ))}
-                {activeWarnings.length > 5 && (
-                  <p className="text-[10px] text-[var(--text-muted)] italic">
-                    +{activeWarnings.length - 5} more warning{activeWarnings.length - 5 !== 1 ? 's' : ''}
-                  </p>
-                )}
-              </div>
+              <p className="text-[10px] text-[var(--text-secondary)]">
+                {warningCount} active warning{warningCount !== 1 ? 's' : ''} detected. Click for full safety details.
+              </p>
             )}
           </div>
 

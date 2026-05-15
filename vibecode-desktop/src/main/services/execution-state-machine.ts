@@ -278,6 +278,8 @@ export interface ExecutionGraph {
   rootIds: string[];
   /** Timestamp of last modification */
   lastModified: number;
+  /** Workspace root path for boundary checks */
+  workspaceRoot: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -289,6 +291,7 @@ export type StateMachineEventType =
   | 'node:transition'    // State changed
   | 'node:updated'       // Data changed without state transition
   | 'node:linked'        // Source/dependency link added
+  | 'node:deleted'       // Node removed from graph
   | 'graph:changed'      // Any graph mutation
   | 'safety:computed'    // Safety score recalculated
   | 'rollback:completed'
@@ -393,6 +396,68 @@ const SAFETY_RULES: SafetyRule[] = [
       };
     },
   },
+  {
+    id: 'path-traversal',
+    name: 'Path Traversal Detection',
+    evaluate(node) {
+      const data = node.data as FileMutationData | StepData;
+      const filePath = (data as FileMutationData)?.filePath || (data as StepData)?.params?.filePath as string;
+      if (!filePath) return { rule: 'path-traversal', passed: true, severity: 'low', message: 'No file path' };
+      const traversalPatterns = ['../', '..\\', '%2e%2e', '..%2f', '..%5c'];
+      const hasTraversal = traversalPatterns.some(p => filePath.toLowerCase().includes(p.toLowerCase()));
+      return {
+        rule: 'path-traversal',
+        passed: !hasTraversal,
+        severity: hasTraversal ? 'critical' : 'low',
+        message: hasTraversal ? 'Path traversal detected in file path' : 'No path traversal',
+      };
+    },
+  },
+  {
+    id: 'workspace-boundary',
+    name: 'Workspace Boundary Check',
+    evaluate(node, graph) {
+      const data = node.data as FileMutationData | StepData;
+      const filePath = (data as FileMutationData)?.filePath || (data as StepData)?.params?.filePath as string;
+      if (!filePath) return { rule: 'workspace-boundary', passed: true, severity: 'low', message: 'No file path' };
+      const wsRoot = graph.workspaceRoot;
+      const absPath = path.resolve(wsRoot, filePath);
+      const relativeToWorkspace = path.relative(wsRoot, absPath);
+      const isOutside = relativeToWorkspace.startsWith('..') || path.isAbsolute(relativeToWorkspace);
+      const blockedPaths = ['.ssh/', '.gnupg/', '.aws/', '.kube/', '.npmrc', '.pypirc', '.netrc'];
+      const isBlocked = blockedPaths.some(p => absPath.includes(p));
+      if (isBlocked) {
+        return { rule: 'workspace-boundary', passed: false, severity: 'high', message: 'Credentials directory access detected' };
+      }
+      if (isOutside) {
+        return { rule: 'workspace-boundary', passed: false, severity: 'high', message: `File mutation outside workspace: ${filePath}` };
+      }
+      return { rule: 'workspace-boundary', passed: true, severity: 'low', message: 'Within workspace boundary' };
+    },
+  },
+  {
+    id: 'destructive-operation',
+    name: 'Destructive Operation Detection',
+    evaluate(node) {
+      const data = node.data as StepData;
+      if (data?.kind !== 'step') return { rule: 'destructive-operation', passed: true, severity: 'low', message: 'Not a step' };
+      if (data.stepType === 'file_delete') {
+        return { rule: 'destructive-operation', passed: false, severity: 'high', message: 'File deletion is a destructive operation' };
+      }
+      if (data.stepType === 'command') {
+        const cmd = (data.params?.command as string) ?? '';
+        const dangerousPatterns = ['rm -rf', 'sudo', 'chmod 777', 'curl.*\\|.*sh', 'wget.*\\|.*sh', 'npm publish', 'git push.*--force', 'DROP TABLE', 'TRUNCATE'];
+        const isDangerous = dangerousPatterns.some(p => new RegExp(p, 'i').test(cmd));
+        return {
+          rule: 'destructive-operation',
+          passed: !isDangerous,
+          severity: isDangerous ? 'critical' : 'low',
+          message: isDangerous ? `Dangerous command pattern detected` : 'Command appears safe',
+        };
+      }
+      return { rule: 'destructive-operation', passed: true, severity: 'low', message: 'Non-destructive operation' };
+    },
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -417,6 +482,7 @@ export class ExecutionStateMachine {
       nodes: new Map(),
       rootIds: [],
       lastModified: Date.now(),
+      workspaceRoot: this.workspaceRoot,
     };
     this.persistence = new ExecutionPersistence();
   }
@@ -870,6 +936,14 @@ export class ExecutionStateMachine {
         // Skip completed/rolled_back steps
         if (step.state === 'completed' || step.state === 'rolled_back') continue;
 
+        // SAFETY GATE: Block execution if safety score is too low
+        if (step.requiresApproval && step.state !== 'approved') {
+          throw new Error(`Step "${step.title}" requires approval before execution (safety score: ${step.safetyScore})`);
+        }
+        if (step.safetyScore <= 20) {
+          throw new Error(`Step "${step.title}" is blocked by safety gate (score: ${step.safetyScore}/100). Review and approve manually.`);
+        }
+
         // Create rollback snapshot before executing
         await this.createRollbackSnapshot(step);
 
@@ -985,6 +1059,14 @@ export class ExecutionStateMachine {
       if (dep && dep.state !== 'completed') {
         throw new Error(`Step blocked by unmet dependency: ${dep.title} (${depId})`);
       }
+    }
+
+    // SAFETY GATE: Block execution if safety score is too low
+    if (step.requiresApproval && step.state !== 'approved') {
+      throw new Error(`Step "${step.title}" requires approval before execution (safety score: ${step.safetyScore})`);
+    }
+    if (step.safetyScore <= 20) {
+      throw new Error(`Step "${step.title}" is blocked by safety gate (score: ${step.safetyScore}/100). Review and approve manually.`);
     }
 
     // Create rollback snapshot
@@ -1115,6 +1197,47 @@ export class ExecutionStateMachine {
     logger.info('state-machine', `Registered executor for step type: ${stepType}`);
   }
 
+  /** Register all built-in executors for the given workspace */
+  registerExecutorsFromWorkspace(): void {
+    const { createEsmExecutorRegistry } = require('./esm-executors');
+    const registry = createEsmExecutorRegistry(this.workspaceRoot);
+    for (const [stepType, executor] of registry) {
+      this.executorRegistry.set(stepType, executor);
+    }
+    logger.info('state-machine', `Registered ${registry.size} executors for workspace: ${this.workspaceRoot}`);
+  }
+
+  /** Get execution history — all completed/failed/rolled_back plan nodes */
+  getHistory(): ExecutionNode[] {
+    return this.getPlans()
+      .filter(p => ['completed', 'failed', 'rolled_back', 'cancelled'].includes(p.state))
+      .sort((a, b) => (b.completedAt ?? b.updatedAt) - (a.completedAt ?? a.updatedAt));
+  }
+
+  /** Create a proposal (plan that requires approval) — convenience method */
+  propose(title: string, description: string, steps: Array<{
+    title: string;
+    description: string;
+    type: UnifiedStepType;
+    params: Record<string, unknown>;
+    riskLevel?: RiskLevel;
+    requiresApproval?: boolean;
+    dependsOn?: number[];
+  }>): ExecutionNode {
+    const plan = this.createExecutionPlan({ title, description, steps });
+    // Auto-flag high-risk steps
+    for (const childId of plan.childIds) {
+      const child = this.graph.nodes.get(childId);
+      if (child && child.riskLevel === 'high') {
+        child.requiresApproval = true;
+        child.updatedAt = Date.now();
+      }
+    }
+    plan.requiresApproval = true; // Proposals always require approval
+    plan.updatedAt = Date.now();
+    return plan;
+  }
+
   // ─── Event System ──────────────────────────────────────────────────────
 
   /** Subscribe to state machine events */
@@ -1149,6 +1272,7 @@ export class ExecutionStateMachine {
 
   setWorkspaceRoot(root: string): void {
     this.workspaceRoot = path.resolve(root);
+    this.graph.workspaceRoot = this.workspaceRoot;
     logger.info('state-machine', `Workspace root set to: ${this.workspaceRoot}`);
   }
 
@@ -1183,6 +1307,7 @@ export class ExecutionStateMachine {
     this.graph.nodes.delete(nodeId);
     this.graph.lastModified = Date.now();
 
+    this.emitEvent('node:deleted', nodeId);
     this.emitEvent('graph:changed', nodeId);
   }
 

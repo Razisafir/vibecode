@@ -4,7 +4,8 @@ import { registerTerminalHandlers } from './terminal-handlers';
 import { registerProviderHandlers } from './provider-handlers';
 import { registerMemoryHandlers } from './memory-handlers';
 import { registerSessionHandlers } from './session-handlers';
-import { registerExecutionHandlers } from './execution-handlers';
+// ARC 12: Legacy ExecutionEngine handlers REMOVED — all execution flows through ExecutionStateMachine
+// import { registerExecutionHandlers } from './execution-handlers';
 import { registerAppHandlers } from './app-handlers';
 import { registerWorkspaceHandlers } from './workspace-handlers';
 import { registerProposalHandlers } from './proposal-handlers';
@@ -89,8 +90,8 @@ export function registerAllIpcHandlers(): void {
   // Session persistence
   registerSessionHandlers();
 
-  // Execution engine (plans, steps, approvals)
-  registerExecutionHandlers();
+  // ARC 12: Legacy ExecutionEngine handlers REMOVED — all execution routes through ESM
+  // registerExecutionHandlers();
 
   // Workspace analysis & management
   registerWorkspaceHandlers();
@@ -107,7 +108,7 @@ export function registerAllIpcHandlers(): void {
   // Analytics (opt-in, privacy-first)
   registerAnalyticsHandlers();
 
-  // Execution State Machine (ARC 11 — single source of truth)
+  // Execution State Machine (ARC 12 — ONLY execution system)
   registerStateMachineHandlers(null);
 
   console.log('[IPC] All IPC handlers registered successfully');
