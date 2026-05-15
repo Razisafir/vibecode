@@ -280,8 +280,35 @@ const FileExplorer: React.FC = () => {
 
     try {
       if (isCreating === 'folder') {
+        // ARC 16: Route through gateway
+        const api = window.vibecode as any;
+        if (api?.sm?.createFileMutationNode) {
+          const gatewayResult = await api.sm.createFileMutationNode({
+            action: 'create',
+            filePath: fullPath,
+            isAI: false,
+          });
+          if (!gatewayResult?.success) {
+            console.error('[VibeCode/ARC16] Gateway blocked directory creation:', gatewayResult?.error);
+            return;
+          }
+        }
         await window.vibecode?.fs.mkdir(fullPath);
       } else {
+        // ARC 16: Route through gateway
+        const api = window.vibecode as any;
+        if (api?.sm?.createMonacoEditNode) {
+          const gatewayResult = await api.sm.createMonacoEditNode({
+            filePath: fullPath,
+            originalContent: '',
+            newContent: '',
+            isAI: false,
+          });
+          if (!gatewayResult?.success) {
+            console.error('[VibeCode/ARC16] Gateway blocked file creation:', gatewayResult?.error);
+            return;
+          }
+        }
         await window.vibecode?.fs.writeFile(fullPath, '');
       }
       setNewItemName('');

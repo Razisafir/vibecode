@@ -385,9 +385,16 @@ export function registerFsHandlers(): void {
     }
   });
 
-  // ── fs:mkdir ───────────────────────────────────────────────────────────
+  // ── fs:mkdir (ARC 15: Gateway-enforced) ───────────────────────────────
   ipcMain.handle('fs:mkdir', async (_event, dirPath: string, options?: { recursive?: boolean }) => {
     try {
+      // ARC 15: Check if this mkdir was authorized by the gateway
+      const authorized = checkFsAuthorization(dirPath, 'mkdir');
+      if (!authorized) {
+        logger.error('ipc', `FS mkdir BLOCKED — no gateway authorization: ${dirPath}`);
+        return err(`Directory creation blocked: no execution node authorizes creating directory ${dirPath}. All FS operations must go through the ExecutionGateway.`);
+      }
+
       const validation = validateOrFail(dirPath);
       if ('success' in validation) return validation;
       const resolved = validation.resolvedPath;

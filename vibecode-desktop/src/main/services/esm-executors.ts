@@ -20,6 +20,7 @@ import {
 import { SafetyGuard } from './safety/runtime-safety-guard';
 import { auditLog } from '../utils/audit-log';
 import { logger } from '../utils/logger';
+import { authorizeFsOp } from '../core/execution-audit';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PATH VALIDATION — Shared across all file executors
@@ -143,6 +144,9 @@ function createFileWriteExecutor(workspaceRoot: string): (node: ExecutionNode) =
       const dir = path.dirname(absolutePath);
       await fs.promises.mkdir(dir, { recursive: true });
     }
+
+    // ARC 16: Authorize this FS write in the audit system
+    authorizeFsOp(absolutePath, node.id, 'write');
 
     // ── Write the file ────────────────────────────────────────────────────
     await fs.promises.writeFile(absolutePath, p.content, encoding);
@@ -330,6 +334,9 @@ function createFileEditExecutor(workspaceRoot: string): (node: ExecutionNode) =>
       }
     }
 
+    // ARC 16: Authorize this FS write in the audit system
+    authorizeFsOp(absolutePath, node.id, 'write');
+
     // ── Write the modified file ───────────────────────────────────────────
     await fs.promises.writeFile(absolutePath, lines.join('\n'), 'utf-8');
 
@@ -422,6 +429,9 @@ function createFileDeleteExecutor(workspaceRoot: string): (node: ExecutionNode) 
     if (!wasDirectory) {
       backupPath = await createBackup(absolutePath, workspaceRoot);
     }
+
+    // ARC 16: Authorize this FS delete in the audit system
+    authorizeFsOp(absolutePath, node.id, 'delete');
 
     // ── Delete the file/directory ─────────────────────────────────────────
     if (wasDirectory && p.recursive) {
@@ -895,6 +905,9 @@ function createCodeGenerationExecutor(workspaceRoot: string): (node: ExecutionNo
       await fs.promises.mkdir(dir, { recursive: true });
     }
 
+    // ARC 16: Authorize this FS write in the audit system
+    authorizeFsOp(absolutePath, node.id, 'write');
+
     // ── Write the file ────────────────────────────────────────────────────
     await fs.promises.writeFile(absolutePath, p.content, encoding);
 
@@ -1088,6 +1101,9 @@ function createDiffApplyExecutor(workspaceRoot: string): (node: ExecutionNode) =
     for (const hunk of hunks) {
       fileLines = applyHunk(fileLines, hunk);
     }
+
+    // ARC 16: Authorize this FS write in the audit system
+    authorizeFsOp(absolutePath, node.id, 'write');
 
     // ── Write the modified file ───────────────────────────────────────────
     await fs.promises.writeFile(absolutePath, fileLines.join('\n'), 'utf-8');

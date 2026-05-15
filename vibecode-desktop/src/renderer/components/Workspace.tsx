@@ -108,14 +108,41 @@ const Workspace: React.FC<WorkspaceProps> = ({ className }) => {
   const handleFileSave = useCallback(async () => {
     if (!activeFile) return;
     try {
+      // ARC 16: "No Node → No Action" — Gateway MUST create the execution node FIRST
+      // Only route through the gateway when the file was actually modified
+      if (activeFile.modified) {
+        const api = window.vibecode as any;
+        if (api?.sm?.createMonacoEditNode) {
+          // ARC 16: This goes through ExecutionGateway on the main process.
+          // The Gateway creates the node, runs safety checks, and AUTHORIZES
+          // the subsequent fs:writeFile call. If the Gateway blocks the edit,
+          // the file save is also blocked.
+          const gatewayResult = await api.sm.createMonacoEditNode({
+            filePath: activeFile.path,
+            originalContent: '',  // Workspace doesn't track original content
+            newContent: activeFile.content,
+            isAI: false,
+          });
+
+          if (!gatewayResult?.success) {
+            // Gateway BLOCKED this edit — do NOT save the file
+            console.error('[VibeCode/ARC16] Gateway blocked file save:', gatewayResult?.error);
+            return;
+          }
+        } else {
+          // No gateway available — this is a bypass; log warning
+          console.warn('[VibeCode/ARC16] No gateway available for Workspace edit tracking');
+        }
+      }
       await window.vibecode?.fs.writeFile(activeFile.path, activeFile.content);
       setOpenFiles((prev) =>
         prev.map((f, i) =>
           i === activeFileIndex ? { ...f, modified: false } : f,
         ),
       );
-    } catch {
-      // Save failed
+    } catch (e) {
+      // Gateway threw or save failed — safety block
+      console.error('[VibeCode/ARC16] File save rejected:', e);
     }
   }, [activeFile, activeFileIndex]);
 

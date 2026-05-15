@@ -1,14 +1,17 @@
-// ─── VibeCode Desktop — Execution Audit Watchdog (ARC 15) ──────────────────
-// AUTO-BYPASS DETECTOR
+// ─── VibeCode Desktop — Execution Audit Watchdog (ARC 16) ──────────────────
+// HARD ENFORCEMENT — BYPASS ELIMINATION
 //
-// Scans runtime behavior for graph violations:
-// - FS writes without a corresponding ExecutionNode
-// - Terminal spawns without a corresponding ExecutionNode
-// - Monaco saves without a corresponding ExecutionNode
+// NON-NEGOTIABLE: "No Node → No Action"
+// There is NO soft mode. There is NO audit bypass.
+// If a bypass is detected, the operation is BLOCKED.
+// If the audit system is disabled, that is itself a violation.
+// If the gateway is not initialized, we are in a startup window and
+// ALL mutations are blocked until it IS initialized.
 //
-// MODE:
-//   dev:  warn (log violation but allow)
-//   prod: block or crash
+// ARC 16: Removed all escape hatches:
+//   - No more `if (!auditActive) return true` — audit CANNOT be disabled
+//   - No more `if (!isGatewayInitialized()) return true` — block until gateway is ready
+//   - No more `return !productionMode` — ALWAYS block on violation
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { logger } from '../utils/logger';
@@ -97,33 +100,41 @@ export function authorizeTerminalOp(sessionId: string, nodeId: string, command: 
  * Returns true if authorized, false if this is a bypass.
  */
 export function checkFsAuthorization(filePath: string, operation: string): boolean {
-  if (!auditActive) return true; // Audit disabled — allow
+  // ARC 16: Audit CANNOT be disabled. Removed `if (!auditActive) return true`.
 
   const authorized = authorizedFsOps.get(filePath);
 
   // Check if there's a recent authorization for this path
-  if (authorized && Date.now() - authorized.timestamp < 30000) {
-    // Authorized within the last 30 seconds — valid
+  if (authorized && Date.now() - authorized.timestamp < 60000) {
+    // Authorized within the last 60 seconds — valid (extended from 30s for slow operations)
     return true;
   }
 
-  // Also check if the gateway is initialized — if it's not, we can't enforce
+  // ARC 16: If the gateway is NOT initialized, BLOCK the operation.
+  // Previously this was a pass-through. Now: if gateway isn't ready, nothing mutates.
   if (!isGatewayInitialized()) {
-    // Gateway not initialized — can't enforce, but don't record violation
-    return true;
+    recordViolation({
+      type: operation === 'delete' ? 'fs_delete_no_node' : operation === 'rename' ? 'fs_rename_no_node' : 'fs_write_no_node',
+      description: `FS ${operation} on "${filePath}" BLOCKED — ExecutionGateway not initialized`,
+      target: filePath,
+      stack: new Error().stack,
+      timestamp: Date.now(),
+      severity: 'critical',
+    });
+    return false; // HARD BLOCK — gateway must be initialized before any FS mutation
   }
 
-  // VIOLATION DETECTED
+  // VIOLATION DETECTED — always critical, always block
   recordViolation({
-    type: operation === 'delete' ? 'fs_delete_no_node' : operation === 'rename' ? 'fs_rename_no_node' : 'fs_write_no_node',
+    type: operation === 'delete' ? 'fs_delete_no_node' : operation === 'rename' ? 'fs_rename_no_node' : operation === 'mkdir' ? 'fs_write_no_node' : 'fs_write_no_node',
     description: `FS ${operation} on "${filePath}" without gateway authorization`,
     target: filePath,
     stack: new Error().stack,
     timestamp: Date.now(),
-    severity: productionMode ? 'critical' : 'warn',
+    severity: 'critical', // ARC 16: ALWAYS critical — no more 'warn' mode
   });
 
-  return !productionMode; // In dev mode, warn but allow; in prod, block
+  return false; // ARC 16: ALWAYS block — no more dev/prod split
 }
 
 /**
@@ -133,37 +144,46 @@ export function checkFsAuthorization(filePath: string, operation: string): boole
  * Returns true if authorized, false if this is a bypass.
  */
 export function checkTerminalAuthorization(sessionId: string, command: string): boolean {
-  if (!auditActive) return true;
+  // ARC 16: Audit CANNOT be disabled.
 
   const key = `${sessionId}:${command}`;
   const authorized = authorizedTerminalOps.get(key);
 
-  if (authorized && Date.now() - authorized.timestamp < 30000) {
+  if (authorized && Date.now() - authorized.timestamp < 60000) {
     return true;
   }
 
+  // ARC 16: If gateway is NOT initialized, BLOCK the operation.
   if (!isGatewayInitialized()) {
-    return true;
+    recordViolation({
+      type: 'terminal_spawn_no_node',
+      description: `Terminal command "${command.substring(0, 50)}" in session ${sessionId} BLOCKED — ExecutionGateway not initialized`,
+      target: command,
+      stack: new Error().stack,
+      timestamp: Date.now(),
+      severity: 'critical',
+    });
+    return false; // HARD BLOCK
   }
 
-  // VIOLATION DETECTED
+  // VIOLATION DETECTED — always critical, always block
   recordViolation({
     type: 'terminal_spawn_no_node',
     description: `Terminal command "${command.substring(0, 50)}" in session ${sessionId} without gateway authorization`,
     target: command,
     stack: new Error().stack,
     timestamp: Date.now(),
-    severity: productionMode ? 'critical' : 'warn',
+    severity: 'critical', // ARC 16: ALWAYS critical
   });
 
-  return !productionMode;
+  return false; // ARC 16: ALWAYS block
 }
 
 /**
  * Record a Monaco save that bypassed the gateway.
  */
 export function reportMonacoBypass(filePath: string): void {
-  if (!auditActive) return;
+  // ARC 16: Always record — audit cannot be disabled
 
   recordViolation({
     type: 'monaco_save_no_node',
@@ -171,7 +191,7 @@ export function reportMonacoBypass(filePath: string): void {
     target: filePath,
     stack: new Error().stack,
     timestamp: Date.now(),
-    severity: productionMode ? 'critical' : 'warn',
+    severity: 'critical', // ARC 16: ALWAYS critical
   });
 }
 
@@ -179,7 +199,7 @@ export function reportMonacoBypass(filePath: string): void {
  * Record a generic bypass violation.
  */
 export function reportExecBypass(target: string, description: string): void {
-  if (!auditActive) return;
+  // ARC 16: Always record — audit cannot be disabled
 
   recordViolation({
     type: 'exec_no_node',
@@ -187,7 +207,7 @@ export function reportExecBypass(target: string, description: string): void {
     target,
     stack: new Error().stack,
     timestamp: Date.now(),
-    severity: productionMode ? 'critical' : 'warn',
+    severity: 'critical', // ARC 16: ALWAYS critical
   });
 }
 
@@ -202,23 +222,19 @@ function recordViolation(violation: GraphViolation): void {
   const count = violationCounts[violation.type] || 0;
   violationCounts[violation.type] = count + 1;
 
-  // Log based on severity
-  switch (violation.severity) {
-    case 'critical':
-      logger.error('audit', `CRITICAL BYPASS: ${violation.description}`);
-      auditLog.auditLog('gateway:bypass:critical', violation);
-      // In production, this would crash or block
-      if (productionMode) {
-        throw new Error(`[AUDIT] CRITICAL BYPASS DETECTED: ${violation.description}`);
-      }
-      break;
-    case 'error':
-      logger.error('audit', `BYPASS DETECTED: ${violation.description}`);
-      auditLog.auditLog('gateway:bypass:error', violation);
-      break;
-    case 'warn':
-      logger.warn('audit', `BYPASS WARNING: ${violation.description}`);
-      break;
+  // ARC 16: ALL violations are now critical
+  logger.error('audit', `CRITICAL BYPASS: ${violation.description}`);
+  auditLog.auditLog('gateway:bypass:critical', violation);
+
+  // HARD FAILURE: In production, crash immediately.
+  // In development, throw but allow catch for graceful degradation.
+  if (productionMode) {
+    // Unrecoverable — crash the process
+    throw new Error(`[AUDIT] CRITICAL BYPASS DETECTED: ${violation.description}`);
+  } else {
+    // Development: still throw (hard failure), but callers can catch
+    // to provide user feedback rather than silent crash
+    throw new Error(`[AUDIT] BYPASS BLOCKED: ${violation.description}`);
   }
 }
 
@@ -270,10 +286,24 @@ export function configureAudit(options: {
   active?: boolean;
   productionMode?: boolean;
 }): void {
-  if (options.active !== undefined) auditActive = options.active;
+  // ARC 16: `active` can no longer be set to false. Audit is ALWAYS active.
+  // This eliminates the "disable audit to bypass" escape hatch.
+  if (options.active === false) {
+    logger.error('audit', 'ATTEMPTED TO DISABLE AUDIT — this is a MANDATORY enforcement system. Request denied.');
+    // Record this as a violation itself
+    recordViolation({
+      type: 'exec_no_node',
+      description: 'Attempted to disable the audit system — this is a security violation',
+      target: 'configureAudit',
+      timestamp: Date.now(),
+      severity: 'critical',
+    });
+    return; // Do NOT disable audit
+  }
+
   if (options.productionMode !== undefined) productionMode = options.productionMode;
 
-  logger.info('audit', `Audit configured: active=${auditActive}, productionMode=${productionMode}`);
+  logger.info('audit', `Audit configured: active=true (MANDATORY), productionMode=${productionMode}`);
 }
 
 /**

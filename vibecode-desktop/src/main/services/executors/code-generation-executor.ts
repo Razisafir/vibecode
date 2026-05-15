@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ExecutionStep, StepExecutor } from '../execution-engine';
 import { validateWorkspacePath } from './file-write-executor';
+import { authorizeFsOp } from '../../core/execution-audit';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,9 @@ export const createCodeGenerationExecutor = (workspaceRoot: string): StepExecuto
       const dir = path.dirname(absolutePath);
       await fs.promises.mkdir(dir, { recursive: true });
     }
+
+    // ARC 16: Authorize this FS write in the audit system
+    authorizeFsOp(absolutePath, step.id, 'write');
 
     // ── Write the file ────────────────────────────────────────────────────
     await fs.promises.writeFile(absolutePath, params.content, encoding);

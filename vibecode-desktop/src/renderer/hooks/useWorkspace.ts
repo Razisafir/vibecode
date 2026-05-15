@@ -176,6 +176,20 @@ export function useWorkspace(): UseWorkspaceReturn {
   const writeFile = useCallback(
     async (path: string, content: string): Promise<boolean> => {
       try {
+        // ARC 16: Route through gateway — "No Node → No Action"
+        const api = window.vibecode as any;
+        if (api?.sm?.createMonacoEditNode) {
+          const gatewayResult = await api.sm.createMonacoEditNode({
+            filePath: path,
+            originalContent: '',
+            newContent: content,
+            isAI: false,
+          });
+          if (!gatewayResult?.success) {
+            setError(gatewayResult?.error || 'File write blocked by gateway');
+            return false;
+          }
+        }
         if (window.vibecode?.fs) {
           const result = await window.vibecode.fs.writeFile(path, content);
           if (result.success) {
@@ -216,6 +230,19 @@ export function useWorkspace(): UseWorkspaceReturn {
   const createDirectory = useCallback(
     async (path: string): Promise<boolean> => {
       try {
+        // ARC 16: Route through gateway — "No Node → No Action"
+        const api = window.vibecode as any;
+        if (api?.sm?.createFileMutationNode) {
+          const gatewayResult = await api.sm.createFileMutationNode({
+            action: 'create',
+            filePath: path,
+            isAI: false,
+          });
+          if (!gatewayResult?.success) {
+            setError(gatewayResult?.error || 'Directory creation blocked by gateway');
+            return false;
+          }
+        }
         if (window.vibecode?.fs) {
           const result = await window.vibecode.fs.mkdir(path);
           return result.success;
@@ -230,6 +257,19 @@ export function useWorkspace(): UseWorkspaceReturn {
 
   const deleteItem = useCallback(async (path: string): Promise<boolean> => {
     try {
+      // ARC 16: Route through gateway — "No Node → No Action"
+      const api = window.vibecode as any;
+      if (api?.sm?.createFileMutationNode) {
+        const gatewayResult = await api.sm.createFileMutationNode({
+          action: 'delete',
+          filePath: path,
+          isAI: false,
+        });
+        if (!gatewayResult?.success) {
+          setError(gatewayResult?.error || 'Delete blocked by gateway');
+          return false;
+        }
+      }
       if (window.vibecode?.fs) {
         const result = await window.vibecode.fs.delete(path);
         return result.success;
@@ -243,6 +283,20 @@ export function useWorkspace(): UseWorkspaceReturn {
   const renameItem = useCallback(
     async (oldPath: string, newPath: string): Promise<boolean> => {
       try {
+        // ARC 16: Route through gateway — "No Node → No Action"
+        const api = window.vibecode as any;
+        if (api?.sm?.createFileMutationNode) {
+          const gatewayResult = await api.sm.createFileMutationNode({
+            action: 'move',
+            filePath: oldPath,
+            destinationPath: newPath,
+            isAI: false,
+          });
+          if (!gatewayResult?.success) {
+            setError(gatewayResult?.error || 'Rename blocked by gateway');
+            return false;
+          }
+        }
         if (window.vibecode?.fs) {
           const result = await window.vibecode.fs.rename(oldPath, newPath);
           return result.success;
