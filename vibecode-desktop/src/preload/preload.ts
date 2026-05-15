@@ -371,6 +371,90 @@ const vibecode = {
     trackFeature: (feature: string) => ipcRenderer.invoke('analytics:trackFeature', feature),
   },
 
+  // ── ARC 20 + ARC 21: AI Intelligence + Autonomy ────────────────────
+  // Workspace context, agent runtime, autonomy loop, self-improvement,
+  // proactive actions, memory compression, and agent metrics.
+  arc: {
+    // ── P0-1: Autonomous Loop Engine ────────────────────────────────
+    loop: {
+      start: () => ipcRenderer.invoke('loop:start'),
+      stop: () => ipcRenderer.invoke('loop:stop'),
+      pause: () => ipcRenderer.invoke('loop:pause'),
+      resume: () => ipcRenderer.invoke('loop:resume'),
+      getState: () => ipcRenderer.invoke('loop:getState'),
+      getMetrics: () => ipcRenderer.invoke('loop:getMetrics'),
+      getCycleHistory: (limit?: number) => ipcRenderer.invoke('loop:getCycleHistory', limit),
+      updateConfig: (updates: any) => ipcRenderer.invoke('loop:updateConfig', updates),
+      notifyUserActivity: () => ipcRenderer.invoke('loop:notifyUserActivity'),
+      notifyFileChange: (filePath: string, changeType: string) => ipcRenderer.invoke('loop:notifyFileChange', filePath, changeType),
+      notifyError: (source: string, message: string, filePath?: string) => ipcRenderer.invoke('loop:notifyError', source, message, filePath),
+      triggerManualCycle: () => ipcRenderer.invoke('loop:triggerManualCycle'),
+    },
+
+    // ── P0-2: Agent Self-Improvement ────────────────────────────────
+    selfImprove: {
+      analyze: () => ipcRenderer.invoke('selfImprove:analyze'),
+      optimizeGraph: () => ipcRenderer.invoke('selfImprove:optimizeGraph'),
+      getOpportunities: () => ipcRenderer.invoke('selfImprove:getOpportunities'),
+      getMetrics: () => ipcRenderer.invoke('selfImprove:getMetrics'),
+      dismissOpportunity: (id: string) => ipcRenderer.invoke('selfImprove:dismissOpportunity', id),
+      forceApply: (id: string) => ipcRenderer.invoke('selfImprove:forceApply', id),
+      getRegressionAlerts: () => ipcRenderer.invoke('selfImprove:getRegressionAlerts'),
+    },
+
+    // ── P0-3: Workspace Observer ────────────────────────────────────
+    observer: {
+      getRecentChanges: (limit?: number) => ipcRenderer.invoke('observer:getRecentChanges', limit),
+      getMetrics: () => ipcRenderer.invoke('observer:getMetrics'),
+      getCurrentIntent: () => ipcRenderer.invoke('observer:getCurrentIntent'),
+      getActiveBatches: () => ipcRenderer.invoke('observer:getActiveBatches'),
+    },
+
+    // ── P0-4: Proactive Actions ────────────────────────────────────
+    proactive: {
+      scan: () => ipcRenderer.invoke('proactive:scan'),
+      getPending: () => ipcRenderer.invoke('proactive:getPending'),
+      accept: (actionId: string) => ipcRenderer.invoke('proactive:accept', actionId),
+      dismiss: (actionId: string) => ipcRenderer.invoke('proactive:dismiss', actionId),
+      getMetrics: () => ipcRenderer.invoke('proactive:getMetrics'),
+      updateConfig: (updates: any) => ipcRenderer.invoke('proactive:updateConfig', updates),
+    },
+
+    // ── P0-5: Memory Compression ───────────────────────────────────
+    memoryCompress: {
+      compress: () => ipcRenderer.invoke('memoryCompress:compress'),
+      getMetrics: () => ipcRenderer.invoke('memoryCompress:getMetrics'),
+      getMemoriesByLayer: (layer: string) => ipcRenderer.invoke('memoryCompress:getMemoriesByLayer', layer),
+      getRelevantContext: (maxTokens?: number) => ipcRenderer.invoke('memoryCompress:getRelevantContext', maxTokens),
+      searchByTag: (tag: string) => ipcRenderer.invoke('memoryCompress:searchByTag', tag),
+    },
+
+    // ── P0-6: Agent Metrics ────────────────────────────────────────
+    metrics: {
+      getSummary: () => ipcRenderer.invoke('metrics:getSummary'),
+      getDecisions: (limit?: number) => ipcRenderer.invoke('metrics:getDecisions', limit),
+      getExecutions: (limit?: number) => ipcRenderer.invoke('metrics:getExecutions', limit),
+      getCycles: (limit?: number) => ipcRenderer.invoke('metrics:getCycles', limit),
+      getTimeSeries: (metric: string, intervalMs?: number, since?: number) =>
+        ipcRenderer.invoke('metrics:getTimeSeries', metric, intervalMs, since),
+    },
+
+    // ── ARC 20: Workspace Context (exposed via arc namespace) ──────
+    context: {
+      get: () => ipcRenderer.invoke('workspace:context'),
+      getCompressed: (maxTokens?: number) => ipcRenderer.invoke('workspace:compressedContext', maxTokens),
+      getSystemPrompt: () => ipcRenderer.invoke('workspace:systemPrompt'),
+    },
+
+    // ── ARC 20: Agent Runtime (exposed via arc namespace) ──────────
+    agent: {
+      getState: () => ipcRenderer.invoke('agent:getState'),
+      approveStep: (planId: string, stepId: string) => ipcRenderer.invoke('agent:approveStep', planId, stepId),
+      rejectPlan: (planId: string) => ipcRenderer.invoke('agent:rejectPlan', planId),
+      cancelPlan: (planId: string) => ipcRenderer.invoke('agent:cancelPlan', planId),
+    },
+  },
+
   // ── Execution State Machine (ARC 12 — single source of truth) ────────
   // This namespace is the canonical API. The old execution.* namespace
   // routes here via deprecation wrappers.

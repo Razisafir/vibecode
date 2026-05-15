@@ -13,6 +13,8 @@ import { registerTelemetryHandlers } from './telemetry-handlers';
 import { registerUpdaterHandlers } from './updater-handlers';
 import { registerAnalyticsHandlers } from './analytics-handlers';
 import { registerStateMachineHandlers } from './state-machine-handlers';
+import { registerARC20Handlers } from './arc20-handlers';
+import { registerARC21Handlers } from './arc21-handlers';
 import { telemetry } from '../services/telemetry';
 import { rateLimiter } from '../utils/rate-limiter';
 
@@ -110,6 +112,12 @@ export function registerAllIpcHandlers(): void {
 
   // Execution State Machine (ARC 12 — ONLY execution system)
   registerStateMachineHandlers(null);
+
+  // ARC 20: Product UX + AI Intelligence
+  registerARC20Handlers();
+
+  // ARC 21: Real-Time Autonomy + Self-Improving Agent Loop
+  registerARC21Handlers();
 
   console.log('[IPC] All IPC handlers registered successfully');
 }
