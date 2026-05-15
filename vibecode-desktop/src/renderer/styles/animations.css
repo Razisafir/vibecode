@@ -1,6 +1,6 @@
 /* ============================================================
    VibeCode Desktop — CSS Animations & Transitions
-   ARC 8 — Premium AI IDE
+   ARC 9 — AI-Native Project Lifecycle, Premium UX & MVP Cohesion
    ============================================================ */
 
 @keyframes blink {
@@ -46,6 +46,22 @@
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: 800px 0; }
+  100% { background-position: -800px 0; }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+  50% { box-shadow: 0 0 20px 4px rgba(99, 102, 241, 0.12); }
+}
+
+@keyframes stepComplete {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
 }
 
 @keyframes toastSlideIn {
@@ -118,12 +134,28 @@
   animation: pulseGlow 2s ease-in-out infinite;
 }
 
+.animate-glow-pulse {
+  animation: glowPulse 3s ease-in-out infinite;
+}
+
+.animate-step-complete {
+  animation: stepComplete 300ms ease-out;
+}
+
 /* ---- Panel Transition Classes ---- */
 
 .panel-transition {
   transition: width 200ms ease-out,
               opacity 200ms ease-out,
               transform 200ms ease-out;
+}
+
+.panel-enter {
+  animation: scaleIn 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.panel-exit {
+  animation: fadeOut 150ms ease-in forwards;
 }
 
 .ai-panel-transition {

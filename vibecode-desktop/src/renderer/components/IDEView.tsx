@@ -7,8 +7,10 @@ import MemoryPanel from './sidebar/MemoryPanel';
 import SettingsPanel from './sidebar/SettingsPanel';
 import EditorArea from './EditorArea';
 import AIPanel from './AIPanel';
+import ExecutionPanel from './ExecutionPanel';
 import StatusBar from './StatusBar';
 import TitleBar from './TitleBar';
+import { GlassPanel, EmptyState } from './ui/Premium';
 
 interface IDEViewProps {
   projectConfig: ProjectConfig;
@@ -33,7 +35,17 @@ const SearchPanel: React.FC = () => (
       />
     </div>
     <div className="flex-1 flex items-center justify-center">
-      <p className="text-xs text-text-muted">Search across your project</p>
+      <EmptyState
+        icon={
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-text-muted">
+            <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
+            <line x1="13.5" y1="13.5" x2="17" y2="17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        }
+        title="Search across project"
+        description="Find files, code, and symbols in your workspace"
+        suggestions={['Find in files', 'Go to symbol', 'Search history']}
+      />
     </div>
   </div>
 );
@@ -47,6 +59,8 @@ const IDEView: React.FC<IDEViewProps> = ({ projectConfig, onGoHome }) => {
     activeTab: 'files' as ActivityTab,
     bottomPanelOpen: false,
     bottomPanelHeight: 200,
+    executionPanelOpen: false,
+    executionPanelWidth: 380,
   });
 
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -117,6 +131,11 @@ const IDEView: React.FC<IDEViewProps> = ({ projectConfig, onGoHome }) => {
       if (isMod && e.key === 's' && !e.shiftKey) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('vibecode:save-file'));
+      }
+
+      if (isMod && e.shiftKey && e.key === 'e') {
+        e.preventDefault();
+        setLayout((prev) => ({ ...prev, executionPanelOpen: !prev.executionPanelOpen }));
       }
     };
 
@@ -286,6 +305,13 @@ const IDEView: React.FC<IDEViewProps> = ({ projectConfig, onGoHome }) => {
           onToggle={() => setLayout((prev) => ({ ...prev, aiPanelOpen: !prev.aiPanelOpen }))}
           width={layout.aiPanelWidth}
         />
+
+        {/* Execution Panel (secondary right panel) */}
+        <ExecutionPanel
+          isOpen={layout.executionPanelOpen}
+          onToggle={() => setLayout((prev) => ({ ...prev, executionPanelOpen: !prev.executionPanelOpen }))}
+          width={layout.executionPanelWidth}
+        />
       </div>
 
       {/* Status Bar */}
@@ -318,6 +344,10 @@ const IDEView: React.FC<IDEViewProps> = ({ projectConfig, onGoHome }) => {
               <div className="command-palette-item" onClick={() => { setLayout((p) => ({ ...p, bottomPanelOpen: !p.bottomPanelOpen })); setCommandPaletteOpen(false); }}>
                 <span>Toggle Terminal</span>
                 <span className="ml-auto text-xs text-text-muted">⌘`</span>
+              </div>
+              <div className="command-palette-item" onClick={() => { setLayout((p) => ({ ...p, executionPanelOpen: !p.executionPanelOpen })); setCommandPaletteOpen(false); }}>
+                <span>Toggle Execution Panel</span>
+                <span className="ml-auto text-xs text-text-muted">⌘⇧E</span>
               </div>
               <div className="command-palette-item" onClick={() => { onGoHome(); setCommandPaletteOpen(false); }}>
                 <span>Go Home</span>

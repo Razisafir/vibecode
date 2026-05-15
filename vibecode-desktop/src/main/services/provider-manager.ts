@@ -3,7 +3,7 @@ import { ProviderStore, PersistedProvider, maskApiKey } from './provider-store';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'lmstudio' | 'custom';
+export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'lmstudio' | 'openrouter' | 'groq' | 'deepseek' | 'custom';
 
 export interface Provider {
   id: string;
@@ -164,6 +164,68 @@ const DEFAULT_MODELS: Record<ProviderType, ModelInfo[]> = {
       supportsVision: false,
     },
   ],
+  openrouter: [
+    {
+      id: 'anthropic/claude-sonnet-4',
+      name: 'Claude Sonnet 4 (via OpenRouter)',
+      contextWindow: 200000,
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsVision: true,
+    },
+    {
+      id: 'openai/gpt-4o',
+      name: 'GPT-4o (via OpenRouter)',
+      contextWindow: 128000,
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsVision: true,
+    },
+    {
+      id: 'google/gemini-2.5-pro',
+      name: 'Gemini 2.5 Pro (via OpenRouter)',
+      contextWindow: 1048576,
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsVision: true,
+    },
+  ],
+  groq: [
+    {
+      id: 'llama-3.3-70b-versatile',
+      name: 'Llama 3.3 70B (Groq)',
+      contextWindow: 128000,
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsVision: false,
+    },
+    {
+      id: 'mixtral-8x7b-32768',
+      name: 'Mixtral 8x7B (Groq)',
+      contextWindow: 32768,
+      supportsStreaming: true,
+      supportsTools: false,
+      supportsVision: false,
+    },
+  ],
+  deepseek: [
+    {
+      id: 'deepseek-chat',
+      name: 'DeepSeek V3',
+      contextWindow: 64000,
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsVision: false,
+    },
+    {
+      id: 'deepseek-coder',
+      name: 'DeepSeek Coder',
+      contextWindow: 64000,
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsVision: false,
+    },
+  ],
   custom: [],
 };
 
@@ -173,6 +235,9 @@ const DEFAULT_BASE_URLS: Record<ProviderType, string> = {
   google: 'https://generativelanguage.googleapis.com/v1beta',
   ollama: 'http://localhost:11434/api',
   lmstudio: 'http://localhost:1234/v1',
+  openrouter: 'https://openrouter.ai/api/v1',
+  groq: 'https://api.groq.com/openai/v1',
+  deepseek: 'https://api.deepseek.com/v1',
   custom: '',
 };
 
@@ -617,6 +682,15 @@ export class ProviderManager {
       case 'lmstudio':
         yield* this.lmStudioChatCompletion(provider, model, messages, options, stream);
         break;
+      case 'openrouter':
+        yield* this.openRouterChatCompletion(provider, model, messages, options, stream);
+        break;
+      case 'groq':
+        yield* this.groqChatCompletion(provider, model, messages, options, stream);
+        break;
+      case 'deepseek':
+        yield* this.deepSeekChatCompletion(provider, model, messages, options, stream);
+        break;
       case 'custom':
         yield* this.customChatCompletion(provider, model, messages, options, stream);
         break;
@@ -677,6 +751,27 @@ export class ProviderManager {
         case 'lmstudio': {
           const res = await fetch(`${provider.baseUrl}/models`, {
             signal: AbortSignal.timeout(5000),
+          });
+          return res.ok;
+        }
+        case 'openrouter': {
+          const res = await fetch(`${provider.baseUrl}/models`, {
+            headers: { Authorization: `Bearer ${provider.apiKey}` },
+            signal: AbortSignal.timeout(10000),
+          });
+          return res.ok;
+        }
+        case 'groq': {
+          const res = await fetch(`${provider.baseUrl}/models`, {
+            headers: { Authorization: `Bearer ${provider.apiKey}` },
+            signal: AbortSignal.timeout(10000),
+          });
+          return res.ok;
+        }
+        case 'deepseek': {
+          const res = await fetch(`${provider.baseUrl}/models`, {
+            headers: { Authorization: `Bearer ${provider.apiKey}` },
+            signal: AbortSignal.timeout(10000),
           });
           return res.ok;
         }
@@ -1016,6 +1111,158 @@ export class ProviderManager {
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`LM Studio API error (${response.status}): ${errorText}`);
+    }
+
+    if (!stream) {
+      const data = (await response.json()) as any;
+      const content = data.choices?.[0]?.message?.content ?? '';
+      yield content;
+      return;
+    }
+
+    yield* this.parseSSEStream(response);
+  }
+
+  private async *openRouterChatCompletion(
+    provider: Provider,
+    model: string,
+    messages: ChatMessage[],
+    options: ChatCompletionOptions,
+    stream: boolean
+  ): AsyncGenerator<string> {
+    // OpenRouter uses OpenAI-compatible API with additional headers
+    const url = `${provider.baseUrl}/chat/completions`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${provider.apiKey}`,
+      'HTTP-Referer': 'https://vibecode.dev',
+      'X-Title': 'VibeCode',
+    };
+
+    const body: Record<string, unknown> = {
+      model,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      stream,
+      temperature: options.temperature ?? provider.chatOptions?.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? provider.chatOptions?.maxTokens ?? 4096,
+      top_p: options.topP,
+      stop: options.stop,
+    };
+
+    if (options.tools) {
+      body.tools = options.tools;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
+    }
+
+    if (!stream) {
+      const data = (await response.json()) as any;
+      const content = data.choices?.[0]?.message?.content ?? '';
+      yield content;
+      return;
+    }
+
+    yield* this.parseSSEStream(response);
+  }
+
+  private async *groqChatCompletion(
+    provider: Provider,
+    model: string,
+    messages: ChatMessage[],
+    options: ChatCompletionOptions,
+    stream: boolean
+  ): AsyncGenerator<string> {
+    // Groq uses OpenAI-compatible API
+    const url = `${provider.baseUrl}/chat/completions`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${provider.apiKey}`,
+    };
+
+    const body: Record<string, unknown> = {
+      model,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      stream,
+      temperature: options.temperature ?? provider.chatOptions?.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? provider.chatOptions?.maxTokens ?? 4096,
+      top_p: options.topP,
+      stop: options.stop,
+    };
+
+    if (options.tools) {
+      body.tools = options.tools;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Groq API error (${response.status}): ${errorText}`);
+    }
+
+    if (!stream) {
+      const data = (await response.json()) as any;
+      const content = data.choices?.[0]?.message?.content ?? '';
+      yield content;
+      return;
+    }
+
+    yield* this.parseSSEStream(response);
+  }
+
+  private async *deepSeekChatCompletion(
+    provider: Provider,
+    model: string,
+    messages: ChatMessage[],
+    options: ChatCompletionOptions,
+    stream: boolean
+  ): AsyncGenerator<string> {
+    // DeepSeek uses OpenAI-compatible API
+    const url = `${provider.baseUrl}/chat/completions`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${provider.apiKey}`,
+    };
+
+    const body: Record<string, unknown> = {
+      model,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      stream,
+      temperature: options.temperature ?? provider.chatOptions?.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? provider.chatOptions?.maxTokens ?? 4096,
+      top_p: options.topP,
+      stop: options.stop,
+    };
+
+    if (options.tools) {
+      body.tools = options.tools;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`DeepSeek API error (${response.status}): ${errorText}`);
     }
 
     if (!stream) {

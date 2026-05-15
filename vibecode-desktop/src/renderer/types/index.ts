@@ -1,6 +1,6 @@
 // ============================================================
 // VibeCode Desktop — TypeScript Type Definitions
-// ARC 8 — Premium AI IDE
+// ARC 9 — AI-Native Project Lifecycle, Premium UX & MVP Cohesion
 // ============================================================
 
 // ---- Window API (exposed via preload script) ----
@@ -168,6 +168,154 @@ export interface VibeCodeAPI {
 
 export type AppView = 'home' | 'project-setup' | 'ide';
 
+// ---- AI Project Lifecycle ----
+
+export type ProjectLifecyclePhase =
+  | 'type-selection'
+  | 'objective-definition'
+  | 'architecture-planning'
+  | 'provider-setup'
+  | 'execution-roadmap'
+  | 'workspace-init'
+  | 'task-decomposition'
+  | 'execution-orchestration'
+  | 'progress-tracking'
+  | 'completion-review';
+
+export interface AIProjectObjective {
+  summary: string;
+  requirements: string[];
+  constraints: string[];
+  techPreferences: string[];
+  priority: 'speed' | 'quality' | 'simplicity';
+}
+
+export interface ArchitecturePlan {
+  id: string;
+  title: string;
+  description: string;
+  techStack: TechStackItem[];
+  fileStructure: FileStructureNode[];
+  dependencies: string[];
+  patterns: string[];
+  estimatedComplexity: 'low' | 'medium' | 'high';
+  reasoning: string;
+}
+
+export interface TechStackItem {
+  name: string;
+  version?: string;
+  category: 'framework' | 'language' | 'library' | 'tool' | 'database' | 'service';
+  purpose: string;
+}
+
+export interface FileStructureNode {
+  name: string;
+  type: 'file' | 'directory';
+  description?: string;
+  children?: FileStructureNode[];
+}
+
+export interface ExecutionRoadmap {
+  id: string;
+  phases: ExecutionPhase[];
+  totalSteps: number;
+  estimatedDuration: string;
+  dependencies: PhaseDependency[];
+}
+
+export interface ExecutionPhase {
+  id: string;
+  name: string;
+  description: string;
+  steps: ExecutionPhaseStep[];
+  order: number;
+  status: 'pending' | 'in-progress' | 'completed' | 'failed';
+}
+
+export interface ExecutionPhaseStep {
+  id: string;
+  title: string;
+  description: string;
+  type: StepType;
+  riskLevel: RiskLevel;
+  requiresApproval: boolean;
+  estimatedTime: string;
+}
+
+export interface PhaseDependency {
+  from: string;
+  to: string;
+  type: 'hard' | 'soft';
+}
+
+// ---- Execution Timeline ----
+
+export interface ExecutionTimelineEntry {
+  id: string;
+  planId: string;
+  stepId: string;
+  title: string;
+  description: string;
+  status: ExecutionStatus;
+  type: StepType;
+  riskLevel: RiskLevel;
+  startedAt?: number;
+  completedAt?: number;
+  duration?: number;
+  progress: number; // 0-100
+  diffPreview?: DiffResult;
+  output?: string;
+  error?: string;
+  canRollback: boolean;
+  requiresApproval: boolean;
+  confidence: number; // 0-100 AI confidence score
+}
+
+export interface ExecutionTimeline {
+  planId: string;
+  title: string;
+  entries: ExecutionTimelineEntry[];
+  overallProgress: number; // 0-100
+  startedAt: number;
+  status: ExecutionStatus;
+  checkpointCount: number;
+  canRollbackAll: boolean;
+}
+
+// ---- Project Creation Wizard ----
+
+export type WizardStep =
+  | 'project-type'
+  | 'objective'
+  | 'architecture'
+  | 'provider'
+  | 'workspace'
+  | 'execution-mode'
+  | 'roadmap'
+  | 'review';
+
+export interface WizardState {
+  currentStep: WizardStep;
+  completedSteps: WizardStep[];
+  config: ProjectConfig;
+  objective?: AIProjectObjective;
+  architecture?: ArchitecturePlan;
+  roadmap?: ExecutionRoadmap;
+  isValid: boolean;
+}
+
+export const WIZARD_STEPS: { id: WizardStep; label: string; description: string }[] = [
+  { id: 'project-type', label: 'Project Type', description: 'What are you building?' },
+  { id: 'objective', label: 'Objective', description: 'Define your vision' },
+  { id: 'architecture', label: 'Architecture', description: 'Plan the structure' },
+  { id: 'provider', label: 'AI Provider', description: 'Choose your intelligence' },
+  { id: 'workspace', label: 'Workspace', description: 'Set your workspace' },
+  { id: 'execution-mode', label: 'Execution Mode', description: 'Control AI behavior' },
+  { id: 'roadmap', label: 'Roadmap', description: 'AI execution plan' },
+  { id: 'review', label: 'Review', description: 'Confirm and launch' },
+];
+
 export type ProjectType = 'web-app' | 'api-server' | 'cli-tool' | 'library' | 'data-pipeline' | 'custom';
 
 export type ExecutionMode = 'assisted' | 'semi-autonomous' | 'autonomous';
@@ -270,7 +418,7 @@ export interface Provider {
   chatOptions?: ChatOptions;
 }
 
-export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'lmstudio' | 'custom';
+export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'lmstudio' | 'openrouter' | 'groq' | 'deepseek' | 'custom';
 
 export interface ProviderConfig {
   name: string;
@@ -323,7 +471,7 @@ export interface ExecutionStep {
   requiresApproval: boolean;
 }
 
-export type StepType = 'file_create' | 'file_edit' | 'file_delete' | 'command' | 'analysis' | 'review' | 'test';
+export type StepType = 'file_create' | 'file_edit' | 'file_delete' | 'command' | 'analysis' | 'review' | 'test' | 'code_generation';
 export type ExecutionStatus = 'pending' | 'planning' | 'approved' | 'executing' | 'completed' | 'failed' | 'cancelled';
 export type RiskLevel = 'low' | 'medium' | 'high';
 
