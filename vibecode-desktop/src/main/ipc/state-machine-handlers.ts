@@ -18,6 +18,8 @@ import {
 import { DiffEngine } from '../services/diff-engine';
 import { logger } from '../utils/logger';
 import { auditLog } from '../utils/audit-log';
+import { ExecutionGateway } from '../core/execution-gateway';
+import { authorizeFsOp, generateAuditReport, isAuditClean } from '../core/execution-audit';
 
 // ─── Module State ──────────────────────────────────────────────────────────
 
@@ -109,6 +111,9 @@ export function registerStateMachineHandlers(mainWindow: BrowserWindow | null): 
     stateMachine = new ExecutionStateMachine(workspaceRoot);
     diffEngine = new DiffEngine(workspaceRoot);
   }
+
+  // ARC 15: Initialize the ExecutionGateway with the ESM instance
+  ExecutionGateway.initialize(stateMachine);
 
   // Register real executors from workspace
   stateMachine.registerExecutorsFromWorkspace();
@@ -492,7 +497,19 @@ export function registerStateMachineHandlers(mainWindow: BrowserWindow | null): 
     return { success: true, data: { flushed: true } };
   });
 
-  // ── Monaco Edit Tracking (ARC 14) ──────────────────────────────────────
+  // ── Audit Report (ARC 15) ──────────────────────────────────────────────
+
+  ipcMain.handle('sm:getAuditReport', async () => {
+    return { success: true, data: generateAuditReport() };
+  });
+
+  ipcMain.handle('sm:isAuditClean', async () => {
+    return { success: true, data: { clean: isAuditClean() } };
+  });
+
+  // ── Monaco Edit Tracking (ARC 15: Gateway-enforced) ──────────────────────
+  // "No Node → No Action" — Monaco saves MUST go through the Gateway.
+  // The Gateway creates the node, runs safety checks, and authorizes the FS write.
 
   ipcMain.handle('sm:createMonacoEditNode', async (_event, params: {
     filePath: string;
@@ -507,35 +524,39 @@ export function registerStateMachineHandlers(mainWindow: BrowserWindow | null): 
     try {
       const { filePath, originalContent, newContent, isAI, region, linkedStepId } = params;
 
-      // Default region: entire file
-      const editRegion = region || {
-        startLine: 1,
-        startCol: 1,
-        endLine: newContent.split('\n').length,
-        endCol: newContent.split('\n').pop()?.length ?? 0 + 1,
-      };
-
-      const node = stateMachine.createNode({
-        type: 'monaco_edit',
-        title: `Edit: ${filePath.split('/').pop() || filePath}`,
-        description: `${isAI ? 'AI' : 'User'} edited ${filePath} (${originalContent.length} → ${newContent.length} chars)`,
-        data: {
-          kind: 'monaco_edit',
-          filePath,
-          region: editRegion,
-          originalContent,
-          newContent,
-          isAI,
-          linkedStepId,
-        },
-        riskLevel: isAI ? 'medium' : 'low',
-        sourceIds: linkedStepId ? [linkedStepId] : [],
+      // ARC 15: Route through ExecutionGateway — the ONLY valid execution surface
+      const result = await ExecutionGateway.executeMonacoEdit({
+        filePath,
+        originalContent,
+        newContent,
+        region,
+        isAI,
+        linkedStepId,
+        autoApprove: true,
       });
 
-      // Immediately transition to completed since the edit already happened
-      stateMachine.transitionNode(node.id, 'completed');
+      if (!result.allowed) {
+        logger.warn('state-machine', `Monaco edit BLOCKED by gateway: ${filePath} — ${result.blockReason}`);
+        return { success: false, error: result.blockReason || 'Blocked by safety gate' };
+      }
 
-      logger.info('state-machine', `Monaco edit tracked: ${filePath} (node ${node.id.substring(0, 8)})`);
+      const node = result.node;
+
+      // ARC 15: Authorize the FS write for this file path in the audit system
+      // This tells the FS handler that this write was gateway-authorized
+      authorizeFsOp(filePath, node.id, 'write');
+
+      // If the gateway already executed (result has data), the node is already completed
+      // If not, immediately transition to completed since the edit is about to happen
+      if (node.state !== 'completed' && node.state !== 'failed') {
+        try {
+          stateMachine.transitionNode(node.id, 'completed');
+        } catch {
+          // May already be in terminal state
+        }
+      }
+
+      logger.info('state-machine', `Monaco edit tracked via Gateway: ${filePath} (node ${node.id.substring(0, 8)})`);
       return { success: true, data: { node: serializeNode(node) } };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -583,5 +604,5 @@ export function registerStateMachineHandlers(mainWindow: BrowserWindow | null): 
     });
   }
 
-  logger.info('state-machine', 'IPC handlers registered (ARC 12 — converged with propose, getHistory, getDiff, getPlanDiffs, executor registration)');
+  logger.info('state-machine', 'IPC handlers registered (ARC 15 — graph enforcement via ExecutionGateway)');
 }

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ExecutionStep, StepExecutor } from '../execution-engine';
 import { validateWorkspacePath } from './file-write-executor';
+import { authorizeFsOp } from '../../core/execution-audit';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -225,6 +226,9 @@ export const createDiffApplyExecutor = (workspaceRoot: string): StepExecutor => 
     for (const hunk of hunks) {
       fileLines = applyHunk(fileLines, hunk);
     }
+
+    // ARC 15: Authorize FS write through the audit system
+    authorizeFsOp(params.filePath, step.id, 'write');
 
     // ── Write the modified file ───────────────────────────────────────────
     await fs.promises.writeFile(absolutePath, fileLines.join('\n'), 'utf-8');

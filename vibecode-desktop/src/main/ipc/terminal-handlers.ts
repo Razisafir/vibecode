@@ -4,6 +4,8 @@ import * as path from 'path';
 import * as os from 'os';
 import { getStateMachine } from './state-machine-handlers';
 import { TerminalCommandData } from '../services/execution-state-machine';
+import { ExecutionGateway } from '../core/execution-gateway';
+import { authorizeTerminalOp, checkTerminalAuthorization } from '../core/execution-audit';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -86,35 +88,58 @@ function getHomeDir(): string {
 }
 
 /**
- * ARC 14: Create a terminal_command ExecutionNode in the ESM graph.
- * Called when a command is entered in the terminal.
+ * ARC 15: Create a terminal_command ExecutionNode via the ExecutionGateway.
+ * The Gateway is the ONLY valid path for terminal execution.
+ * "No Node → No Action" — if the gateway blocks, the command is NOT executed.
  */
 function trackTerminalCommandStart(sessionId: string, command: string, cwd: string): void {
-  const sm = getStateMachine();
-  if (!sm) return;
-
   // Only track meaningful commands (skip empty, whitespace-only, or just pressing Enter)
   const trimmed = command.trim();
   if (!trimmed) return;
 
-  // Create the node in the ESM graph
-  const node = sm.createNode({
-    type: 'terminal_command',
-    title: `Terminal: ${trimmed.substring(0, 60)}${trimmed.length > 60 ? '...' : ''}`,
-    description: `Command executed in terminal session ${sessionId}`,
-    data: {
-      kind: 'terminal_command',
-      command: trimmed,
-      cwd,
-      terminalId: sessionId,
-      stdout: '',
-      stderr: '',
-      exitCode: null,
-      truncated: false,
-      isAI: false,
-    } as TerminalCommandData,
-    riskLevel: 'low',
-  });
+  // ARC 15: Route through ExecutionGateway — the ONLY valid execution surface
+  let node;
+  if (ExecutionGateway.isInitialized()) {
+    try {
+      node = ExecutionGateway.createTerminalNode({
+        command: trimmed,
+        cwd,
+        terminalId: sessionId,
+        isAI: false,
+      });
+
+      // Authorize this operation in the audit system
+      authorizeTerminalOp(sessionId, node.id, trimmed);
+    } catch (err) {
+      // Gateway blocked the command (safety gate)
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[Terminal/ARC15] GATEWAY BLOCKED command: ${msg}`);
+      // DO NOT execute the command — throw to prevent PTY write
+      throw new Error(`Terminal command blocked by execution gateway: ${msg}`);
+    }
+  } else {
+    // Fallback to direct ESM access (gateway not yet initialized)
+    const sm = getStateMachine();
+    if (!sm) return;
+
+    node = sm.createNode({
+      type: 'terminal_command',
+      title: `Terminal: ${trimmed.substring(0, 60)}${trimmed.length > 60 ? '...' : ''}`,
+      description: `Command executed in terminal session ${sessionId}`,
+      data: {
+        kind: 'terminal_command',
+        command: trimmed,
+        cwd,
+        terminalId: sessionId,
+        stdout: '',
+        stderr: '',
+        exitCode: null,
+        truncated: false,
+        isAI: false,
+      } as TerminalCommandData,
+      riskLevel: 'low',
+    });
+  }
 
   // Track as pending
   const existing = sessionCommands.get(sessionId);
@@ -380,22 +405,26 @@ export function registerTerminalHandlers(): void {
         return err(`Terminal session not found: ${sessionId}`);
       }
 
-      // ARC 14: Detect command execution (Enter key = '\r' or '\n')
+      // ARC 15: Detect command execution (Enter key = '\r' or '\n')
       // When the user presses Enter, the data sent to the PTY contains '\r'
-      // We need to detect this to know a command was submitted.
+      // We MUST route through the Gateway BEFORE writing to the PTY.
+      // "No Node → No Action" — if gateway blocks, command is NOT sent to PTY.
       const entry = sessionCommands.get(sessionId);
       if (entry && data.includes('\r')) {
         // A command was submitted. Extract the command from the data.
-        // In PTY mode, the data before '\r' is the command text.
-        // However, PTY echoes the command back, so we need to be smart about this.
-
-        // Simple approach: track what was typed since last Enter
-        // The data sent to terminal:write before the '\r' IS the command
         const commandText = entry.currentCommand + data.replace(/\r/g, '').replace(/\n/g, '');
 
         if (commandText.trim()) {
-          // Track this command in the ESM graph
-          trackTerminalCommandStart(sessionId, commandText, session.cwd);
+          try {
+            // ARC 15: Route through Gateway — creates node + safety check
+            // If gateway blocks (safety <= 20), this throws and command is NOT sent to PTY
+            trackTerminalCommandStart(sessionId, commandText, session.cwd);
+          } catch (gateErr) {
+            // Gateway blocked the command — DO NOT write to PTY
+            const msg = gateErr instanceof Error ? gateErr.message : String(gateErr);
+            console.error(`[Terminal/ARC15] Command blocked by gateway: ${msg}`);
+            return err(`Command blocked by safety gate: ${msg}`);
+          }
 
           // Reset current command tracking
           entry.currentCommand = '';
@@ -548,5 +577,5 @@ export function registerTerminalHandlers(): void {
     }
   });
 
-  console.log('[IPC] Terminal handlers registered (ARC 14 — execution graph binding)');
+  console.log('[IPC] Terminal handlers registered (ARC 15 — graph enforcement via ExecutionGateway)');
 }

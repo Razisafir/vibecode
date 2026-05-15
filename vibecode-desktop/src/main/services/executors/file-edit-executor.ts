@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ExecutionStep, StepExecutor } from '../execution-engine';
 import { validateWorkspacePath } from './file-write-executor';
+import { authorizeFsOp } from '../../core/execution-audit';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -132,6 +133,9 @@ export const createFileEditExecutor = (workspaceRoot: string): StepExecutor => {
           throw new Error(`file_edit executor: Unknown edit type "${(edit as any).type}"`);
       }
     }
+
+    // ARC 15: Authorize FS write through the audit system
+    authorizeFsOp(params.filePath, step.id, 'write');
 
     // ── Write the modified file ───────────────────────────────────────────
     await fs.promises.writeFile(absolutePath, lines.join('\n'), 'utf-8');

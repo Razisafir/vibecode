@@ -434,6 +434,10 @@ const vibecode = {
       linkedStepId?: string;
     }) => ipcRenderer.invoke('sm:createMonacoEditNode', params),
 
+    // ── Audit Report (ARC 15) ──────────────────────────────────────────
+    getAuditReport: () => ipcRenderer.invoke('sm:getAuditReport'),
+    isAuditClean: () => ipcRenderer.invoke('sm:isAuditClean'),
+
     // ── Events ─────────────────────────────────────────────────────────
     onEvent: (callback: (event: any) => void) => {
       ipcRenderer.on('sm:event', (_event, event) => callback(event));

@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { pathSandbox } from '../services/path-sandbox';
 import { logger } from '../utils/logger';
+import { checkFsAuthorization } from '../core/execution-audit';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -120,11 +121,21 @@ export function registerFsHandlers(): void {
     }
   });
 
-  // ── fs:writeFile ───────────────────────────────────────────────────────
+  // ── fs:writeFile (ARC 15: Gateway-enforced) ───────────────────────────
+  // FS writes are now DERIVATIVE — they ONLY happen as side effects of
+  // ExecutionNode execution. If no gateway-authorized node exists, the
+  // audit system will flag it as a bypass.
   ipcMain.handle(
     'fs:writeFile',
     async (_event, filePath: string, content: string, encoding: BufferEncoding = 'utf-8') => {
       try {
+        // ARC 15: Check if this write was authorized by the gateway
+        const authorized = checkFsAuthorization(filePath, 'write');
+        if (!authorized) {
+          logger.error('ipc', `FS write BLOCKED — no gateway authorization: ${filePath}`);
+          return err(`File write blocked: no execution node authorizes writing to ${filePath}. All FS writes must go through the ExecutionGateway.`);
+        }
+
         const validation = validateWriteOrFail(filePath);
         if ('success' in validation) return validation;
         const resolved = validation.resolvedPath;
@@ -392,9 +403,16 @@ export function registerFsHandlers(): void {
     }
   });
 
-  // ── fs:delete ──────────────────────────────────────────────────────────
+  // ── fs:delete (ARC 15: Gateway-enforced) ───────────────────────────────
   ipcMain.handle('fs:delete', async (_event, targetPath: string, options?: { recursive?: boolean }) => {
     try {
+      // ARC 15: Check if this delete was authorized by the gateway
+      const authorized = checkFsAuthorization(targetPath, 'delete');
+      if (!authorized) {
+        logger.error('ipc', `FS delete BLOCKED — no gateway authorization: ${targetPath}`);
+        return err(`File delete blocked: no execution node authorizes deleting ${targetPath}. All FS operations must go through the ExecutionGateway.`);
+      }
+
       const validation = validateOrFail(targetPath);
       if ('success' in validation) return validation;
       const resolved = validation.resolvedPath;
@@ -417,9 +435,16 @@ export function registerFsHandlers(): void {
     }
   });
 
-  // ── fs:rename ──────────────────────────────────────────────────────────
+  // ── fs:rename (ARC 15: Gateway-enforced) ───────────────────────────────
   ipcMain.handle('fs:rename', async (_event, oldPath: string, newPath: string) => {
     try {
+      // ARC 15: Check if this rename was authorized by the gateway
+      const authorized = checkFsAuthorization(oldPath, 'rename');
+      if (!authorized) {
+        logger.error('ipc', `FS rename BLOCKED — no gateway authorization: ${oldPath}`);
+        return err(`File rename blocked: no execution node authorizes renaming ${oldPath}. All FS operations must go through the ExecutionGateway.`);
+      }
+
       // Validate BOTH old and new paths
       const oldValidation = validateOrFail(oldPath);
       if ('success' in oldValidation) return oldValidation;

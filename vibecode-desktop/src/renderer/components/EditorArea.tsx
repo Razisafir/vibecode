@@ -324,25 +324,41 @@ const EditorArea: React.FC<EditorAreaProps> = ({ className }) => {
     if (!file) return;
 
     try {
-      // ARC 14: Track file mutation in the execution graph
+      // ARC 15: "No Node → No Action" — Gateway MUST create the execution node FIRST
       // Only create a node if the file was actually modified
       if (file.content !== file.originalContent) {
         try {
           const api = window.vibecode as any;
           if (api?.sm?.createMonacoEditNode) {
-            await api.sm.createMonacoEditNode({
+            // ARC 15: This now goes through ExecutionGateway on the main process.
+            // The Gateway creates the node, runs safety checks, and AUTHORIZES
+            // the subsequent fs:writeFile call. If the Gateway blocks the edit,
+            // the file save is also blocked.
+            const gatewayResult = await api.sm.createMonacoEditNode({
               filePath: file.path,
               originalContent: file.originalContent,
               newContent: file.content,
               isAI: false,
             });
+
+            if (!gatewayResult?.success) {
+              // Gateway BLOCKED this edit — do NOT save the file
+              console.error('[VibeCode/ARC15] Gateway blocked file save:', gatewayResult?.error);
+              return;
+            }
+          } else {
+            // No gateway available — this is a bypass; log warning
+            console.warn('[VibeCode/ARC15] No gateway available for Monaco edit tracking');
           }
         } catch (e) {
-          // Graph tracking failure should not block file save
-          console.warn('[VibeCode/ARC14] Failed to track Monaco edit in graph:', e);
+          // Gateway threw an error — safety block
+          console.error('[VibeCode/ARC15] Gateway rejected Monaco edit:', e);
+          return;
         }
       }
 
+      // ARC 15: FS write is now authorized by the gateway (via authorizeFsOp).
+      // The fs-handlers will check the audit system and allow this write.
       await window.vibecode?.fs.writeFile(file.path, file.content);
       setOpenFiles((prev) =>
         prev.map((f, i) =>
