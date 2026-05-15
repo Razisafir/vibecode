@@ -3,7 +3,26 @@ import {
   kernelFsExistsAsync,
   kernelFsRead,
 } from '../kernel/kernel-fs';
-import type { ExecutionStep } from './execution-engine';
+import type { StepData, ExecutionNode } from './execution-state-machine';
+
+/**
+ * Legacy-compatible step shape used by DiffEngine.
+ * Mapped from ExecutionNode + StepData after the execution-engine was removed.
+ */
+interface LegacyStep {
+  id: string;
+  title: string;
+  type: string;
+  params: Record<string, unknown>;
+  planId: string;
+  status: string;
+  riskLevel: string;
+  requiresApproval: boolean;
+  error?: string;
+  retryCount: number;
+  startedAt?: number;
+  completedAt?: number;
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -73,7 +92,7 @@ export class DiffEngine {
    * Reads the current file content from disk and compares it against
    * the step's params.content (the proposed new content).
    */
-  async generateFileDiffFromStep(step: ExecutionStep): Promise<DiffResult | null> {
+  async generateFileDiffFromStep(step: LegacyStep): Promise<DiffResult | null> {
     const filePath = this.resolveStepFilePath(step);
     if (!filePath) return null;
 
@@ -103,7 +122,7 @@ export class DiffEngine {
    * Generate diffs for all file-related steps in a plan.
    * Returns an array of DiffResult objects, one per file step.
    */
-  async generatePlanDiffs(steps: ExecutionStep[]): Promise<DiffResult[]> {
+  async generatePlanDiffs(steps: LegacyStep[]): Promise<DiffResult[]> {
     const results: DiffResult[] = [];
 
     for (const step of steps) {
@@ -299,14 +318,14 @@ export class DiffEngine {
   /**
    * Check if a step type involves file operations.
    */
-  private isFileStep(type: ExecutionStep['type']): boolean {
+  private isFileStep(type: string): boolean {
     return ['file_write', 'file_read', 'file_edit', 'code_generation', 'code_edit', 'diff_apply'].includes(type);
   }
 
   /**
    * Resolve the absolute file path from a step's params.
    */
-  private resolveStepFilePath(step: ExecutionStep): string | null {
+  private resolveStepFilePath(step: LegacyStep): string | null {
     const relPath = (step.params.filePath as string) || (step.params.path as string);
     if (!relPath) return null;
     return path.resolve(this.workspaceRoot, relPath);
@@ -316,7 +335,7 @@ export class DiffEngine {
    * Extract the proposed new content from a step's params.
    * Returns null if no content can be determined.
    */
-  private extractModifiedContent(step: ExecutionStep): string | null {
+  private extractModifiedContent(step: LegacyStep): string | null {
     // Direct content field
     if (typeof step.params.content === 'string') {
       return step.params.content;

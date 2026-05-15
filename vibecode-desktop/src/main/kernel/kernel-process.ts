@@ -16,8 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { spawn, exec, execSync, ChildProcess } from 'child_process';
-import { authorizeTerminalOp } from '../core/execution-audit';
-import { ExecutionGateway } from '../core/execution-gateway';
+import { ExecutionGateway, authorizeTerminalOp } from '../core/execution-gateway';
 import { logger } from '../utils/logger';
 
 // ═══════════════════════════════════════════════════════════════════════════════

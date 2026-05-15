@@ -2,7 +2,7 @@ import { ipcMain } from 'electron';
 import * as path from 'path';
 import { pathSandbox } from '../services/path-sandbox';
 import { logger } from '../utils/logger';
-import { checkFsAuthorization } from '../core/execution-audit';
+import { checkFsAuthorization } from '../core/execution-gateway';
 // ─── ARC 17: Kernel FS imports (import wall enforcement) ─────────────────────
 // ALL fs operations MUST go through the kernel. No direct `import * as fs` allowed.
 import {

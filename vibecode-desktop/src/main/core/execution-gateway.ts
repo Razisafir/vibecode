@@ -1,21 +1,26 @@
-// ─── VibeCode Desktop — Execution Gateway (ARC 15) ─────────────────────────
-// GRAPH ENFORCEMENT LAYER (GEL)
+// ─── VibeCode Desktop — Execution Gateway (ARC 19 CONSOLIDATED) ──────────────
+// UNIFIED EXECUTION GATEWAY
+//
+// ONE execution pipeline, ONE authority graph, ONE source of truth.
+//
+// This module is now the SOLE enforcement point. The separate execution-audit
+// system has been merged into this gateway. No duplicated checks across layers.
 //
 // NON-NEGOTIABLE PRINCIPLE: "No Node → No Action"
 //
-// Every system action must obey:
-//   Action Request
-//      ↓
-//   Create ExecutionNode (mandatory gate)
-//      ↓
-//   Validate Safety + Scope
-//      ↓
-//   Execute
-//      ↓
-//   Attach Output back to SAME node
+// Pipeline:
+//   User/AI Action → Gateway.requestExecution()
+//       → ESM.createNode() (safety score computed)
+//       → Safety Gate (score ≤ 20 = BLOCK)
+//       → Executor dispatch
+//       → Kernel execution
+//       → ESM.updateNode() → graph update → IPC → UI sync
 //
-// If step 1 fails → system must fail.
-// If anything bypasses this gateway → it is a bug.
+// ARC 19 Changes:
+//   - Removed `skipSafetyGate` flag (no escape hatches)
+//   - Merged audit authorization tracking (was in execution-audit.ts)
+//   - Removed duplicate risk inference (ESM safety engine is THE authority)
+//   - Removed duplicate shouldRequireApproval (ESM handles this)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -28,7 +33,6 @@ import {
   TerminalCommandData,
   MonacoEditData,
   FileMutationData,
-  RiskLevel,
 } from '../services/execution-state-machine';
 import { logger } from '../utils/logger';
 import { auditLog } from '../utils/audit-log';
@@ -53,8 +57,6 @@ export interface ExecutionRequest {
   sourceIds?: string[];
   /** Whether this was AI-initiated */
   isAI?: boolean;
-  /** Skip the safety gate (only for internal system operations like persistence) */
-  skipSafetyGate?: boolean;
   /** Whether to auto-approve (skip the planned → approved transition) */
   autoApprove?: boolean;
   /** Custom executor — if provided, this is called after node is approved */
@@ -76,6 +78,48 @@ export interface GatewayResult {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// AUTHORIZATION TRACKING (merged from execution-audit.ts)
+// The gateway now tracks which operations it has authorized. This replaces
+// the separate execution-audit module. One system, one responsibility.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Tracks which file paths have been authorized by the gateway */
+const authorizedFsOps: Map<string, { nodeId: string; timestamp: number; operation: string }> = new Map();
+
+/** Tracks which terminal sessions have been authorized by the gateway */
+const authorizedTerminalOps: Map<string, { nodeId: string; timestamp: number; command: string }> = new Map();
+
+/** Authorization validity window (ms) */
+const AUTHORIZATION_WINDOW = 60000; // 60 seconds
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIOLATION TRACKING (merged from execution-audit.ts)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type ViolationSeverity = 'warn' | 'error' | 'critical';
+
+export interface GraphViolation {
+  type: 'fs_write_no_node' | 'fs_delete_no_node' | 'fs_rename_no_node' | 'terminal_spawn_no_node' | 'monaco_save_no_node' | 'exec_no_node';
+  description: string;
+  target: string;
+  stack?: string;
+  timestamp: number;
+  severity: ViolationSeverity;
+}
+
+const violations: GraphViolation[] = [];
+const violationCounts: Record<string, number> = {};
+
+function recordViolation(violation: GraphViolation): void {
+  violations.push(violation);
+  const count = violationCounts[violation.type] || 0;
+  violationCounts[violation.type] = count + 1;
+  logger.error('gateway', `CRITICAL BYPASS: ${violation.description}`);
+  auditLog.auditLog('gateway:bypass:critical', violation);
+  throw new Error(`[GATEWAY] BYPASS BLOCKED: ${violation.description}`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // EXECUTION GATEWAY — The ONLY path from UI/OS to system actions
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -83,10 +127,7 @@ class ExecutionGatewayClass {
   private esm: ExecutionStateMachine | null = null;
   private initialized: boolean = false;
 
-  // ─── Executor Registry ──────────────────────────────────────────────────
-  // Maps node types to executor functions. The gateway dispatches to these
-  // after the safety gate passes and the node is approved/executing.
-
+  /** Maps node types to executor functions */
   private executors: Map<ExecutionNodeType, (node: ExecutionNode) => Promise<NodeResult>> = new Map();
 
   // ─── Initialization ─────────────────────────────────────────────────────
@@ -102,7 +143,6 @@ class ExecutionGatewayClass {
     auditLog.auditLog('gateway:initialized', { timestamp: Date.now() });
   }
 
-  /** Get the ESM instance (throws if not initialized) */
   private getEsm(): ExecutionStateMachine {
     if (!this.esm) {
       throw new Error('[GATEWAY] ExecutionStateMachine not initialized — cannot process requests');
@@ -110,7 +150,6 @@ class ExecutionGatewayClass {
     return this.esm;
   }
 
-  /** Check if gateway is initialized */
   isInitialized(): boolean {
     return this.initialized && this.esm !== null;
   }
@@ -122,16 +161,6 @@ class ExecutionGatewayClass {
    *
    * Every system action MUST go through this method.
    * This is the ONLY valid path from "I want to do X" to "X was done".
-   *
-   * Flow:
-   * 1. Create ExecutionNode (mandatory gate)
-   * 2. Compute safety score
-   * 3. If safety <= 20 → BLOCK (reject node)
-   * 4. If autoApprove → transition to approved → executing
-   * 5. Dispatch to executor
-   * 6. Attach result to node
-   *
-   * If step 1 fails → the entire operation fails.
    */
   async requestExecution(request: ExecutionRequest): Promise<GatewayResult> {
     const esm = this.getEsm();
@@ -149,8 +178,8 @@ class ExecutionGatewayClass {
         parentId: request.parentId,
         sourceIds: request.sourceIds || [],
         data: request.data,
-        riskLevel: this.inferRiskLevel(request),
-        requiresApproval: !request.autoApprove && this.shouldRequireApproval(request),
+        // Risk level and requiresApproval are now determined by ESM safety engine
+        // No more duplicate inference in the gateway
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -163,49 +192,44 @@ class ExecutionGatewayClass {
       throw new Error(`[GATEWAY] Node creation failed — operation blocked. Reason: ${msg}`);
     }
 
-    // ── STEP 2: Safety Gate ──────────────────────────────────────────────
-    if (!request.skipSafetyGate) {
-      const safetyScore = node.safetyScore;
+    // ── STEP 2: Safety Gate (ESM safety score is THE authority) ───────────
+    const safetyScore = node.safetyScore;
 
-      if (safetyScore <= 20) {
-        // BLOCK: safety score too low
-        try {
-          esm.transitionNode(node.id, 'rejected');
-        } catch {
-          // May not be a valid transition from planned
-        }
-
-        const blockReason = `Blocked by safety gate (score: ${safetyScore}/100)`;
-        logger.warn('gateway', `SAFETY BLOCK: ${node.title} — ${blockReason}`);
-        auditLog.auditLog('gateway:blocked:safety', {
-          nodeId: node.id,
-          nodeType: node.type,
-          safetyScore,
-          timestamp: Date.now(),
-        });
-
-        return { node, allowed: false, blockReason };
+    if (safetyScore <= 20) {
+      // BLOCK: safety score too low
+      try {
+        esm.transitionNode(node.id, 'rejected');
+      } catch {
+        // May not be a valid transition from planned
       }
 
-      // If safety is borderline (21-60), require explicit approval unless autoApprove
-      if (safetyScore <= 60 && !request.autoApprove) {
-        logger.info('gateway', `APPROVAL REQUIRED: ${node.title} (safety: ${safetyScore}/100)`);
-        // Node stays in 'planned' state — UI must approve before execution
-        return { node, allowed: true, blockReason: `Approval required (safety: ${safetyScore}/100)` };
-      }
+      const blockReason = `Blocked by safety gate (score: ${safetyScore}/100)`;
+      logger.warn('gateway', `SAFETY BLOCK: ${node.title} — ${blockReason}`);
+      auditLog.auditLog('gateway:blocked:safety', {
+        nodeId: node.id,
+        nodeType: node.type,
+        safetyScore,
+        timestamp: Date.now(),
+      });
+
+      return { node, allowed: false, blockReason };
+    }
+
+    // If safety is borderline (21-60), require explicit approval unless autoApprove
+    if (safetyScore <= 60 && !request.autoApprove) {
+      logger.info('gateway', `APPROVAL REQUIRED: ${node.title} (safety: ${safetyScore}/100)`);
+      return { node, allowed: true, blockReason: `Approval required (safety: ${safetyScore}/100)` };
     }
 
     // ── STEP 3: Auto-approve if requested ────────────────────────────────
-    if (request.autoApprove || request.skipSafetyGate) {
+    if (request.autoApprove) {
       try {
         esm.transitionNode(node.id, 'approved');
       } catch {
-        // planned → approved may not always be valid; try queued first
         try {
           esm.transitionNode(node.id, 'queued');
           esm.transitionNode(node.id, 'approved');
         } catch {
-          // If we can't approve, leave in planned and return
           logger.warn('gateway', `Cannot auto-approve node ${node.id} — leaving in planned state`);
           return { node, allowed: true };
         }
@@ -214,26 +238,17 @@ class ExecutionGatewayClass {
 
     // ── STEP 4: Execute via dispatcher ────────────────────────────────────
     if (request.executor) {
-      // Custom executor provided — use it
       return this.executeWithCustomExecutor(node, request.executor);
     } else if (this.executors.has(request.type)) {
-      // Registered executor for this type
       return this.executeWithRegisteredExecutor(node, request.type);
     } else {
-      // No executor — node stays in approved/planned state
-      // The caller is responsible for executing and calling back with results
       logger.info('gateway', `No executor for ${request.type} — node ${node.id} waiting for external execution`);
       return { node, allowed: true };
     }
   }
 
-  // ─── Synchronous Execution (for operations that must be immediate) ─────
+  // ─── Synchronous Node Creation ──────────────────────────────────────────
 
-  /**
-   * Execute a gateway request synchronously.
-   * Used for operations like terminal commands where we need to create the node
-   * and return immediately, with output attached later.
-   */
   requestNodeCreation(request: ExecutionRequest): ExecutionNode {
     const esm = this.getEsm();
 
@@ -247,12 +262,10 @@ class ExecutionGatewayClass {
       parentId: request.parentId,
       sourceIds: request.sourceIds || [],
       data: request.data,
-      riskLevel: this.inferRiskLevel(request),
-      requiresApproval: this.shouldRequireApproval(request),
     });
 
     // Safety check — block if score is critically low
-    if (!request.skipSafetyGate && node.safetyScore <= 20) {
+    if (node.safetyScore <= 20) {
       try {
         esm.transitionNode(node.id, 'rejected');
       } catch {
@@ -273,10 +286,8 @@ class ExecutionGatewayClass {
     return node;
   }
 
-  /**
-   * Attach execution result to an existing node.
-   * Used for async operations like terminal commands where output comes later.
-   */
+  // ─── Result Attachment ──────────────────────────────────────────────────
+
   attachResult(nodeId: string, result: Partial<NodeResult>, error?: string): ExecutionNode | null {
     const esm = this.getEsm();
     const node = esm.getNode(nodeId);
@@ -285,7 +296,6 @@ class ExecutionGatewayClass {
       return null;
     }
 
-    // Update node data with result
     if (error) {
       node.error = error;
       try {
@@ -305,17 +315,11 @@ class ExecutionGatewayClass {
     return node;
   }
 
-  /**
-   * Update node data (for attaching outputs like stdout/stderr to terminal nodes).
-   */
   updateNodeData(nodeId: string, data: Partial<NodeData>): ExecutionNode | null {
     const esm = this.getEsm();
     return esm.updateNodeData(nodeId, data);
   }
 
-  /**
-   * Transition a node state (for external callers that need to manage state).
-   */
   transitionNode(nodeId: string, newState: NodeState): ExecutionNode {
     const esm = this.getEsm();
     return esm.transitionNode(nodeId, newState);
@@ -323,7 +327,6 @@ class ExecutionGatewayClass {
 
   // ─── Executor Registration ──────────────────────────────────────────────
 
-  /** Register an executor for a specific node type */
   registerExecutor(type: ExecutionNodeType, executor: (node: ExecutionNode) => Promise<NodeResult>): void {
     this.executors.set(type, executor);
     logger.info('gateway', `Executor registered for type: ${type}`);
@@ -331,10 +334,6 @@ class ExecutionGatewayClass {
 
   // ─── Convenience Methods ────────────────────────────────────────────────
 
-  /**
-   * Execute a terminal command through the gateway.
-   * This is the ONLY valid way to execute terminal commands.
-   */
   async executeTerminalCommand(params: {
     command: string;
     cwd: string;
@@ -364,10 +363,6 @@ class ExecutionGatewayClass {
     });
   }
 
-  /**
-   * Create a terminal command node (synchronous — for tracking commands
-   * that execute asynchronously via PTY).
-   */
   createTerminalNode(params: {
     command: string;
     cwd: string;
@@ -394,10 +389,6 @@ class ExecutionGatewayClass {
     });
   }
 
-  /**
-   * Execute a Monaco edit through the gateway.
-   * This is the ONLY valid way to save file edits from the editor.
-   */
   async executeMonacoEdit(params: {
     filePath: string;
     originalContent: string;
@@ -433,10 +424,6 @@ class ExecutionGatewayClass {
     });
   }
 
-  /**
-   * Execute a file mutation through the gateway.
-   * This is the ONLY valid way to perform file system operations.
-   */
   async executeFileMutation(params: {
     action: 'create' | 'edit' | 'delete' | 'move';
     filePath: string;
@@ -468,6 +455,133 @@ class ExecutionGatewayClass {
     });
   }
 
+  // ─── Authorization API (merged from execution-audit.ts) ────────────────
+
+  /** Register that an FS operation was authorized by this gateway */
+  authorizeFsOp(filePath: string, nodeId: string, operation: string): void {
+    authorizedFsOps.set(filePath, { nodeId, timestamp: Date.now(), operation });
+  }
+
+  /** Register that a terminal operation was authorized by this gateway */
+  authorizeTerminalOp(sessionId: string, nodeId: string, command: string): void {
+    authorizedTerminalOps.set(`${sessionId}:${command}`, { nodeId, timestamp: Date.now(), command });
+  }
+
+  /** Check if an FS operation was authorized. Returns true if authorized, false if bypass */
+  checkFsAuthorization(filePath: string, operation: string): boolean {
+    const authorized = authorizedFsOps.get(filePath);
+    if (authorized && Date.now() - authorized.timestamp < AUTHORIZATION_WINDOW) {
+      return true;
+    }
+
+    // Gateway must be initialized for any mutation
+    if (!this.initialized) {
+      recordViolation({
+        type: operation === 'delete' ? 'fs_delete_no_node' : operation === 'rename' ? 'fs_rename_no_node' : 'fs_write_no_node',
+        description: `FS ${operation} on "${filePath}" BLOCKED — Gateway not initialized`,
+        target: filePath,
+        stack: new Error().stack,
+        timestamp: Date.now(),
+        severity: 'critical',
+      });
+      return false;
+    }
+
+    recordViolation({
+      type: operation === 'delete' ? 'fs_delete_no_node' : operation === 'rename' ? 'fs_rename_no_node' : 'fs_write_no_node',
+      description: `FS ${operation} on "${filePath}" without gateway authorization`,
+      target: filePath,
+      stack: new Error().stack,
+      timestamp: Date.now(),
+      severity: 'critical',
+    });
+    return false;
+  }
+
+  /** Check if a terminal operation was authorized */
+  checkTerminalAuthorization(sessionId: string, command: string): boolean {
+    const key = `${sessionId}:${command}`;
+    const authorized = authorizedTerminalOps.get(key);
+    if (authorized && Date.now() - authorized.timestamp < AUTHORIZATION_WINDOW) {
+      return true;
+    }
+
+    if (!this.initialized) {
+      recordViolation({
+        type: 'terminal_spawn_no_node',
+        description: `Terminal command "${command.substring(0, 50)}" in session ${sessionId} BLOCKED — Gateway not initialized`,
+        target: command,
+        stack: new Error().stack,
+        timestamp: Date.now(),
+        severity: 'critical',
+      });
+      return false;
+    }
+
+    recordViolation({
+      type: 'terminal_spawn_no_node',
+      description: `Terminal command "${command.substring(0, 50)}" in session ${sessionId} without gateway authorization`,
+      target: command,
+      stack: new Error().stack,
+      timestamp: Date.now(),
+      severity: 'critical',
+    });
+    return false;
+  }
+
+  /** Record a Monaco save that bypassed the gateway */
+  reportMonacoBypass(filePath: string): void {
+    recordViolation({
+      type: 'monaco_save_no_node',
+      description: `Monaco save of "${filePath}" without gateway authorization`,
+      target: filePath,
+      stack: new Error().stack,
+      timestamp: Date.now(),
+      severity: 'critical',
+    });
+  }
+
+  // ─── Audit Report API (merged from execution-audit.ts) ──────────────────
+
+  getViolations(): GraphViolation[] {
+    return [...violations];
+  }
+
+  getViolationCounts(): Record<string, number> {
+    return { ...violationCounts };
+  }
+
+  getViolationCount(): number {
+    return violations.length;
+  }
+
+  isAuditClean(): boolean {
+    return violations.length === 0;
+  }
+
+  clearViolations(): void {
+    violations.length = 0;
+    for (const key of Object.keys(violationCounts)) {
+      delete violationCounts[key];
+    }
+    authorizedFsOps.clear();
+    authorizedTerminalOps.clear();
+  }
+
+  generateAuditReport(): {
+    totalViolations: number;
+    violationsByType: Record<string, number>;
+    violations: GraphViolation[];
+    isClean: boolean;
+  } {
+    return {
+      totalViolations: violations.length,
+      violationsByType: { ...violationCounts },
+      violations: [...violations],
+      isClean: violations.length === 0,
+    };
+  }
+
   // ─── Private Helpers ────────────────────────────────────────────────────
 
   private async executeWithCustomExecutor(
@@ -480,7 +594,6 @@ class ExecutionGatewayClass {
       esm.transitionNode(node.id, 'executing');
       const result = await executor(node);
 
-      // Attach result to node
       node.result = result;
 
       try {
@@ -572,47 +685,6 @@ class ExecutionGatewayClass {
         return `${aiLabel} ${request.type}`;
     }
   }
-
-  private inferRiskLevel(request: ExecutionRequest): RiskLevel {
-    const data = request.data;
-
-    switch (request.type) {
-      case 'terminal_command': {
-        const cmd = (data as TerminalCommandData).command;
-        const dangerous = ['rm -rf', 'sudo', 'chmod 777', 'dd if=', 'mkfs', 'format', 'DROP TABLE'];
-        return dangerous.some(d => cmd.includes(d)) ? 'critical' : request.isAI ? 'medium' : 'low';
-      }
-      case 'file_mutation': {
-        const fm = data as FileMutationData;
-        if (fm.action === 'delete') return 'high';
-        if (fm.action === 'move') return 'medium';
-        return request.isAI ? 'medium' : 'low';
-      }
-      case 'monaco_edit': {
-        return request.isAI ? 'medium' : 'low';
-      }
-      default:
-        return 'low';
-    }
-  }
-
-  private shouldRequireApproval(request: ExecutionRequest): boolean {
-    const data = request.data;
-
-    // Terminal commands with dangerous patterns always require approval
-    if (request.type === 'terminal_command') {
-      const cmd = (data as TerminalCommandData).command;
-      const dangerous = ['rm -rf', 'sudo', 'chmod 777', 'dd if=', 'mkfs', 'format'];
-      return dangerous.some(d => cmd.includes(d));
-    }
-
-    // File deletions always require approval
-    if (request.type === 'file_mutation') {
-      return (data as FileMutationData).action === 'delete';
-    }
-
-    return false;
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -623,9 +695,65 @@ class ExecutionGatewayClass {
 export const ExecutionGateway = new ExecutionGatewayClass();
 
 /**
- * Check if a node exists for a given action. Used by the audit system
- * to detect bypass attempts.
+ * Check if the gateway is initialized. Used by kernel modules
+ * to verify the enforcement system is active.
  */
 export function isGatewayInitialized(): boolean {
   return ExecutionGateway.isInitialized();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BACKWARD-COMPATIBLE RE-EXPORTS
+// These allow existing imports from execution-audit.ts to continue working.
+// After all consumers are updated, these can be removed.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** @deprecated Use ExecutionGateway.authorizeFsOp() instead */
+export function authorizeFsOp(filePath: string, nodeId: string, operation: string): void {
+  ExecutionGateway.authorizeFsOp(filePath, nodeId, operation);
+}
+
+/** @deprecated Use ExecutionGateway.authorizeTerminalOp() instead */
+export function authorizeTerminalOp(sessionId: string, nodeId: string, command: string): void {
+  ExecutionGateway.authorizeTerminalOp(sessionId, nodeId, command);
+}
+
+/** @deprecated Use ExecutionGateway.checkFsAuthorization() instead */
+export function checkFsAuthorization(filePath: string, operation: string): boolean {
+  return ExecutionGateway.checkFsAuthorization(filePath, operation);
+}
+
+/** @deprecated Use ExecutionGateway.checkTerminalAuthorization() instead */
+export function checkTerminalAuthorization(sessionId: string, command: string): boolean {
+  return ExecutionGateway.checkTerminalAuthorization(sessionId, command);
+}
+
+/** @deprecated Use ExecutionGateway.reportMonacoBypass() instead */
+export function reportMonacoBypass(filePath: string): void {
+  ExecutionGateway.reportMonacoBypass(filePath);
+}
+
+/** @deprecated Use ExecutionGateway.generateAuditReport() instead */
+export function generateAuditReport() {
+  return ExecutionGateway.generateAuditReport();
+}
+
+/** @deprecated Use ExecutionGateway.isAuditClean() instead */
+export function isAuditClean(): boolean {
+  return ExecutionGateway.isAuditClean();
+}
+
+/** @deprecated Use ExecutionGateway.getViolations() instead */
+export function getViolations(): GraphViolation[] {
+  return ExecutionGateway.getViolations();
+}
+
+/** @deprecated Use ExecutionGateway.getViolationCounts() instead */
+export function getViolationCounts(): Record<string, number> {
+  return ExecutionGateway.getViolationCounts();
+}
+
+/** @deprecated Use ExecutionGateway.clearViolations() instead */
+export function clearViolations(): void {
+  ExecutionGateway.clearViolations();
 }

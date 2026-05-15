@@ -18,8 +18,7 @@ import {
 import { DiffEngine } from '../services/diff-engine';
 import { logger } from '../utils/logger';
 import { auditLog } from '../utils/audit-log';
-import { ExecutionGateway } from '../core/execution-gateway';
-import { authorizeFsOp, generateAuditReport, isAuditClean } from '../core/execution-audit';
+import { ExecutionGateway, authorizeFsOp, generateAuditReport, isAuditClean } from '../core/execution-gateway';
 
 // ─── Module State ──────────────────────────────────────────────────────────
 

@@ -14,8 +14,7 @@
 // NON-NEGOTIABLE PRINCIPLE: "No Node → No Action" for terminal command execution.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { authorizeTerminalOp } from '../core/execution-audit';
-import { ExecutionGateway } from '../core/execution-gateway';
+import { ExecutionGateway, authorizeTerminalOp } from '../core/execution-gateway';
 import { logger } from '../utils/logger';
 import { rawSpawn, type ChildProcess } from './kernel-process';
 

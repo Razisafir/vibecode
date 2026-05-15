@@ -36,7 +36,8 @@ export type ExecutionNodeType =
   | 'safety_check'    // Safety scoring / approval gate
   | 'rollback'        // Rollback action
   | 'plan'            // Execution plan (container for child steps)
-  | 'step';           // Individual execution step within a plan
+  | 'step'            // Individual execution step within a plan
+  | 'system_event';   // System-level event in the unified pipeline
 
 /** Canonical state for any execution node — enforced state machine */
 export type NodeState =
@@ -137,7 +138,8 @@ export type NodeData =
   | SafetyCheckData
   | RollbackData
   | PlanData
-  | StepData;
+  | StepData
+  | SystemEventData;
 
 export interface AIReasoningData {
   kind: 'ai_reasoning';
@@ -273,6 +275,12 @@ export interface StepData {
   params: Record<string, unknown>;
 }
 
+export interface SystemEventData {
+  kind: 'system_event';
+  event: string;
+  details: Record<string, unknown>;
+}
+
 export interface NodeResult {
   success: boolean;
   data?: Record<string, unknown>;
@@ -346,13 +354,22 @@ const SAFETY_RULES: SafetyRule[] = [
       if (!command) {
         return { rule: 'dangerous-command', passed: true, severity: 'low', message: 'Not a command' };
       }
-      const dangerous = ['rm -rf', 'sudo', 'chmod 777', ':(){:|:&};:', 'dd if=', 'mkfs', 'format'];
+      const dangerous = ['rm -rf', 'sudo', 'chmod 777', ':(){:|:&};:', 'dd if=', 'mkfs', 'format', 'npm publish', 'pip uninstall'];
       const isDangerous = dangerous.some(d => command!.includes(d));
+      const dangerousRegexes: [RegExp, string][] = [
+        [/\bdocker\s+(rm|rmi)\b/, 'docker rm/rmi'],
+        [/\bkill\s+(-9\s+|-KILL\s+)/, 'kill -9'],
+        [/\bDELETE\s+FROM\s+\w+\s*;/i, 'DELETE FROM without WHERE'],
+      ];
+      const regexMatch = dangerousRegexes.find(([re]) => re.test(command!));
+      const isRegexDangerous = !!regexMatch;
+      const failed = isDangerous || isRegexDangerous;
+      const matchedPattern = regexMatch ? regexMatch[1] : dangerous.find(d => command!.includes(d));
       return {
         rule: 'dangerous-command',
-        passed: !isDangerous,
-        severity: isDangerous ? 'critical' : 'low',
-        message: isDangerous ? `Potentially dangerous command: ${command!.substring(0, 50)}` : 'Command appears safe',
+        passed: !failed,
+        severity: failed ? 'critical' : 'low',
+        message: failed ? `Potentially dangerous command (${matchedPattern}): ${command!.substring(0, 50)}` : 'Command appears safe',
       };
     },
   },
@@ -468,6 +485,135 @@ const SAFETY_RULES: SafetyRule[] = [
         };
       }
       return { rule: 'destructive-operation', passed: true, severity: 'low', message: 'Non-destructive operation' };
+    },
+  },
+  {
+    id: 'vcs-destruction',
+    name: 'VCS Destructive Operation Detection',
+    evaluate(node) {
+      let command: string | undefined;
+      if (node.type === 'terminal_command') {
+        command = (node.data as TerminalCommandData).command;
+      } else if ((node.data as StepData)?.stepType === 'command') {
+        command = (node.data as StepData).params?.command as string | undefined;
+      }
+      if (!command) {
+        return { rule: 'vcs-destruction', passed: true, severity: 'low', message: 'Not a command' };
+      }
+      const vcsPatterns: [RegExp, string][] = [
+        [/\bgit\s+push\s+.*(--force|-f)\b/, 'git push --force'],
+        [/\bgit\s+push\s+.*--force-with-lease\b/, 'git push --force-with-lease'],
+        [/\bgit\s+reset\s+.*--hard\b/, 'git reset --hard'],
+        [/\bgit\s+clean\s+(-[a-zA-Z]*d[a-zA-Z]*\s+|--force)\b/, 'git clean -d'],
+        [/\bgit\s+checkout\s+--\s+\.\b/, 'git checkout -- . (discard all)'],
+      ];
+      const matched = vcsPatterns.find(([re]) => re.test(command!));
+      return {
+        rule: 'vcs-destruction',
+        passed: !matched,
+        severity: matched ? 'high' : 'low',
+        message: matched ? `VCS destructive operation: ${matched[1]}` : 'No VCS destructive operation',
+      };
+    },
+  },
+  {
+    id: 'remote-code-execution',
+    name: 'Remote Code Execution Detection',
+    evaluate(node) {
+      let command: string | undefined;
+      if (node.type === 'terminal_command') {
+        command = (node.data as TerminalCommandData).command;
+      } else if ((node.data as StepData)?.stepType === 'command') {
+        command = (node.data as StepData).params?.command as string | undefined;
+      }
+      if (!command) {
+        return { rule: 'remote-code-execution', passed: true, severity: 'low', message: 'Not a command' };
+      }
+      const rcePatterns: [RegExp, string][] = [
+        [/\bcurl\s+.*\|\s*(ba)?sh\b/, 'curl | sh'],
+        [/\bwget\s+.*\|\s*(ba)?sh\b/, 'wget | sh'],
+        [/\bcurl\s+.*\|\s*sudo\s+(ba)?sh\b/, 'curl | sudo sh'],
+      ];
+      const matched = rcePatterns.find(([re]) => re.test(command!));
+      return {
+        rule: 'remote-code-execution',
+        passed: !matched,
+        severity: matched ? 'critical' : 'low',
+        message: matched ? `Remote code execution: ${matched[1]}` : 'No remote code execution pattern',
+      };
+    },
+  },
+  {
+    id: 'sensitive-env-access',
+    name: 'Sensitive Environment Variable Access',
+    evaluate(node) {
+      let command: string | undefined;
+      if (node.type === 'terminal_command') {
+        command = (node.data as TerminalCommandData).command;
+      } else if ((node.data as StepData)?.stepType === 'command') {
+        command = (node.data as StepData).params?.command as string | undefined;
+      }
+      if (!command) {
+        return { rule: 'sensitive-env-access', passed: true, severity: 'low', message: 'Not a command' };
+      }
+      const sensitiveEnvPatterns = [
+        /\$(API_KEY|SECRET|PASSWORD|TOKEN|PRIVATE_KEY|ACCESS_KEY|SECRET_KEY|AUTH_TOKEN|CREDENTIALS?)\b/i,
+        /\$\{API_KEY\}/i,
+        /\$\{SECRET\}/i,
+        /\$\{.*PASSWORD.*\}/i,
+        /\$\{.*TOKEN.*\}/i,
+      ];
+      const matched = sensitiveEnvPatterns.find(p => p.test(command!));
+      return {
+        rule: 'sensitive-env-access',
+        passed: !matched,
+        severity: matched ? 'high' : 'low',
+        message: matched ? 'Command references sensitive environment variable (e.g. $API_KEY, $SECRET)' : 'No sensitive env access',
+      };
+    },
+  },
+  {
+    id: 'expanded-credential-files',
+    name: 'Expanded Credential File Access',
+    evaluate(node) {
+      const data = node.data as FileMutationData | StepData | TerminalCommandData;
+      const filePath = (data as FileMutationData)?.filePath || (data as StepData)?.params?.filePath as string;
+      const command = (data as TerminalCommandData)?.command || (data as StepData)?.params?.command as string;
+
+      const credentialFilePatterns = [
+        /\.pem$/, /\.key$/, /\.secret$/, /\.credentials$/,
+        /\.npmrc$/, /\.pypirc$/, /\.netrc$/,
+        /\.env$/,
+        /id_rsa$/, /id_ed25519$/, /id_ecdsa$/,
+      ];
+
+      // Check file path
+      if (filePath) {
+        const matched = credentialFilePatterns.find(p => p.test(filePath));
+        if (matched) {
+          return {
+            rule: 'expanded-credential-files',
+            passed: false,
+            severity: 'high',
+            message: `Credential file access: ${filePath}`,
+          };
+        }
+      }
+
+      // Check command for credential file references
+      if (command) {
+        const cmdMatch = credentialFilePatterns.find(p => p.test(command));
+        if (cmdMatch) {
+          return {
+            rule: 'expanded-credential-files',
+            passed: false,
+            severity: 'high',
+            message: `Command references credential file`,
+          };
+        }
+      }
+
+      return { rule: 'expanded-credential-files', passed: true, severity: 'low', message: 'No credential file access' };
     },
   },
 ];

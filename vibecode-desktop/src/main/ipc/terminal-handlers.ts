@@ -4,8 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { getStateMachine } from './state-machine-handlers';
 import { TerminalCommandData } from '../services/execution-state-machine';
-import { ExecutionGateway } from '../core/execution-gateway';
-import { authorizeTerminalOp, checkTerminalAuthorization } from '../core/execution-audit';
+import { ExecutionGateway, authorizeTerminalOp, checkTerminalAuthorization } from '../core/execution-gateway';
 import {
   kernelTerminalCreate,
   kernelTerminalWrite,

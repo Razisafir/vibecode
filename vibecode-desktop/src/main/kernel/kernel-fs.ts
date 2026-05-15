@@ -20,8 +20,7 @@
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
-import { authorizeFsOp } from '../core/execution-audit';
-import { ExecutionGateway } from '../core/execution-gateway';
+import { authorizeFsOp, ExecutionGateway } from '../core/execution-gateway';
 import { logger } from '../utils/logger';
 
 // ═══════════════════════════════════════════════════════════════════════════════

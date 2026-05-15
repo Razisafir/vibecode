@@ -15,7 +15,6 @@ import {
   StepData,
   UnifiedStepType,
 } from './execution-state-machine';
-import { SafetyGuard } from './safety/runtime-safety-guard';
 import { auditLog } from '../utils/audit-log';
 import { logger } from '../utils/logger';
 import {
@@ -106,8 +105,6 @@ interface FileWriteParams {
  * Adapted from executors/file-write-executor.ts to work with ExecutionNode.
  */
 function createFileWriteExecutor(workspaceRoot: string): (node: ExecutionNode) => Promise<NodeResult> {
-  const safetyGuard = new SafetyGuard(workspaceRoot);
-
   return async (node: ExecutionNode): Promise<NodeResult> => {
     const { params } = assertStepData(node);
     const p = params as unknown as FileWriteParams;
@@ -121,20 +118,8 @@ function createFileWriteExecutor(workspaceRoot: string): (node: ExecutionNode) =
       throw new Error('file_write executor: "content" is required and must be a string');
     }
 
-    // ── Runtime safety check ──────────────────────────────────────────────
-    const safety = safetyGuard.assessFileMutationSafety({
-      filePath: p.filePath,
-      operation: 'write',
-      workspaceRoot,
-    });
-
-    if (safety.blocked) {
-      throw new Error(
-        `File write blocked by safety guard: ${safety.blockReason}\n` +
-        `Matched rules: ${safety.matchedRules.join(', ')}\n` +
-        `Risk level: ${safety.riskLevel} (score: ${safety.riskScore})`
-      );
-    }
+    // NOTE: Safety checks are handled by the ESM safety engine at the
+    // ExecutionGateway level before dispatching to executors.
 
     const encoding: BufferEncoding = p.encoding ?? 'utf-8';
     const createDirs = p.createDirs !== false; // default true
@@ -371,8 +356,6 @@ interface FileDeleteParams {
  * in the legacy executor registry.
  */
 function createFileDeleteExecutor(workspaceRoot: string): (node: ExecutionNode) => Promise<NodeResult> {
-  const safetyGuard = new SafetyGuard(workspaceRoot);
-
   return async (node: ExecutionNode): Promise<NodeResult> => {
     const { params } = assertStepData(node);
     const p = params as unknown as FileDeleteParams;
@@ -383,20 +366,8 @@ function createFileDeleteExecutor(workspaceRoot: string): (node: ExecutionNode) 
       throw new Error('file_delete executor: "filePath" is required and must be a string');
     }
 
-    // ── Runtime safety check ──────────────────────────────────────────────
-    const safety = safetyGuard.assessFileMutationSafety({
-      filePath: p.filePath,
-      operation: 'delete',
-      workspaceRoot,
-    });
-
-    if (safety.blocked) {
-      throw new Error(
-        `File delete blocked by safety guard: ${safety.blockReason}\n` +
-        `Matched rules: ${safety.matchedRules.join(', ')}\n` +
-        `Risk level: ${safety.riskLevel} (score: ${safety.riskScore})`
-      );
-    }
+    // NOTE: Safety checks are handled by the ESM safety engine at the
+    // ExecutionGateway level before dispatching to executors.
 
     // ── Resolve and validate path ─────────────────────────────────────────
     const absolutePath = validateWorkspacePath(p.filePath, workspaceRoot);
@@ -599,8 +570,6 @@ function truncateOutput(output: string): string {
  * Adapted from executors/command-executor.ts to work with ExecutionNode.
  */
 function createCommandExecutor(workspaceRoot: string): (node: ExecutionNode) => Promise<NodeResult> {
-  const safetyGuard = new SafetyGuard(workspaceRoot);
-
   return async (node: ExecutionNode): Promise<NodeResult> => {
     const { params } = assertStepData(node);
     const p = params as unknown as CommandParams;
@@ -611,20 +580,10 @@ function createCommandExecutor(workspaceRoot: string): (node: ExecutionNode) => 
       throw new Error('command executor: "command" is required and must be a string');
     }
 
-    // ── Runtime safety check ──────────────────────────────────────────────
-    const safety = safetyGuard.assessCommandSafety({
-      command: p.command,
-      cwd: p.cwd ? path.resolve(workspaceRoot, p.cwd) : workspaceRoot,
-      workspaceRoot,
-    });
-
-    if (safety.blocked) {
-      throw new Error(
-        `Command blocked by safety guard: ${safety.blockReason}\n` +
-        `Matched rules: ${safety.matchedRules.join(', ')}\n` +
-        `Risk level: ${safety.riskLevel} (score: ${safety.riskScore})`
-      );
-    }
+    // NOTE: SafetyGuard.assessCommandSafety() is no longer called here; the
+    // ESM safety engine runs at the ExecutionGateway level before dispatch.
+    // The executor-level checks below (checkDangerousCommand, etc.) serve as
+    // defense-in-depth and are kept intentionally.
 
     // ── Enforce timeout limits ────────────────────────────────────────────
     const requestedTimeout = p.timeout ?? DEFAULT_TIMEOUT;
