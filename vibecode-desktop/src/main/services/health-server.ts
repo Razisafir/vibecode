@@ -63,12 +63,12 @@ let startedAt: number = 0;
 export function startHealthServer(): void {
   const port = getHealthPort();
   if (!port) {
-    logger.info('[HealthServer] VIBECODE_HEALTH_PORT not set — health server NOT started (this is normal for dev mode)');
+    logger.info('health', 'VIBECODE_HEALTH_PORT not set — health server NOT started (this is normal for dev mode)');
     return;
   }
 
   if (server) {
-    logger.warn('[HealthServer] Already running — skipping duplicate start');
+    logger.warn('health', 'Already running — skipping duplicate start');
     return;
   }
 
@@ -102,11 +102,11 @@ export function startHealthServer(): void {
   });
 
   server.listen(port, () => {
-    logger.info(`[HealthServer] Listening on port ${port}`);
+    logger.info('health', `Listening on port ${port}`);
   });
 
   server.on('error', (err: Error) => {
-    logger.error(`[HealthServer] Server error: ${err.message}`);
+    logger.error('health', `Server error: ${err.message}`);
     server = null;
   });
 }
@@ -118,7 +118,7 @@ export function stopHealthServer(): void {
   if (!server) return;
 
   server.close(() => {
-    logger.info('[HealthServer] Stopped');
+    logger.info('health', 'Stopped');
     server = null;
   });
 }

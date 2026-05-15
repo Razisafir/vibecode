@@ -337,7 +337,7 @@ export class AutoUpdateService {
   registerIpcHandlers(): void {
     const { ipcMain } = require('electron');
 
-    ipcMain.handle('updater:check', async (_event, force?: boolean) => {
+    ipcMain.handle('updater:check', async (_event: Electron.IpcMainInvokeEvent, force?: boolean) => {
       const status = await this.checkForUpdates(force);
       return { success: true, data: { status } };
     });
@@ -361,7 +361,7 @@ export class AutoUpdateService {
       return { success: true, data: { status: this.getStatus() } };
     });
 
-    ipcMain.handle('updater:setChannel', async (_event, channel: UpdateChannel) => {
+    ipcMain.handle('updater:setChannel', async (_event: Electron.IpcMainInvokeEvent, channel: UpdateChannel) => {
       this.setChannel(channel);
       return { success: true, data: { channel } };
     });

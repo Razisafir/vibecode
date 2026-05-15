@@ -20,6 +20,10 @@ export type LogCategory =
   | 'watchdog'
   | 'crash-dump'
   | 'telemetry'
+  | 'analytics'
+  | 'updater'
+  | 'health'
+  | 'regression'
   | 'general';
 
 export interface LogEntry {

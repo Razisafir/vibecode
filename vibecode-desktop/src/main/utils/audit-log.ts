@@ -39,6 +39,11 @@ class AuditLogger {
    * @param details - Additional context about the event
    * @param result  - Whether the operation succeeded (default: 'success')
    */
+  /** Alias for auditLog — convenience method used across services */
+  log(event: string, details: Record<string, unknown>, result: 'success' | 'failure' = 'success'): void {
+    this.auditLog(event, details, result);
+  }
+
   auditLog(event: string, details: Record<string, unknown>, result: 'success' | 'failure' = 'success'): void {
     const entry: AuditEntry = {
       timestamp: Date.now(),

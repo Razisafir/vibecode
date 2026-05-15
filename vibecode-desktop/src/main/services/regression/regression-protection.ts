@@ -348,9 +348,9 @@ export class RegressionProtection {
         }
       }
 
-      logger.info(`[RegressionProtection] Loaded ${this.baselines.size} baseline(s)`);
+      logger.info('regression', `Loaded ${this.baselines.size} baseline(s)`);
     } catch (err) {
-      logger.error('[RegressionProtection] Failed to load baselines:', err);
+      logger.error('regression', 'Failed to load baselines', { error: String(err) });
     }
   }
 
@@ -361,7 +361,7 @@ export class RegressionProtection {
       const filePath = path.join(dir, `${baseline.id}.json`);
       fs.writeFileSync(filePath, JSON.stringify(baseline, null, 2), 'utf-8');
     } catch (err) {
-      logger.error('[RegressionProtection] Failed to persist baseline:', err);
+      logger.error('regression', 'Failed to persist baseline', { error: String(err) });
     }
   }
 }
