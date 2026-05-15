@@ -37,7 +37,7 @@ vi.mock('../main/utils/logger', () => ({
 }));
 
 vi.mock('../main/utils/audit-log', () => ({
-  auditLog: { log: vi.fn() },
+  auditLog: { auditLog: vi.fn() },
 }));
 
 import { AnalyticsService } from '../main/services/analytics';

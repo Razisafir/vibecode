@@ -47,7 +47,7 @@ vi.mock('../main/utils/logger', () => ({
 }));
 
 vi.mock('../main/utils/audit-log', () => ({
-  auditLog: { log: vi.fn() },
+  auditLog: { auditLog: vi.fn() },
 }));
 
 vi.mock('../main/services/telemetry', () => ({

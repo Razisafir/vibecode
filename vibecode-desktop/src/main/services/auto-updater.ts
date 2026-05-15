@@ -89,7 +89,7 @@ export class AutoUpdateService {
     autoUpdater.on('checking-for-update', () => {
       this.updateStatus({ checking: true, error: null });
       logger.info('updater', 'Checking for updates...');
-      auditLog.log('update:check', { channel: this.status.channel });
+      auditLog.auditLog('update:check', { channel: this.status.channel });
     });
 
     autoUpdater.on('update-available', (info) => {
@@ -103,7 +103,7 @@ export class AutoUpdateService {
         releaseDate: info.releaseDate,
         channel: this.status.channel,
       });
-      auditLog.log('update:available', {
+      auditLog.auditLog('update:available', {
         version: info.version,
         releaseDate: info.releaseDate,
       });
@@ -146,7 +146,7 @@ export class AutoUpdateService {
       logger.info('updater', `Update downloaded: v${info.version}`, {
         version: info.version,
       });
-      auditLog.log('update:downloaded', { version: info.version });
+      auditLog.auditLog('update:downloaded', { version: info.version });
       this.notifyRenderer('update-downloaded', info);
     });
 
@@ -158,7 +158,7 @@ export class AutoUpdateService {
         error: errorMessage,
       });
       logger.error('updater', 'Update error', { error: errorMessage });
-      auditLog.log('update:error', { error: errorMessage });
+      auditLog.auditLog('update:error', { error: errorMessage });
       this.notifyRenderer('update:error', { message: errorMessage });
     });
   }
@@ -241,7 +241,7 @@ export class AutoUpdateService {
       this.cancellationToken = null;
       this.updateStatus({ downloading: false, progress: null });
       logger.info('updater', 'Update download cancelled');
-      auditLog.log('update:cancel', {});
+      auditLog.auditLog('update:cancel', {});
     }
   }
 
@@ -255,7 +255,7 @@ export class AutoUpdateService {
     }
 
     logger.info('updater', 'Installing update and restarting...');
-    auditLog.log('update:install', {
+    auditLog.auditLog('update:install', {
       version: this.status.info?.version,
     });
 
@@ -337,7 +337,7 @@ export class AutoUpdateService {
   registerIpcHandlers(): void {
     const { ipcMain } = require('electron');
 
-    ipcMain.handle('updater:check', async (_event: Electron.IpcMainInvokeEvent, force?: boolean) => {
+    ipcMain.handle('updater:check', async (_event: any, force?: boolean) => {
       const status = await this.checkForUpdates(force);
       return { success: true, data: { status } };
     });
@@ -361,7 +361,7 @@ export class AutoUpdateService {
       return { success: true, data: { status: this.getStatus() } };
     });
 
-    ipcMain.handle('updater:setChannel', async (_event: Electron.IpcMainInvokeEvent, channel: UpdateChannel) => {
+    ipcMain.handle('updater:setChannel', async (_event: any, channel: UpdateChannel) => {
       this.setChannel(channel);
       return { success: true, data: { channel } };
     });

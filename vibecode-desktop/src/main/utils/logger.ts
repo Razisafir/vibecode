@@ -22,8 +22,7 @@ export type LogCategory =
   | 'telemetry'
   | 'analytics'
   | 'updater'
-  | 'health'
-  | 'regression'
+  | 'state-machine'
   | 'general';
 
 export interface LogEntry {

@@ -291,6 +291,32 @@ const vibecode = {
     getPendingEvents: () => ipcRenderer.invoke('analytics:getPendingEvents'),
     trackFeature: (feature: string) => ipcRenderer.invoke('analytics:trackFeature', feature),
   },
+  // ── Execution State Machine (ARC 11 — single source of truth) ────────
+  sm: {
+    getNode: (nodeId: string) => ipcRenderer.invoke('sm:getNode', nodeId),
+    getTimeline: () => ipcRenderer.invoke('sm:getTimeline'),
+    getGraph: () => ipcRenderer.invoke('sm:getGraph'),
+    getPlans: () => ipcRenderer.invoke('sm:getPlans'),
+    getPlanProgress: (planId: string) => ipcRenderer.invoke('sm:getPlanProgress', planId),
+    getChildren: (parentId: string) => ipcRenderer.invoke('sm:getChildren', parentId),
+    getNodesByType: (type: string) => ipcRenderer.invoke('sm:getNodesByType', type),
+    createPlan: (params: any) => ipcRenderer.invoke('sm:createPlan', params),
+    approvePlan: (planId: string) => ipcRenderer.invoke('sm:approvePlan', planId),
+    executePlan: (planId: string) => ipcRenderer.invoke('sm:executePlan', planId),
+    cancelPlan: (planId: string) => ipcRenderer.invoke('sm:cancelPlan', planId),
+    executeStep: (stepId: string) => ipcRenderer.invoke('sm:executeStep', stepId),
+    retryStep: (stepId: string) => ipcRenderer.invoke('sm:retryStep', stepId),
+    transition: (params: any) => ipcRenderer.invoke('sm:transition', params),
+    rollbackStep: (stepId: string) => ipcRenderer.invoke('sm:rollbackStep', stepId),
+    rollbackPlan: (planId: string) => ipcRenderer.invoke('sm:rollbackPlan', planId),
+    runSafetyCheck: (params: any) => ipcRenderer.invoke('sm:runSafetyCheck', params),
+    getSafetyScore: (planId: string) => ipcRenderer.invoke('sm:getSafetyScore', planId),
+    setWorkspace: (workspaceRoot: string) => ipcRenderer.invoke('sm:setWorkspace', workspaceRoot),
+    deleteNode: (nodeId: string) => ipcRenderer.invoke('sm:deleteNode', nodeId),
+    onEvent: (callback: (event: any) => void) => {
+      ipcRenderer.on('sm:event', (_event, event) => callback(event));
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('vibecode', vibecode);

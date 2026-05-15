@@ -129,7 +129,7 @@ export class AnalyticsService {
 
     this.saveConfig();
     logger.info('analytics', 'Analytics consent granted');
-    auditLog.log('analytics:consent', { enabled: true, options: this.config });
+    auditLog.auditLog('analytics:consent', { enabled: true, options: this.config });
 
     this.startSession();
   }
@@ -149,7 +149,7 @@ export class AnalyticsService {
     this.clearLocalData();
 
     logger.info('analytics', 'Analytics consent revoked');
-    auditLog.log('analytics:consent', { enabled: false });
+    auditLog.auditLog('analytics:consent', { enabled: false });
   }
 
   /**
