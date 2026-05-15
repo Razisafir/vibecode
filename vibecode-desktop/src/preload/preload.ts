@@ -44,6 +44,9 @@ const vibecode = {
     onData: (callback: (id: string, data: string) => void) => {
       ipcRenderer.on('terminal:data', (_event, id, data) => callback(id, data));
     },
+    onExit: (callback: (id: string, exitCode: number, signal?: number | string | null) => void) => {
+      ipcRenderer.on('terminal:exit', (_event, id, exitCode, signal) => callback(id, exitCode, signal));
+    },
     isAvailable: () => ipcRenderer.invoke('terminal:isAvailable'),
     list: () => ipcRenderer.invoke('terminal:list'),
     getOutput: (id: string) => ipcRenderer.invoke('terminal:getOutput', id),

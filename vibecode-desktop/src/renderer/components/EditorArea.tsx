@@ -2,7 +2,25 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Editor, { type OnMount, type OnChange, loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import type { editor as MonacoEditor } from 'monaco-editor';
-import type { CurrentWorkspaceInfo } from '../types';
+import type { CurrentWorkspaceInfo, DiffResult } from '../types';
+
+// ─── AI Integration Imports ──────────────────────────────────────────────────
+import {
+  attachAIIntegration,
+  showInlineDiff,
+  clearInlineDiffs,
+  showGhostText,
+  clearGhostText,
+  highlightEditRegion,
+  clearEditRegion,
+  scrollToEdit,
+  acceptAllChanges,
+  rejectAllChanges,
+  getTrackedChangesList,
+  acceptChange,
+  rejectChange,
+} from './editor/MonacoAIIntegration';
+import AIEditorOverlay from './editor/AIEditorOverlay';
 
 // ─── Configure Monaco to use local install (not CDN) ─────────────────────────
 // This is essential for Electron where CSP blocks CDN and offline support is needed.
@@ -184,10 +202,17 @@ const EditorArea: React.FC<EditorAreaProps> = ({ className }) => {
   const [currentWorkspace, setCurrentWorkspace] = useState<CurrentWorkspaceInfo | null>(null);
   const [themeRegistered, setThemeRegistered] = useState(false);
 
+  // ─── AI State ────────────────────────────────────────────────────────────
+  const [aiStatus, setAiStatus] = useState<'idle' | 'thinking' | 'streaming' | 'editing' | 'error'>('idle');
+  const [hasDiffs, setHasDiffs] = useState(false);
+  const [diffCount, setDiffCount] = useState(0);
+  const [aiProgress, setAiProgress] = useState(0);
+
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
   const openFilesRef = useRef<OpenFile[]>(openFiles);
   const activeFileIndexRef = useRef<number>(activeFileIndex);
+  const aiIntegrationRef = useRef<{ dispose: () => void; codeActions: monaco.IDisposable } | null>(null);
 
   // Keep refs in sync
   useEffect(() => {
@@ -335,6 +360,144 @@ const EditorArea: React.FC<EditorAreaProps> = ({ className }) => {
     return () => window.removeEventListener('vibecode:save-file', handleSave);
   }, [handleFileSave]);
 
+  // ─── AI Event Handlers ─────────────────────────────────────────────────────
+
+  // Helper to update diff state from the editor
+  const refreshDiffState = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const changes = getTrackedChangesList(editor);
+    const count = changes.length;
+    setDiffCount(count);
+    setHasDiffs(count > 0);
+  }, []);
+
+  // Accept all changes handler
+  const handleAcceptAll = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    acceptAllChanges(editor);
+    setHasDiffs(false);
+    setDiffCount(0);
+  }, []);
+
+  // Reject all changes handler
+  const handleRejectAll = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    rejectAllChanges(editor);
+    setHasDiffs(false);
+    setDiffCount(0);
+  }, []);
+
+  // Accept single change handler
+  const handleAcceptChange = useCallback((id: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    acceptChange(editor, id);
+    refreshDiffState();
+  }, [refreshDiffState]);
+
+  // Reject single change handler
+  const handleRejectChange = useCallback((id: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    rejectChange(editor, id);
+    refreshDiffState();
+  }, [refreshDiffState]);
+
+  // ─── Listen for AI custom events ───────────────────────────────────────────
+
+  useEffect(() => {
+    // vibecode:ai-action — forward AI code actions to the AI panel
+    const handleAIAction = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      // Re-dispatch so the AIPanel (or other consumers) can pick it up
+      window.dispatchEvent(
+        new CustomEvent('vibecode:ai-panel-action', {
+          detail: customEvent.detail,
+        }),
+      );
+    };
+
+    // vibecode:ai-status-change — update the overlay status
+    const handleAIStatusChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const newStatus = customEvent.detail?.status;
+      if (newStatus && ['idle', 'thinking', 'streaming', 'editing', 'error'].includes(newStatus)) {
+        setAiStatus(newStatus);
+      }
+      const newProgress = customEvent.detail?.progress;
+      if (typeof newProgress === 'number') {
+        setAiProgress(newProgress);
+      }
+    };
+
+    // vibecode:show-diff — show diff decorations in the editor
+    const handleShowDiff = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const diffResult = customEvent.detail?.diffResult as DiffResult | undefined;
+      const editor = editorRef.current;
+      if (!editor || !diffResult) return;
+      showInlineDiff(editor, diffResult);
+      refreshDiffState();
+      scrollToEdit(editor);
+    };
+
+    // vibecode:clear-diffs — clear all diff decorations
+    const handleClearDiffs = () => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      clearInlineDiffs(editor);
+      setHasDiffs(false);
+      setDiffCount(0);
+    };
+
+    // vibecode:show-ghost-text — show ghost text suggestion
+    const handleShowGhostText = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const text = customEvent.detail?.text as string | undefined;
+      const position = customEvent.detail?.position as monaco.IPosition | undefined;
+      const editor = editorRef.current;
+      if (!editor || !text || !position) return;
+      showGhostText(editor, text, position);
+    };
+
+    // vibecode:clear-ghost-text — clear ghost text
+    const handleClearGhostText = () => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      clearGhostText(editor);
+    };
+
+    window.addEventListener('vibecode:ai-action', handleAIAction);
+    window.addEventListener('vibecode:ai-status-change', handleAIStatusChange);
+    window.addEventListener('vibecode:show-diff', handleShowDiff);
+    window.addEventListener('vibecode:clear-diffs', handleClearDiffs);
+    window.addEventListener('vibecode:show-ghost-text', handleShowGhostText);
+    window.addEventListener('vibecode:clear-ghost-text', handleClearGhostText);
+
+    return () => {
+      window.removeEventListener('vibecode:ai-action', handleAIAction);
+      window.removeEventListener('vibecode:ai-status-change', handleAIStatusChange);
+      window.removeEventListener('vibecode:show-diff', handleShowDiff);
+      window.removeEventListener('vibecode:clear-diffs', handleClearDiffs);
+      window.removeEventListener('vibecode:show-ghost-text', handleShowGhostText);
+      window.removeEventListener('vibecode:clear-ghost-text', handleClearGhostText);
+    };
+  }, [refreshDiffState]);
+
+  // ─── Cleanup AI integration on unmount ─────────────────────────────────────
+
+  useEffect(() => {
+    return () => {
+      if (aiIntegrationRef.current) {
+        aiIntegrationRef.current.dispose();
+        aiIntegrationRef.current = null;
+      }
+    };
+  }, []);
+
   // ─── Monaco editor mount ───────────────────────────────────────────────────
 
   const handleEditorMount: OnMount = useCallback(
@@ -384,6 +547,13 @@ const EditorArea: React.FC<EditorAreaProps> = ({ className }) => {
       if (currentFile?.viewState) {
         editor.restoreViewState(currentFile.viewState);
       }
+
+      // ── Attach AI integration ───────────────────────────────────────────
+      // Dispose previous integration if editor is re-mounted
+      if (aiIntegrationRef.current) {
+        aiIntegrationRef.current.dispose();
+      }
+      aiIntegrationRef.current = attachAIIntegration(editor);
     },
     [handleFileSave],
   );
@@ -599,50 +769,64 @@ const EditorArea: React.FC<EditorAreaProps> = ({ className }) => {
       {/* Content Area */}
       <div className="flex-1 overflow-hidden">
         {activeFile ? (
-          <Editor
-            height="100%"
-            language={activeFile.language}
-            value={activeFile.content}
-            onChange={handleContentChange}
-            onMount={handleEditorMount}
-            theme={themeRegistered ? 'vibecode-dark' : 'vs-dark'}
-            loading={
-              <div className="flex h-full items-center justify-center bg-bg-base">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="spinner spinner-lg" />
-                  <span className="text-xs text-text-muted">
-                    Loading editor...
-                  </span>
+          /* Editor container must be position: relative for the overlay */
+          <div className="relative h-full w-full">
+            <Editor
+              height="100%"
+              language={activeFile.language}
+              value={activeFile.content}
+              onChange={handleContentChange}
+              onMount={handleEditorMount}
+              theme={themeRegistered ? 'vibecode-dark' : 'vs-dark'}
+              loading={
+                <div className="flex h-full items-center justify-center bg-bg-base">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="spinner spinner-lg" />
+                    <span className="text-xs text-text-muted">
+                      Loading editor...
+                    </span>
+                  </div>
                 </div>
-              </div>
-            }
-            options={{
-              readOnly: false,
-              minimap: { enabled: true, scale: 1 },
-              fontSize: 13,
-              lineHeight: 20,
-              fontFamily:
-                "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-              fontLigatures: true,
-              scrollBeyondLastLine: false,
-              smoothScrolling: true,
-              cursorBlinking: 'smooth',
-              cursorSmoothCaretAnimation: 'on',
-              renderLineHighlight: 'line',
-              renderWhitespace: 'selection',
-              bracketPairColorization: { enabled: true },
-              padding: { top: 8, bottom: 8 },
-              scrollbar: {
-                verticalScrollbarSize: 6,
-                horizontalScrollbarSize: 6,
-                useShadows: false,
-              },
-              overviewRulerBorder: false,
-              hideCursorInOverviewRuler: true,
-              automaticLayout: true,
-              tabSize: 2,
-            }}
-          />
+              }
+              options={{
+                readOnly: false,
+                minimap: { enabled: true, scale: 1 },
+                fontSize: 13,
+                lineHeight: 20,
+                fontFamily:
+                  "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                fontLigatures: true,
+                scrollBeyondLastLine: false,
+                smoothScrolling: true,
+                cursorBlinking: 'smooth',
+                cursorSmoothCaretAnimation: 'on',
+                renderLineHighlight: 'line',
+                renderWhitespace: 'selection',
+                bracketPairColorization: { enabled: true },
+                padding: { top: 8, bottom: 8 },
+                scrollbar: {
+                  verticalScrollbarSize: 6,
+                  horizontalScrollbarSize: 6,
+                  useShadows: false,
+                },
+                overviewRulerBorder: false,
+                hideCursorInOverviewRuler: true,
+                automaticLayout: true,
+                tabSize: 2,
+              }}
+            />
+            {/* AI Editor Overlay — absolutely positioned inside the relative container */}
+            <AIEditorOverlay
+              aiStatus={aiStatus}
+              hasDiffs={hasDiffs}
+              diffCount={diffCount}
+              progress={aiProgress}
+              onAcceptAll={handleAcceptAll}
+              onRejectAll={handleRejectAll}
+              onAcceptChange={handleAcceptChange}
+              onRejectChange={handleRejectChange}
+            />
+          </div>
         ) : (
           renderEmptyState()
         )}

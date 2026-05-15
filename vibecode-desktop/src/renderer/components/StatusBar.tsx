@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import SafetyIndicator from './safety/SafetyIndicator';
 
 interface StatusBarProps {
   activeProvider?: string;
@@ -10,6 +11,9 @@ interface StatusBarProps {
   branch?: string;
   executionStatus?: string;
   executionMode?: string;
+  safetyScore?: number;
+  safetyWarnings?: number;
+  hasActivePlan?: boolean;
 }
 
 const StatusBar: React.FC<StatusBarProps> = ({
@@ -22,6 +26,9 @@ const StatusBar: React.FC<StatusBarProps> = ({
   branch,
   executionStatus,
   executionMode,
+  safetyScore = 100,
+  safetyWarnings = 0,
+  hasActivePlan = false,
 }) => {
   const [appVersion, setAppVersion] = useState('');
 
@@ -56,6 +63,20 @@ const StatusBar: React.FC<StatusBarProps> = ({
             <span>{executionStatus}</span>
           </div>
         )}
+
+        {/* Safety Indicator */}
+        <SafetyIndicator
+          safetyScore={safetyScore}
+          warnings={Array.from({ length: safetyWarnings }, (_, i) => ({
+            id: `w-${i}`,
+            type: 'high_risk_operation' as const,
+            message: 'High risk operation detected',
+            stepId: `step-${i}`,
+            timestamp: Date.now(),
+            dismissed: false,
+          }))}
+          hasActivePlan={hasActivePlan}
+        />
       </div>
 
       {/* Center section */}

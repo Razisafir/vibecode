@@ -59,6 +59,8 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle, width = 380 }) => {
     isStreaming,
     isThinking,
     sendMessage,
+    cancelStreaming,
+    streamingMetrics,
     activeProvider,
     activeModel,
     providers,
@@ -343,6 +345,11 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle, width = 380 }) => {
             <span className="ml-auto flex items-center gap-1 text-[10px] text-accent">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
               Writing
+              {streamingMetrics.tokensPerSecond > 0 && (
+                <span className="text-text-muted ml-0.5">
+                  {streamingMetrics.tokensPerSecond.toFixed(0)} tok/s
+                </span>
+              )}
             </span>
           )}
         </div>
@@ -358,22 +365,35 @@ const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onToggle, width = 380 }) => {
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={1}
-              disabled={isStreaming || isThinking}
+              disabled={isThinking}
               style={{ maxHeight: '140px' }}
             />
           </div>
 
-          <button
-            className="btn-primary rounded-md px-3 py-2"
-            onClick={handleSend}
-            disabled={!inputValue.trim() || isStreaming || isThinking}
-            aria-label="Send message"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="2" y1="7" x2="12" y2="7" />
-              <polyline points="8,3 12,7 8,11" />
-            </svg>
-          </button>
+          {isStreaming ? (
+            <button
+              className="rounded-md bg-error/20 px-3 py-2 text-error transition-colors hover:bg-error/30"
+              onClick={cancelStreaming}
+              aria-label="Stop generating"
+              title="Stop generating (Esc)"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                <rect x="3" y="3" width="8" height="8" rx="1" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              className="btn-primary rounded-md px-3 py-2"
+              onClick={handleSend}
+              disabled={!inputValue.trim() || isThinking}
+              aria-label="Send message"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="2" y1="7" x2="12" y2="7" />
+                <polyline points="8,3 12,7 8,11" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
     </div>

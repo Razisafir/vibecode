@@ -4,6 +4,7 @@ import App from './App';
 import './styles/index.css';
 import './styles/components.css';
 import './styles/animations.css';
+import '@xterm/xterm/css/xterm.css';
 
 const rootEl = document.getElementById('root');
 

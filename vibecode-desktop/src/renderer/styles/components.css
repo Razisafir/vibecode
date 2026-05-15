@@ -357,6 +357,57 @@
 .terminal-line-info { color: #3b82f6; }
 .terminal-line-dim { color: var(--text-muted); }
 
+/* ---- xterm.js overrides ---- */
+
+.xterm {
+  padding: 4px 8px;
+  height: 100%;
+}
+
+.xterm-viewport {
+  /* Use our custom scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.06) transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
+.xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Terminal tab styles (VS Code inspired) */
+.terminal-tab {
+  position: relative;
+  border-bottom: 2px solid transparent;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.terminal-tab.active {
+  border-bottom-color: var(--accent);
+}
+
+.terminal-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: var(--accent);
+}
+
 /* ---- Context Menu ---- */
 
 .context-menu {

@@ -17,11 +17,12 @@ export interface VibeCodeAPI {
     rename(oldPath: string, newPath: string): Promise<{ success: boolean; error?: string }>;
   };
   terminal: {
-    create(cwd?: string): Promise<{ success: boolean; id?: string; error?: string }>;
+    create(cwd?: string): Promise<{ success: boolean; id?: string; data?: { sessionId: string; type: string; pid?: number; cwd: string; shell: string }; error?: string }>;
     write(id: string, data: string): Promise<{ success: boolean }>;
     kill(id: string): Promise<{ success: boolean }>;
     resize(id: string, cols: number, rows: number): Promise<{ success: boolean }>;
     onData(callback: (id: string, data: string) => void): void;
+    onExit(callback: (id: string, exitCode: number, signal?: number | string | null) => void): void;
   };
   provider: {
     list(): Promise<{ success: boolean; data?: { providers: Provider[] }; error?: string }>;
@@ -749,8 +750,11 @@ export interface OnboardingStep {
 export interface TerminalInstance {
   id: string;
   cwd: string;
+  shell: string;
   history: string[];
   active: boolean;
+  exitCode: number | null;
+  isRunning: boolean;
 }
 
 // ---- Diff Engine ----
@@ -947,6 +951,74 @@ export interface UsageMetrics {
   averageSessionLength: number;
   totalSessions: number;
   crashFrequency: number;
+}
+
+// ---- Safety & Trust ----
+
+export interface StepRiskAssessment {
+  stepId: string;
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  confidence: number;
+  factors: RiskFactor[];
+  canAutoApprove: boolean;
+  requiresManualReview: boolean;
+}
+
+export interface RiskFactor {
+  type: 'file_delete' | 'file_overwrite' | 'command_execution' | 'dependency_change' | 'config_change' | 'large_change';
+  description: string;
+  severity: 'info' | 'warning' | 'danger';
+  affectedPaths: string[];
+}
+
+export interface SafetyWarning {
+  id: string;
+  type: 'high_risk_operation' | 'destructive_action' | 'unreviewed_change' | 'dependency_conflict' | 'config_modification';
+  message: string;
+  stepId: string;
+  timestamp: number;
+  dismissed: boolean;
+}
+
+export interface SafeExecutionResult {
+  success: boolean;
+  approvedSteps: number;
+  skippedSteps: number;
+  failedSteps: number;
+  rolledBack: boolean;
+  safetyScore: number;
+}
+
+export interface ExecutionPreview {
+  planId: string;
+  totalSteps: number;
+  safeSteps: number;
+  riskySteps: number;
+  affectedFiles: string[];
+  estimatedImpact: 'minimal' | 'moderate' | 'significant' | 'major';
+  diffSummary: {
+    additions: number;
+    deletions: number;
+    filesChanged: number;
+  };
+  rollbackAvailable: boolean;
+}
+
+export interface RollbackPreview {
+  stepId: string;
+  canRollback: boolean;
+  originalContent?: string;
+  newContent?: string;
+  affectedFiles: string[];
+  snapshotTimestamp: number;
+}
+
+// ---- Streaming Metrics ----
+
+export interface StreamingMetrics {
+  tokenCount: number;
+  tokensPerSecond: number;
+  durationMs: number;
 }
 
 // ---- Global Window Declaration ----
