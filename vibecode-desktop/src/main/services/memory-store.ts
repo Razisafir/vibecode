@@ -1,4 +1,12 @@
-import * as fs from 'fs';
+import {
+  kernelFsExistsInternal,
+  kernelFsReadSync,
+  kernelFsReaddirInternalSync,
+  kernelFsStatSync,
+  kernelFsWriteInternalSync,
+  kernelFsAppendInternalSync,
+  kernelFsMkdirInternalSync,
+} from '../kernel/kernel-fs';
 import * as path from 'path';
 import * as os from 'os';
 import { v4 as uuidv4 } from 'uuid';
@@ -607,21 +615,21 @@ export class MemoryStore {
 
   /** Build the lightweight index by scanning file metadata (not full content) */
   private buildIndex(): void {
-    if (!fs.existsSync(this.baseDir)) return;
+    if (!kernelFsExistsInternal(this.baseDir)) return;
 
-    const files = fs.readdirSync(this.baseDir).filter((f) => f.endsWith(FILE_EXTENSION));
+    const files = kernelFsReaddirInternalSync(this.baseDir).filter((f) => f.endsWith(FILE_EXTENSION));
 
     for (const file of files) {
       const filePath = path.join(this.baseDir, file);
       try {
-        const stat = fs.statSync(filePath);
+        const stat = kernelFsStatSync(filePath);
 
         // Efficiently count lines and extract projectId from first line only
         // without parsing every entry into memory
         let lineCount = 0;
         let projectId: string | undefined;
 
-        const content = fs.readFileSync(filePath, 'utf-8');
+        const content = kernelFsReadSync(filePath);
         let firstLine: string | null = null;
 
         // Count non-empty lines and capture the first one
@@ -689,9 +697,9 @@ export class MemoryStore {
     const invertedIndex = new Map<string, Set<string>>();
     const deletedIds = new Set<string>();
 
-    if (fs.existsSync(filePath)) {
+    if (kernelFsExistsInternal(filePath)) {
       try {
-        const content = fs.readFileSync(filePath, 'utf-8');
+        const content = kernelFsReadSync(filePath);
         const lines = content.split('\n').filter((line) => line.trim());
 
         for (const line of lines) {
@@ -952,7 +960,7 @@ export class MemoryStore {
     const filePath = this.getProjectFilePath(entry.projectId);
     try {
       const line = JSON.stringify(entry) + '\n';
-      fs.appendFileSync(filePath, line, 'utf-8');
+      kernelFsAppendInternalSync(filePath, line, 'utf-8');
     } catch (err) {
       console.error(`[MemoryStore] Failed to append entry to project ${entry.projectId}:`, err);
     }
@@ -1007,10 +1015,10 @@ export class MemoryStore {
     const lines = entries.map((e) => JSON.stringify(e));
 
     try {
-      fs.writeFileSync(filePath, lines.join('\n') + '\n', 'utf-8');
+      kernelFsWriteInternalSync(filePath, lines.join('\n') + '\n', 'utf-8');
 
       // Update index
-      const stat = fs.statSync(filePath);
+      const stat = kernelFsStatSync(filePath);
       const idx = this.index.get(projectId);
       if (idx) {
         idx.count = entries.length;
@@ -1108,8 +1116,8 @@ export class MemoryStore {
   }
 
   private ensureDirectoryExists(dirPath: string): void {
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
+    if (!kernelFsExistsInternal(dirPath)) {
+      kernelFsMkdirInternalSync(dirPath);
     }
   }
 }

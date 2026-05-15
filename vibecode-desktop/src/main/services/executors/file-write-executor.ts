@@ -1,8 +1,7 @@
-import * as fs from 'fs';
 import * as path from 'path';
 import { ExecutionStep, StepExecutor } from '../execution-engine';
 import { SafetyGuard } from '../safety/runtime-safety-guard';
-import { authorizeFsOp } from '../../core/execution-audit';
+import { kernelFsExistsAsync, kernelFsWrite } from '../../kernel/kernel-fs';
 
 // ─── Path Validation ──────────────────────────────────────────────────────────
 
@@ -74,28 +73,18 @@ export const createFileWriteExecutor = (workspaceRoot: string): StepExecutor => 
     const absolutePath = validateWorkspacePath(params.filePath, workspaceRoot);
 
     // ── Check if file already exists ──────────────────────────────────────
-    let exists = false;
-    try {
-      await fs.promises.access(absolutePath, fs.constants.F_OK);
-      exists = true;
-    } catch {
-      // File does not exist
-    }
+    const exists = await kernelFsExistsAsync(absolutePath);
 
-    // ── Create parent directories if needed ───────────────────────────────
-    if (createDirs) {
-      const dir = path.dirname(absolutePath);
-      await fs.promises.mkdir(dir, { recursive: true });
-    }
+    // ── Write the file via kernel (handles mkdir + audit authorization) ──
+    const writeResult = await kernelFsWrite({
+      nodeId: step.id,
+      filePath: absolutePath,
+      content: params.content,
+      encoding,
+      createDirs,
+    });
 
-    // ARC 15: Authorize FS write through the audit system
-    // This step IS an ExecutionNode (part of a plan), so it's authorized
-    authorizeFsOp(params.filePath, step.id, 'write');
-
-    // ── Write the file ────────────────────────────────────────────────────
-    await fs.promises.writeFile(absolutePath, params.content, encoding);
-
-    const bytesWritten = Buffer.byteLength(params.content, encoding);
+    const bytesWritten = writeResult.bytesWritten;
 
     return {
       filePath: params.filePath,

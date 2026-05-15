@@ -1,6 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
-import * as fs from 'fs';
 import * as path from 'path';
+import {
+  kernelFsExistsInternal,
+  kernelFsReadSync,
+  kernelFsMkdirInternalSync,
+  kernelFsWriteInternalSync,
+} from '../kernel/kernel-fs';
 import { ExecutionEngine, ExecutionPlan, ExecutionStep, ExecutionEvent } from './execution-engine';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -476,8 +481,8 @@ export class ExecutionQueue {
 
   private loadHistory(): void {
     try {
-      if (fs.existsSync(HISTORY_FILE)) {
-        const data = fs.readFileSync(HISTORY_FILE, 'utf-8');
+      if (kernelFsExistsInternal(HISTORY_FILE)) {
+        const data = kernelFsReadSync(HISTORY_FILE, 'utf-8');
         this.history = JSON.parse(data) as ExecutionHistoryEntry[];
       }
     } catch (err) {
@@ -489,10 +494,10 @@ export class ExecutionQueue {
   private saveHistory(): void {
     try {
       const dir = path.dirname(HISTORY_FILE);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+      if (!kernelFsExistsInternal(dir)) {
+        kernelFsMkdirInternalSync(dir);
       }
-      fs.writeFileSync(HISTORY_FILE, JSON.stringify(this.history, null, 2), 'utf-8');
+      kernelFsWriteInternalSync(HISTORY_FILE, JSON.stringify(this.history, null, 2), 'utf-8');
     } catch (err) {
       console.error('[ExecutionQueue] Failed to save history:', err);
     }

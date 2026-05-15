@@ -14,7 +14,14 @@
  */
 
 import { app } from 'electron';
-import * as fs from 'fs';
+import {
+  kernelFsExistsInternal,
+  kernelFsReadSync,
+  kernelFsMkdirInternalSync,
+  kernelFsWriteInternalSync,
+  kernelFsAppendInternalSync,
+  kernelFsDeleteInternalSync,
+} from '../kernel/kernel-fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { logger } from '../utils/logger';
@@ -83,8 +90,8 @@ export class AnalyticsService {
 
   private loadConfig(): void {
     try {
-      if (fs.existsSync(this.configPath)) {
-        const data = fs.readFileSync(this.configPath, 'utf8');
+      if (kernelFsExistsInternal(this.configPath)) {
+        const data = kernelFsReadSync(this.configPath);
         const saved = JSON.parse(data);
         this.config = { ...this.getDefaultConfig(), ...saved };
       }
@@ -96,10 +103,10 @@ export class AnalyticsService {
   private saveConfig(): void {
     try {
       const configDir = path.dirname(this.configPath);
-      if (!fs.existsSync(configDir)) {
-        fs.mkdirSync(configDir, { recursive: true });
+      if (!kernelFsExistsInternal(configDir)) {
+        kernelFsMkdirInternalSync(configDir);
       }
-      fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
+      kernelFsWriteInternalSync(this.configPath, JSON.stringify(this.config, null, 2));
     } catch (err) {
       logger.error('analytics', 'Failed to save analytics config', { error: String(err) });
     }
@@ -345,13 +352,13 @@ export class AnalyticsService {
     // Store locally for transparency
     try {
       const analyticsDir = path.join(app.getPath('userData'), 'analytics');
-      if (!fs.existsSync(analyticsDir)) {
-        fs.mkdirSync(analyticsDir, { recursive: true });
+      if (!kernelFsExistsInternal(analyticsDir)) {
+        kernelFsMkdirInternalSync(analyticsDir);
       }
       const date = new Date().toISOString().split('T')[0];
       const logPath = path.join(analyticsDir, `events-${date}.jsonl`);
       const lines = this.eventQueue.map(e => JSON.stringify(e)).join('\n') + '\n';
-      fs.appendFileSync(logPath, lines);
+      kernelFsAppendInternalSync(logPath, lines);
     } catch {
       // Best-effort persistence
     }
@@ -362,8 +369,8 @@ export class AnalyticsService {
   private clearLocalData(): void {
     try {
       const analyticsDir = path.join(app.getPath('userData'), 'analytics');
-      if (fs.existsSync(analyticsDir)) {
-        fs.rmSync(analyticsDir, { recursive: true, force: true });
+      if (kernelFsExistsInternal(analyticsDir)) {
+        kernelFsDeleteInternalSync(analyticsDir, { recursive: true });
       }
     } catch {
       // Best-effort cleanup

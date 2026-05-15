@@ -7,7 +7,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
-import * as fs from 'fs';
+import {
+  kernelFsExists,
+  kernelFsStatSync,
+  kernelFsReaddirSync,
+} from '../kernel/kernel-fs';
 import * as path from 'path';
 // ARC 12: Import ESM workspace setter instead of legacy execution-handlers
 import { getStateMachine } from './state-machine-handlers';
@@ -84,8 +88,8 @@ export function registerWorkspaceHandlers(): void {
       if (!pathV.success) return err(pathV.error!);
 
       const resolved = path.resolve(workspacePath);
-      if (!fs.existsSync(resolved)) return err(`Workspace path not found: ${resolved}`);
-      const stat = fs.statSync(resolved);
+      if (!kernelFsExists(resolved)) return err(`Workspace path not found: ${resolved}`);
+      const stat = kernelFsStatSync(resolved);
       if (!stat.isDirectory()) return err(`Path is not a directory: ${resolved}`);
 
       // Use the deep analyzer with caching
@@ -121,8 +125,8 @@ export function registerWorkspaceHandlers(): void {
       if (!pathV.success) return err(pathV.error!);
 
       const resolved = path.resolve(selectedPath);
-      if (!fs.existsSync(resolved)) return err(`Workspace path not found: ${resolved}`);
-      const stat = fs.statSync(resolved);
+      if (!kernelFsExists(resolved)) return err(`Workspace path not found: ${resolved}`);
+      const stat = kernelFsStatSync(resolved);
       if (!stat.isDirectory()) return err(`Path is not a directory: ${resolved}`);
 
       const info = analyzeWorkspace(resolved);
@@ -199,8 +203,8 @@ export function registerWorkspaceHandlers(): void {
       if (!pathV.success) return err(pathV.error!);
 
       const resolved = path.resolve(wsPath);
-      if (!fs.existsSync(resolved)) return err(`Workspace path not found: ${resolved}`);
-      const stat = fs.statSync(resolved);
+      if (!kernelFsExists(resolved)) return err(`Workspace path not found: ${resolved}`);
+      const stat = kernelFsStatSync(resolved);
       if (!stat.isDirectory()) return err(`Path is not a directory: ${resolved}`);
 
       const info = analyzeWorkspace(resolved);
@@ -274,8 +278,8 @@ function analyzeWorkspace(rootPath: string): WorkspaceInfo {
 
   function walk(dir: string, depth: number) {
     if (depth > 3) return;
-    let entries: fs.Dirent[];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    let entries: ReturnType<typeof kernelFsReaddirSync>;
+    try { entries = kernelFsReaddirSync(dir); } catch { return; }
 
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
@@ -288,7 +292,7 @@ function analyzeWorkspace(rootPath: string): WorkspaceInfo {
       } else if (entry.isFile()) {
         files.push(relativePath);
         totalFiles++;
-        try { const stat = fs.statSync(fullPath); totalSize += stat.size; } catch { /* Permission denied */ }
+        try { const stat = kernelFsStatSync(fullPath); totalSize += stat.size; } catch { /* Permission denied */ }
         const ext = path.extname(entry.name).toLowerCase();
         const lang = LANGUAGE_EXTENSIONS[ext];
         if (lang) { languages[lang] = (languages[lang] ?? 0) + 1; }
@@ -299,17 +303,17 @@ function analyzeWorkspace(rootPath: string): WorkspaceInfo {
   walk(rootPath, 0);
 
   let type: WorkspaceInfo['type'] = 'generic';
-  if (fs.existsSync(path.join(rootPath, 'package.json'))) type = 'node';
-  else if (fs.existsSync(path.join(rootPath, 'requirements.txt')) || fs.existsSync(path.join(rootPath, 'pyproject.toml'))) type = 'python';
-  else if (fs.existsSync(path.join(rootPath, 'Cargo.toml'))) type = 'rust';
-  else if (fs.existsSync(path.join(rootPath, 'go.mod'))) type = 'go';
-  else if (fs.existsSync(path.join(rootPath, 'pom.xml')) || fs.existsSync(path.join(rootPath, 'build.gradle'))) type = 'java';
+  if (kernelFsExists(path.join(rootPath, 'package.json'))) type = 'node';
+  else if (kernelFsExists(path.join(rootPath, 'requirements.txt')) || kernelFsExists(path.join(rootPath, 'pyproject.toml'))) type = 'python';
+  else if (kernelFsExists(path.join(rootPath, 'Cargo.toml'))) type = 'rust';
+  else if (kernelFsExists(path.join(rootPath, 'go.mod'))) type = 'go';
+  else if (kernelFsExists(path.join(rootPath, 'pom.xml')) || kernelFsExists(path.join(rootPath, 'build.gradle'))) type = 'java';
 
   return {
     rootPath, name, type,
-    hasGit: fs.existsSync(path.join(rootPath, '.git')),
-    hasPackageJson: fs.existsSync(path.join(rootPath, 'package.json')),
-    hasReadme: fs.existsSync(path.join(rootPath, 'README.md')) || fs.existsSync(path.join(rootPath, 'readme.md')),
+    hasGit: kernelFsExists(path.join(rootPath, '.git')),
+    hasPackageJson: kernelFsExists(path.join(rootPath, 'package.json')),
+    hasReadme: kernelFsExists(path.join(rootPath, 'README.md')) || kernelFsExists(path.join(rootPath, 'readme.md')),
     files: files.slice(0, 500),
     directories: directories.slice(0, 200),
     languages, totalFiles, totalSize,
@@ -331,8 +335,8 @@ function searchFiles(rootPath: string, pattern: string, maxResults: number): Fil
 
   function walk(dir: string) {
     if (results.length >= maxResults) return;
-    let entries: fs.Dirent[];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    let entries: ReturnType<typeof kernelFsReaddirSync>;
+    try { entries = kernelFsReaddirSync(dir); } catch { return; }
 
     for (const entry of entries) {
       if (results.length >= maxResults) break;
@@ -365,8 +369,8 @@ function fuzzySearchFiles(rootPath: string, query: string, maxResults: number): 
   const queryChars = lowerQuery.split('');
 
   function walk(dir: string) {
-    let entries: fs.Dirent[];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    let entries: ReturnType<typeof kernelFsReaddirSync>;
+    try { entries = kernelFsReaddirSync(dir); } catch { return; }
 
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);

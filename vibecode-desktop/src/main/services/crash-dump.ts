@@ -5,7 +5,14 @@
 // Max 10 crash dumps, auto-cleans oldest.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import * as fs from 'fs';
+import {
+  kernelFsExistsInternal,
+  kernelFsReadSync,
+  kernelFsReaddirInternalSync,
+  kernelFsMkdirInternal,
+  kernelFsWriteInternal,
+  kernelFsDeleteInternal,
+} from '../kernel/kernel-fs';
 import * as path from 'path';
 import * as os from 'os';
 import { telemetry } from './telemetry';
@@ -90,7 +97,7 @@ class CrashDumpService {
   /** Generate a crash dump file and return its path */
   async generateCrashDump(error: Error, context?: Record<string, unknown>): Promise<string> {
     // Ensure directory exists
-    await fs.promises.mkdir(CRASH_DUMPS_DIR, { recursive: true });
+    await kernelFsMkdirInternal(CRASH_DUMPS_DIR);
 
     const metrics = telemetry.getMetrics();
     const recentIpcCalls = telemetry.getRecentIpcCalls(20);
@@ -117,7 +124,7 @@ class CrashDumpService {
     const filename = `crash-${Date.now()}.json`;
     const filePath = path.join(CRASH_DUMPS_DIR, filename);
 
-    await fs.promises.writeFile(filePath, JSON.stringify(dump, null, 2), 'utf-8');
+    await kernelFsWriteInternal(filePath, JSON.stringify(dump, null, 2), 'utf-8');
 
     // Clean up old crash dumps
     await this.cleanOldDumps();
@@ -128,8 +135,8 @@ class CrashDumpService {
   /** Check if any crash dumps exist (for safe mode detection) */
   hasCrashDumps(): boolean {
     try {
-      if (!fs.existsSync(CRASH_DUMPS_DIR)) return false;
-      const files = fs.readdirSync(CRASH_DUMPS_DIR);
+      if (!kernelFsExistsInternal(CRASH_DUMPS_DIR)) return false;
+      const files = kernelFsReaddirInternalSync(CRASH_DUMPS_DIR);
       return files.some((f) => CRASH_DUMP_FILE_PATTERN.test(f));
     } catch {
       return false;
@@ -139,9 +146,9 @@ class CrashDumpService {
   /** Get list of crash dumps (newest first) */
   listCrashDumps(): CrashDump[] {
     try {
-      if (!fs.existsSync(CRASH_DUMPS_DIR)) return [];
+      if (!kernelFsExistsInternal(CRASH_DUMPS_DIR)) return [];
 
-      const files = fs.readdirSync(CRASH_DUMPS_DIR)
+      const files = kernelFsReaddirInternalSync(CRASH_DUMPS_DIR)
         .filter((f) => CRASH_DUMP_FILE_PATTERN.test(f))
         .sort()
         .reverse(); // Newest first
@@ -149,7 +156,7 @@ class CrashDumpService {
       const dumps: CrashDump[] = [];
       for (const file of files) {
         try {
-          const content = fs.readFileSync(path.join(CRASH_DUMPS_DIR, file), 'utf-8');
+          const content = kernelFsReadSync(path.join(CRASH_DUMPS_DIR, file));
           dumps.push(JSON.parse(content));
         } catch {
           // Skip unreadable files
@@ -165,13 +172,13 @@ class CrashDumpService {
   /** Delete all crash dumps */
   async clearCrashDumps(): Promise<void> {
     try {
-      if (!fs.existsSync(CRASH_DUMPS_DIR)) return;
+      if (!kernelFsExistsInternal(CRASH_DUMPS_DIR)) return;
 
-      const files = fs.readdirSync(CRASH_DUMPS_DIR)
+      const files = kernelFsReaddirInternalSync(CRASH_DUMPS_DIR)
         .filter((f) => CRASH_DUMP_FILE_PATTERN.test(f));
 
       for (const file of files) {
-        await fs.promises.unlink(path.join(CRASH_DUMPS_DIR, file));
+        await kernelFsDeleteInternal(path.join(CRASH_DUMPS_DIR, file));
       }
     } catch {
       // Best-effort cleanup
@@ -188,14 +195,14 @@ class CrashDumpService {
   /** Remove oldest crash dumps if we exceed MAX_CRASH_DUMPS */
   private async cleanOldDumps(): Promise<void> {
     try {
-      const files = fs.readdirSync(CRASH_DUMPS_DIR)
+      const files = kernelFsReaddirInternalSync(CRASH_DUMPS_DIR)
         .filter((f) => CRASH_DUMP_FILE_PATTERN.test(f))
         .sort(); // Oldest first
 
       while (files.length > MAX_CRASH_DUMPS) {
         const oldest = files.shift();
         if (oldest) {
-          await fs.promises.unlink(path.join(CRASH_DUMPS_DIR, oldest));
+          await kernelFsDeleteInternal(path.join(CRASH_DUMPS_DIR, oldest));
         }
       }
     } catch {

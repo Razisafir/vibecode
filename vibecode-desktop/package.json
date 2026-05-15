@@ -17,7 +17,8 @@
   "scripts": {
     "_comment_core": "--- CORE COMMANDS (use these daily) ---",
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
-    "build": "tsc -p tsconfig.main.json && vite build && tsc -p tsconfig.preload.json",
+    "firewall": "npx ts-node scripts/import-firewall.ts",
+    "build": "npm run firewall && tsc -p tsconfig.main.json && vite build && tsc -p tsconfig.preload.json",
     "test": "vitest run",
     "lint": "eslint src/ --max-warnings=10",
     "_comment_preview": "--- PREVIEW LAYER (supervised process mode) ---",
@@ -36,7 +37,7 @@
     "_comment_diag": "--- DIAGNOSTICS (CI & repo integrity) ---",
     "status": "node scripts/status.cjs",
     "status:json": "node scripts/status.cjs -- --json",
-    "ci": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "ci": "npm run firewall && npm run typecheck && npm run lint && npm run test && npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.preload.json",
     "check:env": "bash scripts/check-no-env-staged.sh",
     "check:secrets": "bash scripts/check-no-secrets-staged.sh",

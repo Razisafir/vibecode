@@ -1,8 +1,7 @@
-import * as fs from 'fs';
 import * as path from 'path';
 import { ExecutionStep, StepExecutor } from '../execution-engine';
 import { validateWorkspacePath } from './file-write-executor';
-import { authorizeFsOp } from '../../core/execution-audit';
+import { kernelFsWrite } from '../../kernel/kernel-fs';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,20 +75,17 @@ export const createCodeGenerationExecutor = (workspaceRoot: string): StepExecuto
     const encoding: BufferEncoding = params.encoding ?? 'utf-8';
     const createDirs = params.createDirs !== false; // default true
 
-    // ── Create parent directories if needed ───────────────────────────────
-    if (createDirs) {
-      const dir = path.dirname(absolutePath);
-      await fs.promises.mkdir(dir, { recursive: true });
-    }
-
-    // ARC 16: Authorize this FS write in the audit system
-    authorizeFsOp(absolutePath, step.id, 'write');
-
-    // ── Write the file ────────────────────────────────────────────────────
-    await fs.promises.writeFile(absolutePath, params.content, encoding);
+    // ── Write the file via kernel (handles mkdir + audit authorization) ──
+    const writeResult = await kernelFsWrite({
+      nodeId: step.id,
+      filePath: absolutePath,
+      content: params.content,
+      encoding,
+      createDirs,
+    });
 
     const linesGenerated = params.content.split('\n').length;
-    const bytesWritten = Buffer.byteLength(params.content, encoding);
+    const bytesWritten = writeResult.bytesWritten;
 
     return {
       filePath: params.filePath,

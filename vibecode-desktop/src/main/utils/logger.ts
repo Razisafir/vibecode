@@ -3,7 +3,14 @@
 // category-based filtering. Writes to ~/.vibecode/logs/ with 5MB rotation.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import * as fs from 'fs';
+import {
+  kernelFsAppendInternalSync,
+  kernelFsMkdirInternalSync,
+  kernelFsExistsInternal,
+  kernelFsStatSync,
+  kernelFsDeleteInternalSync,
+  kernelFsRenameInternalSync,
+} from '../kernel/kernel-fs';
 import * as path from 'path';
 import * as os from 'os';
 
@@ -177,7 +184,7 @@ class StructuredLogger {
     try {
       this.rotateIfNeeded();
       const line = JSON.stringify(entry) + '\n';
-      fs.appendFileSync(LOG_FILE, line, 'utf-8');
+      kernelFsAppendInternalSync(LOG_FILE, line);
     } catch {
       // Best-effort disk write
     }
@@ -185,9 +192,9 @@ class StructuredLogger {
 
   private rotateIfNeeded(): void {
     try {
-      if (!fs.existsSync(LOG_FILE)) return;
+      if (!kernelFsExistsInternal(LOG_FILE)) return;
 
-      const stats = fs.statSync(LOG_FILE);
+      const stats = kernelFsStatSync(LOG_FILE);
       if (stats.size < MAX_LOG_SIZE_BYTES) return;
 
       // Rotate: .2 → delete, .1 → .2, .0 → .1, current → .0
@@ -197,12 +204,12 @@ class StructuredLogger {
         const currentPath = path.join(LOGS_DIR, `vibecode.log${suffix}`);
         const nextPath = path.join(LOGS_DIR, `vibecode.log${nextSuffix}`);
 
-        if (fs.existsSync(currentPath)) {
+        if (kernelFsExistsInternal(currentPath)) {
           if (i === MAX_LOG_FILES - 1) {
             // Delete the oldest
-            fs.unlinkSync(currentPath);
+            kernelFsDeleteInternalSync(currentPath);
           } else {
-            fs.renameSync(currentPath, nextPath);
+            kernelFsRenameInternalSync(currentPath, nextPath);
           }
         }
       }
@@ -213,8 +220,8 @@ class StructuredLogger {
 
   private ensureLogDirectory(): void {
     try {
-      if (!fs.existsSync(LOGS_DIR)) {
-        fs.mkdirSync(LOGS_DIR, { recursive: true });
+      if (!kernelFsExistsInternal(LOGS_DIR)) {
+        kernelFsMkdirInternalSync(LOGS_DIR);
       }
     } catch {
       // Directory creation failure is non-fatal

@@ -11,7 +11,12 @@
 // - Default provider selection
 // ─────────────────────────────────────────────────────────────────────────────
 
-import fs from 'fs';
+import {
+  kernelFsExistsInternal,
+  kernelFsReadSync,
+  kernelFsWriteInternalSync,
+  kernelFsRenameInternalSync,
+} from '../kernel/kernel-fs';
 import path from 'path';
 import { getProvidersConfigPath, ensureDirectories } from '../utils/paths';
 import { maskKey } from './secrets-store';
@@ -138,14 +143,14 @@ export class ProviderStore {
     if (this.loaded) return;
 
     try {
-      if (!fs.existsSync(this.filePath)) {
+      if (!kernelFsExistsInternal(this.filePath)) {
         // No file yet — seed defaults
         this.seedDefaults();
         this.loaded = true;
         return;
       }
 
-      const raw = fs.readFileSync(this.filePath, 'utf-8');
+      const raw = kernelFsReadSync(this.filePath);
       const data: ProviderStoreData = JSON.parse(raw);
 
       if (data.providers && Array.isArray(data.providers)) {
@@ -206,8 +211,8 @@ export class ProviderStore {
 
       // Write atomically via temp file
       const tmpPath = this.filePath + '.tmp';
-      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
-      fs.renameSync(tmpPath, this.filePath);
+      kernelFsWriteInternalSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+      kernelFsRenameInternalSync(tmpPath, this.filePath);
 
       logger.debug('provider', `Saved ${providers.length} providers`);
     } catch (error) {

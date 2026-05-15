@@ -6,7 +6,12 @@
 // Keys are never logged in full — only masked versions are displayed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import fs from 'fs';
+import {
+  kernelFsExistsInternal,
+  kernelFsReadSync,
+  kernelFsWriteInternalSync,
+  kernelFsRenameInternalSync,
+} from '../kernel/kernel-fs';
 import path from 'path';
 import { getSecretsConfigPath, ensureDirectories } from '../utils/paths';
 import { logger } from '../utils/logger';
@@ -96,12 +101,12 @@ export class SecretsStore {
     if (this.loaded) return;
 
     try {
-      if (!fs.existsSync(this.filePath)) {
+      if (!kernelFsExistsInternal(this.filePath)) {
         this.loaded = true;
         return;
       }
 
-      const raw = fs.readFileSync(this.filePath, 'utf-8');
+      const raw = kernelFsReadSync(this.filePath);
       const data: SecretsData = JSON.parse(raw);
 
       if (data.secrets && typeof data.secrets === 'object') {
@@ -170,8 +175,8 @@ export class SecretsStore {
 
       // Write atomically via temp file
       const tmpPath = this.filePath + '.tmp';
-      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
-      fs.renameSync(tmpPath, this.filePath);
+      kernelFsWriteInternalSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+      kernelFsRenameInternalSync(tmpPath, this.filePath);
 
       logger.debug('provider', `Saved ${this.secrets.size} secrets`);
     } catch (err) {

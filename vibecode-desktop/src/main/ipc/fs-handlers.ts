@@ -1,9 +1,23 @@
 import { ipcMain } from 'electron';
-import * as fs from 'fs';
 import * as path from 'path';
 import { pathSandbox } from '../services/path-sandbox';
 import { logger } from '../utils/logger';
 import { checkFsAuthorization } from '../core/execution-audit';
+// ─── ARC 17: Kernel FS imports (import wall enforcement) ─────────────────────
+// ALL fs operations MUST go through the kernel. No direct `import * as fs` allowed.
+import {
+  kernelFsReadSync,
+  kernelFsStatSync,
+  kernelFsReaddirSync,
+  kernelFsExists,
+  kernelFsWatch,
+  kernelFsWriteInternalSync,
+  kernelFsMkdirInternalSync,
+  kernelFsDeleteInternalSync,
+  kernelFsRenameInternalSync,
+  type KernelFsStats,
+  type KernelFsFSWatcher,
+} from '../kernel/kernel-fs';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -24,7 +38,7 @@ function err(message: string): IpcResult {
 // ─── Active Watchers ────────────────────────────────────────────────────────
 
 interface WatcherEntry {
-  watcher: fs.FSWatcher;
+  watcher: KernelFsFSWatcher;
   webContentsId: number;
 }
 
@@ -85,11 +99,11 @@ export function registerFsHandlers(): void {
       const resolved = path.resolve(rootPath);
 
       // Validate that the path exists and is a directory
-      if (!fs.existsSync(resolved)) {
+      if (!kernelFsExists(resolved)) {
         return err(`Workspace path does not exist: ${resolved}`);
       }
 
-      const stat = fs.statSync(resolved);
+      const stat = kernelFsStatSync(resolved);
       if (!stat.isDirectory()) {
         return err(`Workspace path is not a directory: ${resolved}`);
       }
@@ -110,11 +124,11 @@ export function registerFsHandlers(): void {
       if ('success' in validation) return validation;
       const resolved = validation.resolvedPath;
 
-      if (!fs.existsSync(resolved)) {
+      if (!kernelFsExists(resolved)) {
         return err(`File not found: ${resolved}`);
       }
 
-      const content = fs.readFileSync(resolved, encoding);
+      const content = kernelFsReadSync(resolved, encoding);
       return ok({ path: resolved, content, encoding });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));
@@ -125,6 +139,11 @@ export function registerFsHandlers(): void {
   // FS writes are now DERIVATIVE — they ONLY happen as side effects of
   // ExecutionNode execution. If no gateway-authorized node exists, the
   // audit system will flag it as a bypass.
+  //
+  // Note: Uses kernelFsWriteInternalSync because the IPC handler already
+  // enforces authorization via checkFsAuthorization(). The "internal" kernel
+  // functions bypass the nodeId assertion, which is correct here — the IPC
+  // layer IS the authorization layer for these backward-compatible handlers.
   ipcMain.handle(
     'fs:writeFile',
     async (_event, filePath: string, content: string, encoding: BufferEncoding = 'utf-8') => {
@@ -141,15 +160,12 @@ export function registerFsHandlers(): void {
         const resolved = validation.resolvedPath;
         const dir = path.dirname(resolved);
 
-        // Ensure directory exists (and is within sandbox)
+        // Ensure directory is within sandbox (kernelFsWriteInternalSync handles creation)
         const dirValidation = validateOrFail(dir);
         if ('success' in dirValidation) return dirValidation;
 
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-
-        fs.writeFileSync(resolved, content, encoding);
+        // kernelFsWriteInternalSync creates parent dirs and writes the file
+        kernelFsWriteInternalSync(resolved, content, encoding);
         return ok({ path: resolved, bytesWritten: Buffer.byteLength(content, encoding) });
       } catch (error) {
         return err(error instanceof Error ? error.message : String(error));
@@ -164,22 +180,22 @@ export function registerFsHandlers(): void {
       if ('success' in validation) return validation;
       const resolved = validation.resolvedPath;
 
-      if (!fs.existsSync(resolved)) {
+      if (!kernelFsExists(resolved)) {
         return err(`Directory not found: ${resolved}`);
       }
 
-      const stat = fs.statSync(resolved);
+      const stat = kernelFsStatSync(resolved);
       if (!stat.isDirectory()) {
         return err(`Path is not a directory: ${resolved}`);
       }
 
-      const entries = fs.readdirSync(resolved, { withFileTypes: true });
+      const entries = kernelFsReaddirSync(resolved);
       const items = entries.map((entry) => {
         const fullPath = path.join(resolved, entry.name);
-        let entryStat: fs.Stats | null = null;
+        let entryStat: KernelFsStats | null = null;
 
         try {
-          entryStat = fs.statSync(fullPath);
+          entryStat = kernelFsStatSync(fullPath);
         } catch {
           // Permission denied or other stat error
         }
@@ -225,7 +241,7 @@ export function registerFsHandlers(): void {
         }
       }
 
-      const watcher = fs.watch(
+      const watcher = kernelFsWatch(
         resolved,
         { recursive: true, persistent: true },
         (eventName, changedPath) => {
@@ -294,7 +310,7 @@ export function registerFsHandlers(): void {
 
       const watchId = `watch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-      const watcher = fs.watch(
+      const watcher = kernelFsWatch(
         resolved,
         { recursive: true, persistent: true },
         (eventName, changedPath) => {
@@ -363,11 +379,11 @@ export function registerFsHandlers(): void {
       if ('success' in validation) return validation;
       const resolved = validation.resolvedPath;
 
-      if (!fs.existsSync(resolved)) {
+      if (!kernelFsExists(resolved)) {
         return err(`Path not found: ${resolved}`);
       }
 
-      const stat = fs.statSync(resolved);
+      const stat = kernelFsStatSync(resolved);
 
       return ok({
         path: resolved,
@@ -386,6 +402,8 @@ export function registerFsHandlers(): void {
   });
 
   // ── fs:mkdir (ARC 15: Gateway-enforced) ───────────────────────────────
+  // Note: Uses kernelFsMkdirInternalSync because the IPC handler already
+  // enforces authorization via checkFsAuthorization(). See fs:writeFile comment.
   ipcMain.handle('fs:mkdir', async (_event, dirPath: string, options?: { recursive?: boolean }) => {
     try {
       // ARC 15: Check if this mkdir was authorized by the gateway
@@ -399,11 +417,11 @@ export function registerFsHandlers(): void {
       if ('success' in validation) return validation;
       const resolved = validation.resolvedPath;
 
-      if (fs.existsSync(resolved)) {
+      if (kernelFsExists(resolved)) {
         return err(`Directory already exists: ${resolved}`);
       }
 
-      fs.mkdirSync(resolved, { recursive: options?.recursive ?? true });
+      kernelFsMkdirInternalSync(resolved, options?.recursive ?? true);
       return ok({ path: resolved, created: true });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));
@@ -411,6 +429,8 @@ export function registerFsHandlers(): void {
   });
 
   // ── fs:delete (ARC 15: Gateway-enforced) ───────────────────────────────
+  // Note: Uses kernelFsDeleteInternalSync because the IPC handler already
+  // enforces authorization via checkFsAuthorization(). See fs:writeFile comment.
   ipcMain.handle('fs:delete', async (_event, targetPath: string, options?: { recursive?: boolean }) => {
     try {
       // ARC 15: Check if this delete was authorized by the gateway
@@ -424,16 +444,16 @@ export function registerFsHandlers(): void {
       if ('success' in validation) return validation;
       const resolved = validation.resolvedPath;
 
-      if (!fs.existsSync(resolved)) {
+      if (!kernelFsExists(resolved)) {
         return err(`Path not found: ${resolved}`);
       }
 
-      const stat = fs.statSync(resolved);
+      const stat = kernelFsStatSync(resolved);
 
       if (stat.isDirectory()) {
-        fs.rmSync(resolved, { recursive: options?.recursive ?? false, force: true });
+        kernelFsDeleteInternalSync(resolved, { recursive: options?.recursive ?? false });
       } else {
-        fs.unlinkSync(resolved);
+        kernelFsDeleteInternalSync(resolved);
       }
 
       return ok({ path: resolved, deleted: true });
@@ -443,6 +463,8 @@ export function registerFsHandlers(): void {
   });
 
   // ── fs:rename (ARC 15: Gateway-enforced) ───────────────────────────────
+  // Note: Uses kernelFsRenameInternalSync because the IPC handler already
+  // enforces authorization via checkFsAuthorization(). See fs:writeFile comment.
   ipcMain.handle('fs:rename', async (_event, oldPath: string, newPath: string) => {
     try {
       // ARC 15: Check if this rename was authorized by the gateway
@@ -461,20 +483,17 @@ export function registerFsHandlers(): void {
       if ('success' in newValidation) return newValidation;
       const resolvedNew = newValidation.resolvedPath;
 
-      if (!fs.existsSync(resolvedOld)) {
+      if (!kernelFsExists(resolvedOld)) {
         return err(`Source path not found: ${resolvedOld}`);
       }
 
-      // Ensure target directory exists
+      // Ensure target directory is within sandbox
       const targetDir = path.dirname(resolvedNew);
       const dirValidation = validateOrFail(targetDir);
       if ('success' in dirValidation) return dirValidation;
 
-      if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-      }
-
-      fs.renameSync(resolvedOld, resolvedNew);
+      // kernelFsRenameInternalSync creates target dir and performs the rename
+      kernelFsRenameInternalSync(resolvedOld, resolvedNew);
       return ok({ oldPath: resolvedOld, newPath: resolvedNew, moved: true });
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));

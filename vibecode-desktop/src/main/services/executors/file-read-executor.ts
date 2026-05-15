@@ -1,6 +1,6 @@
-import * as fs from 'fs';
 import { ExecutionStep, StepExecutor } from '../execution-engine';
 import { validateWorkspacePath } from './file-write-executor';
+import { kernelFsRead, kernelFsStat } from '../../kernel/kernel-fs';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,14 +35,14 @@ export const createFileReadExecutor = (workspaceRoot: string): StepExecutor => {
     // ── Read the file ─────────────────────────────────────────────────────
     let content: string;
     try {
-      content = await fs.promises.readFile(absolutePath, encoding);
+      content = await kernelFsRead(absolutePath, encoding);
     } catch (err) {
       throw new Error(
         `file_read executor: Cannot read file "${params.filePath}": ${err instanceof Error ? err.message : String(err)}`
       );
     }
 
-    const stats = await fs.promises.stat(absolutePath);
+    const stats = await kernelFsStat(absolutePath);
 
     return {
       filePath: params.filePath,

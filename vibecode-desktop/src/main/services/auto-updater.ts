@@ -11,7 +11,12 @@ import { app, BrowserWindow, dialog } from 'electron';
 import { autoUpdater, UpdateInfo, CancellationToken } from 'electron-updater';
 import { logger } from '../utils/logger';
 import { auditLog } from '../utils/audit-log';
-import * as fs from 'fs';
+import {
+  kernelFsExistsInternal,
+  kernelFsReadSync,
+  kernelFsMkdirInternalSync,
+  kernelFsWriteInternalSync,
+} from '../kernel/kernel-fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
@@ -397,8 +402,8 @@ export class AutoUpdateService {
     try {
       const configDir = path.join(app.getPath('userData'), 'config');
       const channelFile = path.join(configDir, 'update-channel');
-      if (fs.existsSync(channelFile)) {
-        const channel = fs.readFileSync(channelFile, 'utf8').trim();
+      if (kernelFsExistsInternal(channelFile)) {
+        const channel = kernelFsReadSync(channelFile).trim();
         if (['stable', 'beta', 'nightly'].includes(channel)) {
           return channel as UpdateChannel;
         }
@@ -412,10 +417,10 @@ export class AutoUpdateService {
   private saveChannelPreference(channel: UpdateChannel): void {
     try {
       const configDir = path.join(app.getPath('userData'), 'config');
-      if (!fs.existsSync(configDir)) {
-        fs.mkdirSync(configDir, { recursive: true });
+      if (!kernelFsExistsInternal(configDir)) {
+        kernelFsMkdirInternalSync(configDir);
       }
-      fs.writeFileSync(path.join(configDir, 'update-channel'), channel);
+      kernelFsWriteInternalSync(path.join(configDir, 'update-channel'), channel);
     } catch (err) {
       logger.error('updater', 'Failed to save channel preference', { error: String(err) });
     }

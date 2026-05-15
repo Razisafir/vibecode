@@ -14,8 +14,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as path from 'path';
-import * as fs from 'fs';
-import * as fsPromises from 'fs/promises';
+import {
+  kernelFsExists,
+  kernelFsReaddir,
+  kernelFsReaddirSync,
+  kernelFsRead,
+  kernelFsAccess,
+} from '../kernel/kernel-fs';
 import { logger } from '../utils/logger';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -154,7 +159,8 @@ export async function analyzeWorkspace(workspacePath: string): Promise<Workspace
   // Read top-level directory entries
   let topEntries: string[] = [];
   try {
-    topEntries = await fsPromises.readdir(workspacePath);
+    const dirents = await kernelFsReaddir(workspacePath);
+    topEntries = dirents.map(d => d.name);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     summary.warnings.push({ severity: 'error', message: `Cannot read workspace: ${msg}` });
@@ -168,8 +174,8 @@ export async function analyzeWorkspace(workspacePath: string): Promise<Workspace
 
   function walkDir(dir: string, depth: number): void {
     if (depth > 4) return; // Limit depth for performance
-    let entries: fs.Dirent[];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    let entries;
+    try { entries = kernelFsReaddirSync(dir); } catch { return; }
 
     for (const entry of entries) {
       if (entry.isDirectory()) {
@@ -222,7 +228,7 @@ export async function analyzeWorkspace(workspacePath: string): Promise<Workspace
   let pkgJson: Record<string, any> | null = null;
   if (topEntries.includes('package.json')) {
     try {
-      const content = await fsPromises.readFile(path.join(workspacePath, 'package.json'), 'utf-8');
+      const content = await kernelFsRead(path.join(workspacePath, 'package.json'));
       if (content.length <= MAX_CONFIG_SIZE) {
         pkgJson = JSON.parse(content);
         summary.importantFiles.push({
@@ -319,7 +325,7 @@ export async function analyzeWorkspace(workspacePath: string): Promise<Workspace
     // Detect Python frameworks
     try {
       const reqContent = topEntries.includes('requirements.txt')
-        ? await fsPromises.readFile(path.join(workspacePath, 'requirements.txt'), 'utf-8')
+        ? await kernelFsRead(path.join(workspacePath, 'requirements.txt'))
         : '';
       if (reqContent.includes('django') || reqContent.includes('Django')) addFramework(summary, 'Django');
       if (reqContent.includes('flask') || reqContent.includes('Flask')) addFramework(summary, 'Flask');
@@ -387,13 +393,13 @@ export async function analyzeWorkspace(workspacePath: string): Promise<Workspace
 
   for (const [filename, reason, type] of configFiles) {
     try {
-      await fsPromises.access(path.join(workspacePath, filename));
+      await kernelFsAccess(path.join(workspacePath, filename));
       summary.importantFiles.push({ path: filename, reason, type });
     } catch { /* Not found */ }
   }
 
   // ── Detect Git ────────────────────────────────────────────────────────
-  summary.hasGit = fs.existsSync(path.join(workspacePath, '.git'));
+  summary.hasGit = kernelFsExists(path.join(workspacePath, '.git'));
 
   // ── Determine project type ────────────────────────────────────────────
   summary.projectType = detectProjectType(summary);

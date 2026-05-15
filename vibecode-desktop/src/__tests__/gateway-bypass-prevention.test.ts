@@ -21,7 +21,7 @@ import { spawn } from 'child_process';
 // ─── Import the enforcement layer ─────────────────────────────────────────
 import { checkFsAuthorization, checkTerminalAuthorization, reportMonacoBypass, reportExecBypass, clearViolations, configureAudit, getViolationCount, isAuditClean } from '../../main/core/execution-audit';
 import { ExecutionGateway } from '../../main/core/execution-gateway';
-import { kernelFsWrite, kernelFsDelete, kernelFsMkdir } from '../../main/core/kernel-fs';
+import { kernelFsWrite, kernelFsDelete, kernelFsMkdir } from '../../main/kernel/kernel-fs';
 
 // ─── Test workspace setup ────────────────────────────────────────────────
 

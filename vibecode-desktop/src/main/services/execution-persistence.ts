@@ -1,5 +1,11 @@
-import * as fs from 'fs';
 import * as path from 'path';
+import {
+  kernelFsWriteInternalSync,
+  kernelFsReadSync,
+  kernelFsReaddirInternalSync,
+  kernelFsDeleteInternalSync,
+  kernelFsMkdirInternalSync,
+} from '../kernel/kernel-fs';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -35,14 +41,14 @@ export class ExecutionPersistence {
   save(id: string, data: unknown): void {
     this.ensureDir();
     const filePath = this.getPath(id);
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    kernelFsWriteInternalSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
   }
 
   /** Load a single entry by ID */
   load(id: string): unknown | null {
     const filePath = this.getPath(id);
     try {
-      const raw = fs.readFileSync(filePath, 'utf-8');
+      const raw = kernelFsReadSync(filePath, 'utf-8');
       return JSON.parse(raw);
     } catch {
       return null;
@@ -55,11 +61,11 @@ export class ExecutionPersistence {
     const entries: unknown[] = [];
 
     try {
-      const files = fs.readdirSync(EXECUTIONS_DIR);
+      const files = kernelFsReaddirInternalSync(EXECUTIONS_DIR);
       for (const entry of files) {
         if (entry.endsWith('.json')) {
           try {
-            const raw = fs.readFileSync(path.join(EXECUTIONS_DIR, entry), 'utf-8');
+            const raw = kernelFsReadSync(path.join(EXECUTIONS_DIR, entry), 'utf-8');
             entries.push(JSON.parse(raw));
           } catch {
             // Skip corrupted files
@@ -78,7 +84,7 @@ export class ExecutionPersistence {
   delete(id: string): void {
     const filePath = this.getPath(id);
     try {
-      fs.unlinkSync(filePath);
+      kernelFsDeleteInternalSync(filePath);
     } catch {
       // File may not exist
     }
@@ -122,8 +128,7 @@ export class ExecutionPersistence {
   listIds(): string[] {
     this.ensureDir();
     try {
-      return fs
-        .readdirSync(EXECUTIONS_DIR)
+      return kernelFsReaddirInternalSync(EXECUTIONS_DIR)
         .filter((f) => f.endsWith('.json'))
         .map((f) => f.replace(/\.json$/, ''));
     } catch {
@@ -139,7 +144,7 @@ export class ExecutionPersistence {
 
   private ensureDir(): void {
     try {
-      fs.mkdirSync(EXECUTIONS_DIR, { recursive: true });
+      kernelFsMkdirInternalSync(EXECUTIONS_DIR);
     } catch {
       // May already exist or be created by another process
     }

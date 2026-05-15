@@ -3,7 +3,13 @@
 // Snapshot baselines, golden flow definitions, behavior validation
 // ============================================================
 
-import * as fs from 'fs';
+import {
+  kernelFsExistsInternal,
+  kernelFsReadSync,
+  kernelFsReaddirInternalSync,
+  kernelFsMkdirInternalSync,
+  kernelFsWriteInternalSync,
+} from '../../kernel/kernel-fs';
 import * as path from 'path';
 import { logger } from '../../utils/logger';
 
@@ -335,12 +341,12 @@ export class RegressionProtection {
   private loadBaselines(): void {
     try {
       const dir = getBaselineDir();
-      if (!fs.existsSync(dir)) return;
+      if (!kernelFsExistsInternal(dir)) return;
 
-      const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
+      const files = kernelFsReaddirInternalSync(dir).filter((f) => f.endsWith('.json'));
       for (const file of files) {
         try {
-          const data = fs.readFileSync(path.join(dir, file), 'utf-8');
+          const data = kernelFsReadSync(path.join(dir, file));
           const baseline = JSON.parse(data) as BehaviorBaseline;
           this.baselines.set(baseline.id, baseline);
         } catch {
@@ -357,9 +363,9 @@ export class RegressionProtection {
   private persistBaseline(baseline: BehaviorBaseline): void {
     try {
       const dir = getBaselineDir();
-      fs.mkdirSync(dir, { recursive: true });
+      kernelFsMkdirInternalSync(dir);
       const filePath = path.join(dir, `${baseline.id}.json`);
-      fs.writeFileSync(filePath, JSON.stringify(baseline, null, 2), 'utf-8');
+      kernelFsWriteInternalSync(filePath, JSON.stringify(baseline, null, 2), 'utf-8');
     } catch (err) {
       logger.error('regression', 'Failed to persist baseline', { error: String(err) });
     }

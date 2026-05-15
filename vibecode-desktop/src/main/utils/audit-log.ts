@@ -3,7 +3,14 @@
 // Logs security-relevant events to ~/.vibecode/audit.log
 // ============================================================
 
-import * as fs from 'fs';
+import {
+  kernelFsMkdirInternal,
+  kernelFsAppendInternal,
+  kernelFsStat,
+  kernelFsExistsInternal,
+  kernelFsDeleteInternal,
+  kernelFsRenameInternal,
+} from '../kernel/kernel-fs';
 import * as path from 'path';
 import * as os from 'os';
 import { logger } from './logger';
@@ -91,14 +98,14 @@ class AuditLogger {
 
     try {
       // Ensure directory exists
-      await fs.promises.mkdir(AUDIT_DIR, { recursive: true });
+      await kernelFsMkdirInternal(AUDIT_DIR);
 
       // Rotate if needed
       await this.rotateIfNeeded();
 
       // Append entries as JSONL
       const lines = entries.map((e) => JSON.stringify(e)).join('\n') + '\n';
-      await fs.promises.appendFile(AUDIT_FILE, lines, 'utf-8');
+      await kernelFsAppendInternal(AUDIT_FILE, lines);
     } catch (err) {
       logger.error('general', 'Failed to write audit log entries', { error: String(err), count: entries.length });
     } finally {
@@ -113,7 +120,7 @@ class AuditLogger {
 
   private async rotateIfNeeded(): Promise<void> {
     try {
-      const stat = await fs.promises.stat(AUDIT_FILE).catch(() => null);
+      const stat = await kernelFsStat(AUDIT_FILE).catch(() => null);
       if (!stat || stat.size < MAX_FILE_SIZE) return;
 
       // Rotate: audit.log → audit.log.1, audit.log.1 → audit.log.2, etc.
@@ -121,18 +128,18 @@ class AuditLogger {
         const currentPath = `${AUDIT_FILE}.${i}`;
         const nextPath = `${AUDIT_FILE}.${i + 1}`;
 
-        if (fs.existsSync(currentPath)) {
+        if (kernelFsExistsInternal(currentPath)) {
           if (i === MAX_ROTATED_FILES - 1) {
             // Delete the oldest rotation
-            await fs.promises.unlink(currentPath).catch(() => {});
+            await kernelFsDeleteInternal(currentPath);
           } else {
-            await fs.promises.rename(currentPath, nextPath).catch(() => {});
+            await kernelFsRenameInternal(currentPath, nextPath).catch(() => {});
           }
         }
       }
 
       // Move current file to .1
-      await fs.promises.rename(AUDIT_FILE, `${AUDIT_FILE}.1`).catch(() => {});
+      await kernelFsRenameInternal(AUDIT_FILE, `${AUDIT_FILE}.1`).catch(() => {});
     } catch (err) {
       logger.error('general', 'Audit log rotation failed', { error: String(err) });
     }

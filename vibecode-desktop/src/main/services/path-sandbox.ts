@@ -1,6 +1,10 @@
-import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import {
+  kernelFsRealpathSync,
+  kernelFsExists,
+  kernelFsMkdirInternalSync,
+} from '../kernel/kernel-fs';
 import { logger } from '../utils/logger';
 import { auditLog } from '../utils/audit-log';
 
@@ -250,7 +254,7 @@ export class PathSandbox {
    */
   private resolveRealPath(inputPath: string): string {
     try {
-      return fs.realpathSync(inputPath);
+      return kernelFsRealpathSync(inputPath);
     } catch {
       // Path doesn't exist — resolve parent if possible, then append basename
       const parent = path.dirname(inputPath);
@@ -258,7 +262,7 @@ export class PathSandbox {
 
       // Recursively resolve parent symlinks
       try {
-        const realParent = fs.realpathSync(parent);
+        const realParent = kernelFsRealpathSync(parent);
         return path.join(realParent, base);
       } catch {
         // Parent doesn't exist either — walk up until we find an existing ancestor
@@ -268,7 +272,7 @@ export class PathSandbox {
           parts.unshift(path.basename(currentParent));
           currentParent = path.dirname(currentParent);
           try {
-            const realAncestor = fs.realpathSync(currentParent);
+            const realAncestor = kernelFsRealpathSync(currentParent);
             return path.join(realAncestor, ...parts);
           } catch {
             continue;
@@ -398,8 +402,8 @@ export class PathSandbox {
 const defaultRoot = path.join(os.homedir(), 'vibecode-workspace');
 
 try {
-  if (!fs.existsSync(defaultRoot)) {
-    fs.mkdirSync(defaultRoot, { recursive: true });
+  if (!kernelFsExists(defaultRoot)) {
+    kernelFsMkdirInternalSync(defaultRoot);
   }
 } catch {
   // Fallback to tmpdir if home is not writable

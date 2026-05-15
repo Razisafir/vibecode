@@ -1,6 +1,9 @@
 import path from 'path';
 import os from 'os';
-import fs from 'fs';
+import {
+  kernelFsExistsInternal,
+  kernelFsMkdirInternalSync,
+} from '../kernel/kernel-fs';
 
 const VIBECODE_DIR = '.vibecode';
 
@@ -35,8 +38,8 @@ export function getSecretsConfigPath(): string {
 export function ensureDirectories(): void {
   const dirs = [getVibeCodeDir(), getMemoryDir(), getSessionsDir(), getWorkspacesDir()];
   dirs.forEach(dir => {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    if (!kernelFsExistsInternal(dir)) {
+      kernelFsMkdirInternalSync(dir);
     }
   });
 }

@@ -5,8 +5,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { v4 as uuidv4 } from 'uuid';
-import * as fs from 'fs';
 import * as path from 'path';
+import {
+  kernelFsMkdirInternalSync,
+  kernelFsWriteInternalSync,
+  kernelFsExistsInternal,
+  kernelFsReadSync,
+  kernelFsDelete,
+  kernelFsWrite,
+  kernelFsExistsAsync,
+  kernelFsRead,
+  kernelFsMkdirInternal,
+  kernelFsWriteInternal,
+  kernelFsReadInternal,
+} from '../kernel/kernel-fs';
 import { logger } from '../utils/logger';
 import { auditLog } from '../utils/audit-log';
 import { ExecutionPersistence } from './execution-persistence';
@@ -592,11 +604,11 @@ export class ExecutionStateMachine {
         process.env.VIBECODE_HOME || path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.vibecode'),
         'graph'
       );
-      fs.mkdirSync(graphDir, { recursive: true });
+      kernelFsMkdirInternalSync(graphDir);
 
       const serialized = this.serializeGraph();
       const filePath = path.join(graphDir, 'execution-graph.json');
-      fs.writeFileSync(filePath, JSON.stringify(serialized, null, 2), 'utf-8');
+      kernelFsWriteInternalSync(filePath, JSON.stringify(serialized, null, 2), 'utf-8');
 
       logger.info('state-machine', `Graph saved: ${serialized.nodes.length} nodes to ${filePath}`);
     } catch (err) {
@@ -613,12 +625,12 @@ export class ExecutionStateMachine {
       );
       const filePath = path.join(graphDir, 'execution-graph.json');
 
-      if (!fs.existsSync(filePath)) {
+      if (!kernelFsExistsInternal(filePath)) {
         logger.info('state-machine', 'No persisted graph found — starting with empty graph');
         return false;
       }
 
-      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      const data = JSON.parse(kernelFsReadSync(filePath, 'utf-8'));
 
       if (!data.nodes || !Array.isArray(data.nodes)) {
         logger.warn('state-machine', 'Persisted graph is corrupted — starting with empty graph');
@@ -1227,11 +1239,16 @@ export class ExecutionStateMachine {
     try {
       // Restore file content
       if (snapshot.filePath && snapshot.fileExisted === false) {
-        // File was created — delete it
-        await fs.promises.unlink(snapshot.filePath).catch(() => {});
+        // File was created — delete it (workspace mutation, requires nodeId)
+        await kernelFsDelete({ nodeId: stepId, filePath: snapshot.filePath });
       } else if (snapshot.filePath && snapshot.originalContent !== undefined) {
-        // File was modified — restore original
-        await fs.promises.writeFile(snapshot.filePath, snapshot.originalContent, 'utf-8');
+        // File was modified — restore original (workspace mutation, requires nodeId)
+        await kernelFsWrite({
+          nodeId: stepId,
+          filePath: snapshot.filePath,
+          content: snapshot.originalContent,
+          createDirs: true,
+        });
       }
 
       // Create a rollback node in the graph
@@ -1469,21 +1486,23 @@ export class ExecutionStateMachine {
     };
 
     try {
-      await fs.promises.access(absPath, fs.constants.F_OK);
-      snapshot.fileExisted = true;
+      const exists = await kernelFsExistsAsync(absPath);
+      snapshot.fileExisted = exists;
       snapshot.filePath = absPath;
-      snapshot.originalContent = await fs.promises.readFile(absPath, 'utf-8');
+      if (exists) {
+        snapshot.originalContent = await kernelFsRead(absPath);
+      }
     } catch {
       snapshot.fileExisted = false;
       snapshot.filePath = absPath;
     }
 
-    // Persist snapshot to disk
+    // Persist snapshot to disk (internal app data)
     try {
       const homeDir = process.env.HOME || process.env.USERPROFILE || '/tmp';
       const rollbackDir = path.join(homeDir, '.vibecode', 'rollbacks');
-      await fs.promises.mkdir(rollbackDir, { recursive: true });
-      await fs.promises.writeFile(
+      await kernelFsMkdirInternal(rollbackDir);
+      await kernelFsWriteInternal(
         path.join(rollbackDir, `${node.id}.json`),
         JSON.stringify(snapshot, null, 2),
         'utf-8'
@@ -1497,7 +1516,7 @@ export class ExecutionStateMachine {
     try {
       const homeDir = process.env.HOME || process.env.USERPROFILE || '/tmp';
       const snapshotPath = path.join(homeDir, '.vibecode', 'rollbacks', `${nodeId}.json`);
-      const data = await fs.promises.readFile(snapshotPath, 'utf-8');
+      const data = await kernelFsReadInternal(snapshotPath);
       return JSON.parse(data) as RollbackSnapshot;
     } catch {
       return null;

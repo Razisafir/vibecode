@@ -1,5 +1,8 @@
-import * as fs from 'fs';
 import * as path from 'path';
+import {
+  kernelFsExistsAsync,
+  kernelFsRead,
+} from '../kernel/kernel-fs';
 import type { ExecutionStep } from './execution-engine';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -80,8 +83,10 @@ export class DiffEngine {
     let originalContent = '';
 
     try {
-      await fs.promises.access(filePath, fs.constants.F_OK);
-      originalContent = await fs.promises.readFile(filePath, 'utf-8');
+      const exists = await kernelFsExistsAsync(filePath);
+      if (exists) {
+        originalContent = await kernelFsRead(filePath);
+      }
     } catch {
       // File doesn't exist yet — this is a creation, original is empty
       originalContent = '';

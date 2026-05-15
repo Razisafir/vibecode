@@ -1,4 +1,12 @@
-import * as fs from 'fs';
+import {
+  kernelFsExistsInternal,
+  kernelFsReadSync,
+  kernelFsReaddirInternalSync,
+  kernelFsWriteInternalSync,
+  kernelFsRenameInternalSync,
+  kernelFsDeleteInternalSync,
+  kernelFsMkdirInternalSync,
+} from '../kernel/kernel-fs';
 import * as path from 'path';
 import * as os from 'os';
 import { v4 as uuidv4 } from 'uuid';
@@ -163,10 +171,10 @@ export class SessionManager {
   /** Restore a session by ID */
   restore(sessionId: string): SessionState | null {
     const filePath = this.getFilePath(sessionId);
-    if (!fs.existsSync(filePath)) return null;
+    if (!kernelFsExistsInternal(filePath)) return null;
 
     try {
-      const raw = fs.readFileSync(filePath, 'utf-8');
+      const raw = kernelFsReadSync(filePath);
       return JSON.parse(raw) as SessionState;
     } catch (err) {
       console.error(`[SessionManager] Failed to restore session ${sessionId}:`, err);
@@ -176,16 +184,16 @@ export class SessionManager {
 
   /** List all saved sessions, sorted by most recent first */
   list(): SessionState[] {
-    if (!fs.existsSync(this.baseDir)) return [];
+    if (!kernelFsExistsInternal(this.baseDir)) return [];
 
     const sessions: SessionState[] = [];
 
-    const files = fs.readdirSync(this.baseDir).filter((f) => f.endsWith(FILE_EXTENSION));
+    const files = kernelFsReaddirInternalSync(this.baseDir).filter((f) => f.endsWith(FILE_EXTENSION));
 
     for (const file of files) {
       const filePath = path.join(this.baseDir, file);
       try {
-        const raw = fs.readFileSync(filePath, 'utf-8');
+        const raw = kernelFsReadSync(filePath);
         const state = JSON.parse(raw) as SessionState;
         sessions.push(state);
       } catch {
@@ -199,10 +207,10 @@ export class SessionManager {
   /** Delete a session by ID */
   delete(sessionId: string): boolean {
     const filePath = this.getFilePath(sessionId);
-    if (!fs.existsSync(filePath)) return false;
+    if (!kernelFsExistsInternal(filePath)) return false;
 
     try {
-      fs.unlinkSync(filePath);
+      kernelFsDeleteInternalSync(filePath);
       // Clean up auto-save timer if active
       this.stopAutoSave(sessionId);
       this.stopWorkspaceSave(sessionId);
@@ -310,10 +318,10 @@ export class SessionManager {
   /** Restore a full enhanced session by ID */
   restoreEnhanced(sessionId: string): EnhancedSessionState | null {
     const filePath = this.getFilePath(sessionId);
-    if (!fs.existsSync(filePath)) return null;
+    if (!kernelFsExistsInternal(filePath)) return null;
 
     try {
-      const raw = fs.readFileSync(filePath, 'utf-8');
+      const raw = kernelFsReadSync(filePath);
       const parsed = JSON.parse(raw);
       // Normalize to EnhancedSessionState — fill in any missing new fields
       const enhanced = this.migrateToEnhanced(parsed);
@@ -524,9 +532,9 @@ export class SessionManager {
 
   /** Get the latest enhanced session across all projects */
   getLatestEnhanced(): EnhancedSessionState | null {
-    if (!fs.existsSync(this.baseDir)) return null;
+    if (!kernelFsExistsInternal(this.baseDir)) return null;
 
-    const files = fs.readdirSync(this.baseDir).filter((f) => f.endsWith(FILE_EXTENSION));
+    const files = kernelFsReaddirInternalSync(this.baseDir).filter((f) => f.endsWith(FILE_EXTENSION));
     if (files.length === 0) return null;
 
     let latest: EnhancedSessionState | null = null;
@@ -535,7 +543,7 @@ export class SessionManager {
     for (const file of files) {
       const filePath = path.join(this.baseDir, file);
       try {
-        const raw = fs.readFileSync(filePath, 'utf-8');
+        const raw = kernelFsReadSync(filePath);
         const parsed = JSON.parse(raw);
         if (parsed.lastSaved > latestTime) {
           latestTime = parsed.lastSaved;
@@ -552,11 +560,11 @@ export class SessionManager {
   /** Archive a crashed session (rename with .archived suffix) */
   archiveCrashedSession(sessionId: string): boolean {
     const filePath = this.getFilePath(sessionId);
-    if (!fs.existsSync(filePath)) return false;
+    if (!kernelFsExistsInternal(filePath)) return false;
 
     try {
       const archivePath = this.getFilePath(`${sessionId}.archived-${Date.now()}`);
-      fs.renameSync(filePath, archivePath);
+      kernelFsRenameInternalSync(filePath, archivePath);
       this.stopAutoSave(sessionId);
       this.stopWorkspaceSave(sessionId);
       this.currentEnhancedState.delete(sessionId);
@@ -595,8 +603,8 @@ export class SessionManager {
   }
 
   private ensureDirectoryExists(dirPath: string): void {
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
+    if (!kernelFsExistsInternal(dirPath)) {
+      kernelFsMkdirInternalSync(dirPath);
     }
   }
 
@@ -609,15 +617,15 @@ export class SessionManager {
 
     try {
       // Write to temp file
-      fs.writeFileSync(tempPath, content, 'utf-8');
+      kernelFsWriteInternalSync(tempPath, content, 'utf-8');
 
       // Rename temp to target (atomic on most filesystems)
-      fs.renameSync(tempPath, filePath);
+      kernelFsRenameInternalSync(tempPath, filePath);
     } catch (err) {
       // Clean up temp file if it exists
       try {
-        if (fs.existsSync(tempPath)) {
-          fs.unlinkSync(tempPath);
+        if (kernelFsExistsInternal(tempPath)) {
+          kernelFsDeleteInternalSync(tempPath);
         }
       } catch {
         // Ignore cleanup errors

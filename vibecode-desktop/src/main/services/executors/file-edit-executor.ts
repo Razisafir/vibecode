@@ -1,8 +1,7 @@
-import * as fs from 'fs';
 import * as path from 'path';
 import { ExecutionStep, StepExecutor } from '../execution-engine';
 import { validateWorkspacePath } from './file-write-executor';
-import { authorizeFsOp } from '../../core/execution-audit';
+import { kernelFsRead, kernelFsWrite, kernelFsMkdirInternal, kernelFsCopyInternal } from '../../kernel/kernel-fs';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,7 +32,7 @@ async function createBackup(
 ): Promise<string> {
   const homeDir = process.env.HOME || process.env.USERPROFILE || '/tmp';
   const backupDir = path.join(homeDir, '.vibecode', 'backups');
-  await fs.promises.mkdir(backupDir, { recursive: true });
+  await kernelFsMkdirInternal(backupDir);
 
   // Create a unique backup filename
   const relativePath = path.relative(workspaceRoot, absolutePath);
@@ -42,7 +41,7 @@ async function createBackup(
   const backupFileName = `${sanitized}.${timestamp}.bak`;
   const backupPath = path.join(backupDir, backupFileName);
 
-  await fs.promises.copyFile(absolutePath, backupPath);
+  await kernelFsCopyInternal(absolutePath, backupPath);
 
   return backupPath;
 }
@@ -67,7 +66,7 @@ export const createFileEditExecutor = (workspaceRoot: string): StepExecutor => {
     // ── Read the file ─────────────────────────────────────────────────────
     let content: string;
     try {
-      content = await fs.promises.readFile(absolutePath, 'utf-8');
+      content = await kernelFsRead(absolutePath, 'utf-8');
     } catch (err) {
       throw new Error(
         `file_edit executor: Cannot read file "${params.filePath}": ${err instanceof Error ? err.message : String(err)}`
@@ -134,11 +133,14 @@ export const createFileEditExecutor = (workspaceRoot: string): StepExecutor => {
       }
     }
 
-    // ARC 15: Authorize FS write through the audit system
-    authorizeFsOp(params.filePath, step.id, 'write');
-
-    // ── Write the modified file ───────────────────────────────────────────
-    await fs.promises.writeFile(absolutePath, lines.join('\n'), 'utf-8');
+    // ── Write the modified file via kernel (handles audit authorization) ──
+    await kernelFsWrite({
+      nodeId: step.id,
+      filePath: absolutePath,
+      content: lines.join('\n'),
+      encoding: 'utf-8',
+      createDirs: false,
+    });
 
     return {
       filePath: params.filePath,

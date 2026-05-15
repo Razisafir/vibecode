@@ -1,5 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
-import * as fs from 'fs';
+import {
+  kernelFsRead,
+  kernelFsWriteInternal,
+  kernelFsMkdirInternal,
+  kernelFsAccess,
+  kernelFsDeleteInternal,
+  kernelFsReadInternal,
+} from '../kernel/kernel-fs';
 import * as path from 'path';
 import { createExecutorRegistry } from './executors/index';
 import { ExecutionPersistence } from './execution-persistence';
@@ -489,13 +496,13 @@ export class ExecutionEngine {
     if (snapshot.filePath && snapshot.fileExisted === false) {
       // File was created by this step — delete it
       try {
-        await fs.promises.unlink(snapshot.filePath);
+        await kernelFsDeleteInternal(snapshot.filePath);
       } catch {
         // File may already be gone
       }
     } else if (snapshot.filePath && snapshot.originalContent !== undefined) {
       // File was modified — restore original content
-      await fs.promises.writeFile(snapshot.filePath, snapshot.originalContent, 'utf-8');
+      await kernelFsWriteInternal(snapshot.filePath, snapshot.originalContent);
     }
 
     // Update step status
@@ -646,9 +653,9 @@ export class ExecutionEngine {
       snapshot.filePath = absPath;
 
       try {
-        await fs.promises.access(absPath, fs.constants.F_OK);
+        await kernelFsAccess(absPath);
         snapshot.fileExisted = true;
-        snapshot.originalContent = await fs.promises.readFile(absPath, 'utf-8');
+        snapshot.originalContent = await kernelFsRead(absPath, 'utf-8');
       } catch {
         snapshot.fileExisted = false;
         snapshot.originalContent = undefined;
@@ -661,9 +668,9 @@ export class ExecutionEngine {
     try {
       const homeDir = process.env.HOME || process.env.USERPROFILE || '/tmp';
       const rollbackDir = path.join(homeDir, '.vibecode', 'rollbacks');
-      await fs.promises.mkdir(rollbackDir, { recursive: true });
+      await kernelFsMkdirInternal(rollbackDir);
       const snapshotPath = path.join(rollbackDir, `${step.id}.json`);
-      await fs.promises.writeFile(snapshotPath, JSON.stringify(snapshot, null, 2), 'utf-8');
+      await kernelFsWriteInternal(snapshotPath, JSON.stringify(snapshot, null, 2));
     } catch (err) {
       console.error('[ExecutionEngine] Failed to persist rollback snapshot:', err);
       // Non-fatal: in-memory snapshot still exists for this session
@@ -696,7 +703,7 @@ export class ExecutionEngine {
         try {
           const homeDir = process.env.HOME || process.env.USERPROFILE || '/tmp';
           const snapshotPath = path.join(homeDir, '.vibecode', 'rollbacks', `${step.id}.json`);
-          const data = await fs.promises.readFile(snapshotPath, 'utf-8');
+          const data = await kernelFsReadInternal(snapshotPath, 'utf-8');
           const snapshot = JSON.parse(data) as RollbackSnapshot;
           this.rollbackSnapshots.set(step.id, snapshot);
         } catch {

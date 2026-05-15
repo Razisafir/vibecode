@@ -7,7 +7,7 @@
  */
 
 import * as path from 'path';
-import * as fs from 'fs';
+import { kernelFsExists } from '../kernel/kernel-fs';
 import { app } from 'electron';
 import { logger } from '../utils/logger';
 
@@ -38,7 +38,7 @@ export function getAppIconPath(): string {
   ];
 
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
+    if (kernelFsExists(candidate)) {
       return candidate;
     }
   }
@@ -60,7 +60,7 @@ export function getTrayIconPath(): string {
   ];
 
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
+    if (kernelFsExists(candidate)) {
       return candidate;
     }
   }
@@ -81,7 +81,7 @@ export function getSplashScreenPath(): string {
   ];
 
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
+    if (kernelFsExists(candidate)) {
       return candidate;
     }
   }

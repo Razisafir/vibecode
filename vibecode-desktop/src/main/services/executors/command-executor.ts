@@ -1,10 +1,10 @@
-import { spawn } from 'child_process';
 import * as path from 'path';
-import * as fs from 'fs';
 import { ExecutionStep, StepExecutor } from '../execution-engine';
 import { auditLog } from '../../utils/audit-log';
 import { logger } from '../../utils/logger';
 import { SafetyGuard } from '../safety/runtime-safety-guard';
+import { kernelFsRealpathSync } from '../../kernel/kernel-fs';
+import { kernelSpawn } from '../../kernel/kernel-process';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -166,8 +166,8 @@ function validateCwd(cwd: string, workspaceRoot: string): string | null {
   // Resolve symlinks for both paths
   let realCwd = resolvedCwd;
   let realRoot = resolvedRoot;
-  try { realCwd = fs.realpathSync(resolvedCwd); } catch { /* path doesn't exist yet */ }
-  try { realRoot = fs.realpathSync(resolvedRoot); } catch { /* use resolved */ }
+  try { realCwd = kernelFsRealpathSync(resolvedCwd); } catch { /* path doesn't exist yet */ }
+  try { realRoot = kernelFsRealpathSync(resolvedRoot); } catch { /* use resolved */ }
 
   if (!realCwd.startsWith(realRoot + path.sep) && realCwd !== realRoot) {
     return `Blocked: CWD "${resolvedCwd}" is outside workspace "${resolvedRoot}"`;
@@ -340,10 +340,13 @@ export const createCommandExecutor = (workspaceRoot: string): StepExecutor => {
         spawnArgs = parts.slice(1);
       }
 
-      const child = spawn(spawnCommand, spawnArgs, {
+      const { childProcess: child } = kernelSpawn({
+        nodeId: step.id,
+        command: spawnCommand,
+        args: spawnArgs,
         cwd,
         env,
-        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: false, // We've already resolved shell logic above; pass raw command
       });
 
       let stdout = '';

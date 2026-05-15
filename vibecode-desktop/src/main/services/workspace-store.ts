@@ -3,7 +3,14 @@
 // Persists recent workspace info to ~/.vibecode/workspaces.json.
 // Tracks: path, name, lastOpened timestamp, project type.
 
-import fs from 'fs';
+import {
+  kernelFsExists,
+  kernelFsExistsInternal,
+  kernelFsReadSync,
+  kernelFsWriteInternalSync,
+  kernelFsRenameInternalSync,
+  kernelFsMkdirInternalSync,
+} from '../kernel/kernel-fs';
 import path from 'path';
 import { getWorkspacesDir, ensureDirectories } from '../utils/paths';
 
@@ -27,11 +34,11 @@ interface WorkspaceStoreData {
 
 export function detectProjectType(dirPath: string): ProjectType {
   try {
-    if (fs.existsSync(path.join(dirPath, 'package.json'))) return 'node';
-    if (fs.existsSync(path.join(dirPath, 'requirements.txt')) || fs.existsSync(path.join(dirPath, 'pyproject.toml'))) return 'python';
-    if (fs.existsSync(path.join(dirPath, 'Cargo.toml'))) return 'rust';
-    if (fs.existsSync(path.join(dirPath, 'go.mod'))) return 'go';
-    if (fs.existsSync(path.join(dirPath, 'pom.xml')) || fs.existsSync(path.join(dirPath, 'build.gradle'))) return 'java';
+    if (kernelFsExists(path.join(dirPath, 'package.json'))) return 'node';
+    if (kernelFsExists(path.join(dirPath, 'requirements.txt')) || kernelFsExists(path.join(dirPath, 'pyproject.toml'))) return 'python';
+    if (kernelFsExists(path.join(dirPath, 'Cargo.toml'))) return 'rust';
+    if (kernelFsExists(path.join(dirPath, 'go.mod'))) return 'go';
+    if (kernelFsExists(path.join(dirPath, 'pom.xml')) || kernelFsExists(path.join(dirPath, 'build.gradle'))) return 'java';
   } catch {
     // Permission errors, etc.
   }
@@ -51,17 +58,17 @@ export class WorkspaceStore {
 
   private ensureFile(): void {
     const dir = path.dirname(this.filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    if (!kernelFsExistsInternal(dir)) {
+      kernelFsMkdirInternalSync(dir);
     }
-    if (!fs.existsSync(this.filePath)) {
+    if (!kernelFsExistsInternal(this.filePath)) {
       this.writeData({ version: 1, recentWorkspaces: [] });
     }
   }
 
   private readData(): WorkspaceStoreData {
     try {
-      const raw = fs.readFileSync(this.filePath, 'utf-8');
+      const raw = kernelFsReadSync(this.filePath);
       return JSON.parse(raw);
     } catch {
       return { version: 1, recentWorkspaces: [] };
@@ -71,8 +78,8 @@ export class WorkspaceStore {
   private writeData(data: WorkspaceStoreData): void {
     try {
       const tmpPath = this.filePath + '.tmp';
-      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
-      fs.renameSync(tmpPath, this.filePath);
+      kernelFsWriteInternalSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+      kernelFsRenameInternalSync(tmpPath, this.filePath);
     } catch (error) {
       console.error('[WorkspaceStore] Failed to write:', error);
     }

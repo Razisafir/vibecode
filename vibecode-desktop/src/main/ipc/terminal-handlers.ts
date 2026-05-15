@@ -6,18 +6,15 @@ import { getStateMachine } from './state-machine-handlers';
 import { TerminalCommandData } from '../services/execution-state-machine';
 import { ExecutionGateway } from '../core/execution-gateway';
 import { authorizeTerminalOp, checkTerminalAuthorization } from '../core/execution-audit';
-
-// ─── Types ──────────────────────────────────────────────────────────────────
-
-interface TerminalSession {
-  id: string;
-  pty: any; // node-pty IPty or child_process ChildProcess
-  type: 'pty' | 'spawn';
-  cwd: string;
-  shell: string;
-  pid?: number;
-  createdAt: number;
-}
+import {
+  kernelTerminalCreate,
+  kernelTerminalWrite,
+  kernelTerminalResize,
+  kernelTerminalKill,
+  kernelTerminalOnData,
+  kernelTerminalOnExit,
+  TerminalSession,
+} from '../kernel/kernel-terminal';
 
 // ─── ARC 14: Terminal Command Tracking ────────────────────────────────────
 // Accumulates output for each command entered via the terminal,
@@ -61,18 +58,8 @@ const sessionCommands: Map<string, {
   outputBuffer: string;           // Accumulated output for current command
 }> = new Map();
 
-let nodePty: any = null;
-let ptyAvailable = false;
-
-// Try to dynamically import node-pty
-try {
-  nodePty = require('node-pty');
-  ptyAvailable = true;
-  console.log('[Terminal] node-pty loaded successfully');
-} catch {
-  console.log('[Terminal] node-pty not available, falling back to child_process.spawn');
-  ptyAvailable = false;
-}
+// node-pty and child_process are now accessed exclusively through
+// the kernel-terminal module (ARC 17 — import wall enforcement).
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -237,156 +224,65 @@ export function registerTerminalHandlers(): void {
           env = optionsOrCwd?.env;
         }
 
-        const mergedEnv = { ...process.env, ...env, TERM: 'xterm-256color' };
+        // Create terminal session through kernel (handles PTY/spawn internally)
+        const session = kernelTerminalCreate({
+          id,
+          cwd,
+          shell,
+          env,
+          cols: 120,
+          rows: 30,
+        });
 
-        if (ptyAvailable && nodePty) {
-          // ─── node-pty path ─────────────────────────────────────────────
-          const ptyProcess = nodePty.spawn(shell, [], {
-            name: 'xterm-256color',
-            cols: 120,
-            rows: 30,
-            cwd,
-            env: mergedEnv,
-          });
+        // ARC 14: Initialize command tracking for this session
+        sessionCommands.set(id, {
+          currentCommand: '',
+          commandStartIndex: 0,
+          pendingNode: null,
+          outputBuffer: '',
+        });
 
-          const session: TerminalSession = {
-            id,
-            pty: ptyProcess,
-            type: 'pty',
-            cwd,
-            shell,
-            pid: ptyProcess.pid,
-            createdAt: Date.now(),
-          };
-
-          // ARC 14: Initialize command tracking for this session
-          sessionCommands.set(id, {
-            currentCommand: '',
-            commandStartIndex: 0,
-            pendingNode: null,
-            outputBuffer: '',
-          });
-
-          // Forward PTY data to renderer + ARC 14: capture output
-          ptyProcess.onData((data: string) => {
-            try {
-              const win = BrowserWindow.fromWebContents(event.sender);
-              if (win && !win.isDestroyed()) {
-                // Legacy format for preload compatibility: (id, data) as separate args
-                win.webContents.send('terminal:data', id, data);
-              }
-            } catch {
-              // Window might be closed
+        // Forward terminal data to renderer + ARC 14: capture output
+        kernelTerminalOnData(session, (data: string) => {
+          try {
+            const win = BrowserWindow.fromWebContents(event.sender);
+            if (win && !win.isDestroyed()) {
+              // Legacy format for preload compatibility: (id, data) as separate args
+              win.webContents.send('terminal:data', id, data);
             }
+          } catch {
+            // Window might be closed
+          }
 
-            // ARC 14: Accumulate output for pending command tracking
-            const entry = sessionCommands.get(id);
-            if (entry) {
-              entry.outputBuffer += data;
+          // ARC 14: Accumulate output for pending command tracking
+          const entry = sessionCommands.get(id);
+          if (entry) {
+            entry.outputBuffer += data;
+          }
+        });
+
+        kernelTerminalOnExit(session, (exitCode: number, signal?: number) => {
+          try {
+            const win = BrowserWindow.fromWebContents(event.sender);
+            if (win && !win.isDestroyed()) {
+              win.webContents.send('terminal:exit', id, exitCode, signal);
             }
-          });
+          } catch {
+            // Window might be closed
+          }
 
-          ptyProcess.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
-            try {
-              const win = BrowserWindow.fromWebContents(event.sender);
-              if (win && !win.isDestroyed()) {
-                win.webContents.send('terminal:exit', id, exitCode, signal);
-              }
-            } catch {
-              // Window might be closed
-            }
+          // ARC 14: Finalize any pending command on session exit
+          finalizePendingCommand(id, exitCode ?? 0);
+          sessionCommands.delete(id);
+          sessions.delete(id);
+        });
 
-            // ARC 14: Finalize any pending command on session exit
-            finalizePendingCommand(id, exitCode ?? 0);
-            sessionCommands.delete(id);
-            sessions.delete(id);
-          });
-
-          sessions.set(id, session);
-        } else {
-          // ─── child_process.spawn fallback ──────────────────────────────
-          const { spawn } = require('child_process');
-          const childProcess = spawn(shell, [], {
-            cwd,
-            env: mergedEnv,
-            stdio: ['pipe', 'pipe', 'pipe'],
-          });
-
-          const session: TerminalSession = {
-            id,
-            pty: childProcess,
-            type: 'spawn',
-            cwd,
-            shell,
-            pid: childProcess.pid,
-            createdAt: Date.now(),
-          };
-
-          // ARC 14: Initialize command tracking for this session
-          sessionCommands.set(id, {
-            currentCommand: '',
-            commandStartIndex: 0,
-            pendingNode: null,
-            outputBuffer: '',
-          });
-
-          childProcess.stdout.on('data', (data: Buffer) => {
-            try {
-              const win = BrowserWindow.fromWebContents(event.sender);
-              if (win && !win.isDestroyed()) {
-                win.webContents.send('terminal:data', id, data.toString('utf-8'));
-              }
-            } catch {
-              // Window might be closed
-            }
-
-            // ARC 14: Accumulate output
-            const entry = sessionCommands.get(id);
-            if (entry) {
-              entry.outputBuffer += data.toString('utf-8');
-            }
-          });
-
-          childProcess.stderr.on('data', (data: Buffer) => {
-            try {
-              const win = BrowserWindow.fromWebContents(event.sender);
-              if (win && !win.isDestroyed()) {
-                win.webContents.send('terminal:data', id, data.toString('utf-8'));
-              }
-            } catch {
-              // Window might be closed
-            }
-
-            // ARC 14: Accumulate stderr
-            const entry = sessionCommands.get(id);
-            if (entry) {
-              entry.outputBuffer += data.toString('utf-8');
-            }
-          });
-
-          childProcess.on('close', (exitCode: number, signal: string | null) => {
-            try {
-              const win = BrowserWindow.fromWebContents(event.sender);
-              if (win && !win.isDestroyed()) {
-                win.webContents.send('terminal:exit', id, exitCode, signal);
-              }
-            } catch {
-              // Window might be closed
-            }
-
-            // ARC 14: Finalize pending command
-            finalizePendingCommand(id, exitCode ?? 0);
-            sessionCommands.delete(id);
-            sessions.delete(id);
-          });
-
-          sessions.set(id, session);
-        }
+        sessions.set(id, session);
 
         return ok({
           sessionId: id,
-          type: ptyAvailable ? 'pty' : 'spawn',
-          pid: sessions.get(id)?.pid,
+          type: session.type,
+          pid: session.pid,
           cwd,
           shell,
         });
@@ -443,12 +339,7 @@ export function registerTerminalHandlers(): void {
         }
       }
 
-      if (session.type === 'pty') {
-        session.pty.write(data);
-      } else {
-        // child_process spawn — write to stdin
-        session.pty.stdin.write(data);
-      }
+      kernelTerminalWrite(session, data);
 
       return ok({ sessionId, written: true });
     } catch (error) {
@@ -484,11 +375,7 @@ export function registerTerminalHandlers(): void {
       // ARC 14: Finalize pending command before killing
       finalizePendingCommand(sessionId, -1);
 
-      if (session.type === 'pty') {
-        session.pty.kill(signal ?? 'SIGTERM');
-      } else {
-        session.pty.kill(signal ?? 'SIGTERM');
-      }
+      kernelTerminalKill(session, signal ?? 'SIGTERM');
 
       sessions.delete(sessionId);
       sessionCommands.delete(sessionId);
@@ -508,8 +395,8 @@ export function registerTerminalHandlers(): void {
           return err(`Terminal session not found: ${sessionId}`);
         }
 
-        if (session.type === 'pty') {
-          session.pty.resize(cols, rows);
+        const resized = kernelTerminalResize(session, cols, rows);
+        if (resized) {
           return ok({ sessionId, cols, rows, resized: true });
         } else {
           // child_process doesn't support resize natively
@@ -564,11 +451,7 @@ export function registerTerminalHandlers(): void {
 
       // Kill sessions associated with this renderer
       try {
-        if (session.type === 'pty') {
-          session.pty.kill();
-        } else {
-          session.pty.kill();
-        }
+        kernelTerminalKill(session);
       } catch {
         // Session might already be dead
       }

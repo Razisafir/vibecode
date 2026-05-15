@@ -8,9 +8,7 @@
 //        with stepType and params
 // ─────────────────────────────────────────────────────────────────────────────
 
-import * as fs from 'fs';
 import * as path from 'path';
-import { spawn } from 'child_process';
 import {
   ExecutionNode,
   NodeResult,
@@ -20,7 +18,21 @@ import {
 import { SafetyGuard } from './safety/runtime-safety-guard';
 import { auditLog } from '../utils/audit-log';
 import { logger } from '../utils/logger';
-import { authorizeFsOp } from '../core/execution-audit';
+import {
+  kernelFsWrite,
+  kernelFsRead,
+  kernelFsDelete,
+  kernelFsStat,
+  kernelFsExists,
+  kernelFsMkdirInternal,
+  kernelFsCopyInternal,
+  kernelFsReadSync,
+  kernelFsStatSync,
+  kernelFsReaddir,
+  kernelFsAccess,
+  kernelFsRealpathSync,
+} from '../kernel/kernel-fs';
+import { kernelSpawn } from '../kernel/kernel-process';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PATH VALIDATION — Shared across all file executors
@@ -65,7 +77,7 @@ function assertStepData(node: ExecutionNode): StepData {
 async function createBackup(absolutePath: string, workspaceRoot: string): Promise<string> {
   const homeDir = process.env.HOME || process.env.USERPROFILE || '/tmp';
   const backupDir = path.join(homeDir, '.vibecode', 'backups');
-  await fs.promises.mkdir(backupDir, { recursive: true });
+  await kernelFsMkdirInternal(backupDir);
 
   const relativePath = path.relative(workspaceRoot, absolutePath);
   const sanitized = relativePath.replace(/[\\/]/g, '__');
@@ -73,7 +85,7 @@ async function createBackup(absolutePath: string, workspaceRoot: string): Promis
   const backupFileName = `${sanitized}.${timestamp}.bak`;
   const backupPath = path.join(backupDir, backupFileName);
 
-  await fs.promises.copyFile(absolutePath, backupPath);
+  await kernelFsCopyInternal(absolutePath, backupPath);
 
   return backupPath;
 }
@@ -133,23 +145,14 @@ function createFileWriteExecutor(workspaceRoot: string): (node: ExecutionNode) =
     // ── Check if file already exists ──────────────────────────────────────
     let exists = false;
     try {
-      await fs.promises.access(absolutePath, fs.constants.F_OK);
+      await kernelFsAccess(absolutePath);
       exists = true;
     } catch {
       // File does not exist
     }
 
-    // ── Create parent directories if needed ───────────────────────────────
-    if (createDirs) {
-      const dir = path.dirname(absolutePath);
-      await fs.promises.mkdir(dir, { recursive: true });
-    }
-
-    // ARC 16: Authorize this FS write in the audit system
-    authorizeFsOp(absolutePath, node.id, 'write');
-
-    // ── Write the file ────────────────────────────────────────────────────
-    await fs.promises.writeFile(absolutePath, p.content, encoding);
+    // ── Write the file (kernelFsWrite handles mkdir, authorize, and write) ─
+    await kernelFsWrite({ nodeId: node.id, filePath: absolutePath, content: p.content, encoding, createDirs });
 
     const bytesWritten = Buffer.byteLength(p.content, encoding);
     const duration = Date.now() - startTime;
@@ -200,14 +203,14 @@ function createFileReadExecutor(workspaceRoot: string): (node: ExecutionNode) =>
     // ── Read the file ─────────────────────────────────────────────────────
     let content: string;
     try {
-      content = await fs.promises.readFile(absolutePath, encoding);
+      content = await kernelFsRead(absolutePath, encoding);
     } catch (err) {
       throw new Error(
         `file_read executor: Cannot read file "${p.filePath}": ${err instanceof Error ? err.message : String(err)}`
       );
     }
 
-    const stats = await fs.promises.stat(absolutePath);
+    const stats = await kernelFsStat(absolutePath);
     const lines = content.split('\n').length;
     const duration = Date.now() - startTime;
 
@@ -267,7 +270,7 @@ function createFileEditExecutor(workspaceRoot: string): (node: ExecutionNode) =>
     // ── Read the file ─────────────────────────────────────────────────────
     let content: string;
     try {
-      content = await fs.promises.readFile(absolutePath, 'utf-8');
+      content = await kernelFsRead(absolutePath, 'utf-8');
     } catch (err) {
       throw new Error(
         `file_edit executor: Cannot read file "${p.filePath}": ${err instanceof Error ? err.message : String(err)}`
@@ -334,11 +337,8 @@ function createFileEditExecutor(workspaceRoot: string): (node: ExecutionNode) =>
       }
     }
 
-    // ARC 16: Authorize this FS write in the audit system
-    authorizeFsOp(absolutePath, node.id, 'write');
-
-    // ── Write the modified file ───────────────────────────────────────────
-    await fs.promises.writeFile(absolutePath, lines.join('\n'), 'utf-8');
+    // ── Write the modified file (kernelFsWrite handles authorize) ────────
+    await kernelFsWrite({ nodeId: node.id, filePath: absolutePath, content: lines.join('\n'), encoding: 'utf-8', createDirs: false });
 
     const duration = Date.now() - startTime;
 
@@ -405,7 +405,7 @@ function createFileDeleteExecutor(workspaceRoot: string): (node: ExecutionNode) 
     let existed = false;
     let wasDirectory = false;
     try {
-      const stat = await fs.promises.stat(absolutePath);
+      const stat = await kernelFsStat(absolutePath);
       existed = true;
       wasDirectory = stat.isDirectory();
     } catch {
@@ -430,17 +430,8 @@ function createFileDeleteExecutor(workspaceRoot: string): (node: ExecutionNode) 
       backupPath = await createBackup(absolutePath, workspaceRoot);
     }
 
-    // ARC 16: Authorize this FS delete in the audit system
-    authorizeFsOp(absolutePath, node.id, 'delete');
-
-    // ── Delete the file/directory ─────────────────────────────────────────
-    if (wasDirectory && p.recursive) {
-      await fs.promises.rm(absolutePath, { recursive: true, force: true });
-    } else if (wasDirectory) {
-      await fs.promises.rmdir(absolutePath);
-    } else {
-      await fs.promises.unlink(absolutePath);
-    }
+    // ── Delete the file/directory (kernelFsDelete handles authorize) ────
+    await kernelFsDelete({ nodeId: node.id, filePath: absolutePath, recursive: p.recursive });
 
     const duration = Date.now() - startTime;
 
@@ -568,8 +559,8 @@ function validateCwd(cwd: string, workspaceRoot: string): string | null {
 
   let realCwd = resolvedCwd;
   let realRoot = resolvedRoot;
-  try { realCwd = fs.realpathSync(resolvedCwd); } catch { /* path doesn't exist yet */ }
-  try { realRoot = fs.realpathSync(resolvedRoot); } catch { /* use resolved */ }
+  try { realCwd = kernelFsRealpathSync(resolvedCwd); } catch { /* path doesn't exist yet */ }
+  try { realRoot = kernelFsRealpathSync(resolvedRoot); } catch { /* use resolved */ }
 
   if (!realCwd.startsWith(realRoot + path.sep) && realCwd !== realRoot) {
     return `Blocked: CWD "${resolvedCwd}" is outside workspace "${resolvedRoot}"`;
@@ -734,10 +725,13 @@ function createCommandExecutor(workspaceRoot: string): (node: ExecutionNode) => 
         spawnArgs = parts.slice(1);
       }
 
-      const child = spawn(spawnCommand, spawnArgs, {
+      const { childProcess: child } = kernelSpawn({
+        nodeId: node.id,
+        command: spawnCommand,
+        args: spawnArgs,
         cwd,
         env,
-        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: false,
       });
 
       let stdout = '';
@@ -899,17 +893,8 @@ function createCodeGenerationExecutor(workspaceRoot: string): (node: ExecutionNo
     const encoding: BufferEncoding = p.encoding ?? 'utf-8';
     const createDirs = p.createDirs !== false;
 
-    // ── Create parent directories if needed ───────────────────────────────
-    if (createDirs) {
-      const dir = path.dirname(absolutePath);
-      await fs.promises.mkdir(dir, { recursive: true });
-    }
-
-    // ARC 16: Authorize this FS write in the audit system
-    authorizeFsOp(absolutePath, node.id, 'write');
-
-    // ── Write the file ────────────────────────────────────────────────────
-    await fs.promises.writeFile(absolutePath, p.content, encoding);
+    // ── Write the file (kernelFsWrite handles mkdir, authorize, and write) ─
+    await kernelFsWrite({ nodeId: node.id, filePath: absolutePath, content: p.content, encoding, createDirs });
 
     const linesGenerated = p.content.split('\n').length;
     const bytesWritten = Buffer.byteLength(p.content, encoding);
@@ -1075,7 +1060,7 @@ function createDiffApplyExecutor(workspaceRoot: string): (node: ExecutionNode) =
     // ── Read the file ─────────────────────────────────────────────────────
     let content: string;
     try {
-      content = await fs.promises.readFile(absolutePath, 'utf-8');
+      content = await kernelFsRead(absolutePath, 'utf-8');
     } catch (err) {
       throw new Error(
         `diff_apply executor: Cannot read file "${p.filePath}": ${err instanceof Error ? err.message : String(err)}`
@@ -1102,11 +1087,8 @@ function createDiffApplyExecutor(workspaceRoot: string): (node: ExecutionNode) =
       fileLines = applyHunk(fileLines, hunk);
     }
 
-    // ARC 16: Authorize this FS write in the audit system
-    authorizeFsOp(absolutePath, node.id, 'write');
-
-    // ── Write the modified file ───────────────────────────────────────────
-    await fs.promises.writeFile(absolutePath, fileLines.join('\n'), 'utf-8');
+    // ── Write the modified file (kernelFsWrite handles authorize) ────────
+    await kernelFsWrite({ nodeId: node.id, filePath: absolutePath, content: fileLines.join('\n'), encoding: 'utf-8', createDirs: false });
 
     const duration = Date.now() - startTime;
 
