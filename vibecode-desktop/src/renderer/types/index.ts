@@ -1,6 +1,5 @@
 // ============================================================
 // VibeCode Desktop — TypeScript Type Definitions
-// ARC 9 — AI-Native Project Lifecycle, Premium UX & MVP Cohesion
 // ============================================================
 
 // ---- Window API (exposed via preload script) ----
@@ -17,12 +16,11 @@ export interface VibeCodeAPI {
     rename(oldPath: string, newPath: string): Promise<{ success: boolean; error?: string }>;
   };
   terminal: {
-    create(cwd?: string): Promise<{ success: boolean; id?: string; data?: { sessionId: string; type: string; pid?: number; cwd: string; shell: string }; error?: string }>;
+    create(cwd?: string): Promise<{ success: boolean; id?: string; error?: string }>;
     write(id: string, data: string): Promise<{ success: boolean }>;
     kill(id: string): Promise<{ success: boolean }>;
     resize(id: string, cols: number, rows: number): Promise<{ success: boolean }>;
     onData(callback: (id: string, data: string) => void): void;
-    onExit(callback: (id: string, exitCode: number, signal?: number | string | null) => void): void;
   };
   provider: {
     list(): Promise<{ success: boolean; data?: { providers: Provider[] }; error?: string }>;
@@ -77,7 +75,7 @@ export interface VibeCodeAPI {
   execution: {
     plan(title: string, description: string, steps: any[]): Promise<{ success: boolean; data?: { plan: ExecutionPlan }; error?: string }>;
     execute(planId: string): Promise<{ success: boolean; data?: { plan: ExecutionPlan }; error?: string }>;
-    status(planId: string): Promise<{ success: boolean; data?: any; error?: string }>;
+    status(planId: string): Promise<{ success: boolean; data?: { plan: { id: string; title: string; description: string; status: string; createdAt: number; updatedAt: number }; steps: Array<{ id: string; title: string; type: string; status: string; riskLevel: RiskLevel; requiresApproval: boolean; error?: string; retryCount: number; startedAt?: number; completedAt?: number }>; progress: { total: number; completed: number; failed: number; running: number; pending: number } }; error?: string }>;
     cancel(planId: string): Promise<{ success: boolean; data?: { plan: ExecutionPlan | null }; error?: string }>;
     retry(stepId: string): Promise<{ success: boolean; data?: { step: ExecutionStep }; error?: string }>;
     history(planId: string): Promise<{ success: boolean; data?: { history: any[]; planId: string }; error?: string }>;
@@ -94,16 +92,23 @@ export interface VibeCodeAPI {
     setWorkspace(workspaceRoot: string): Promise<{ success: boolean; data?: { workspaceRoot: string }; error?: string }>;
     onStatus(callback: (status: any) => void): void;
     onStepUpdate(callback: (update: any) => void): void;
+    /** Get diff preview for a single step */
     getDiff(stepId: string): Promise<{ success: boolean; data?: DiffResult; error?: string }>;
+    /** Get diff previews for all file-related steps in a plan */
     getPlanDiffs(planId: string): Promise<{ success: boolean; data?: { diffs: DiffResult[] }; error?: string }>;
+    /** Get full step result including stdout for command steps */
     getStepResult(stepId: string): Promise<{ success: boolean; data?: { step: ExecutionStep; output?: StepOutput }; error?: string }>;
+    /** Get truncated stdout/stderr for command steps */
     getStepOutput(stepId: string): Promise<{ success: boolean; data?: StepOutput; error?: string }>;
+    /** Queue operations */
     queue: {
       list(): Promise<{ success: boolean; data?: { entries: ExecutionQueueEntry[] }; error?: string }>;
       add(planId: string, priority?: number, stepTimeout?: number): Promise<{ success: boolean; data?: ExecutionQueueEntry; error?: string }>;
       cancel(entryId: string): Promise<{ success: boolean; data?: { cancelled: boolean }; error?: string }>;
     };
+    /** Get all completed execution history */
     getHistory(): Promise<{ success: boolean; data?: { history: ExecutionHistoryEntry[] }; error?: string }>;
+    /** Queue update events */
     onQueueUpdate(callback: (update: any) => void): void;
   };
   workspace: {
@@ -163,196 +168,48 @@ export interface VibeCodeAPI {
     getPendingEvents(): Promise<{ success: boolean; data?: { events: any[] }; error?: string }>;
     trackFeature(feature: string): Promise<{ success: boolean }>;
   };
+  // ── ARC 22: Multi-Agent Orchestration System ──────────────────────────
+  agent: {
+    start(): Promise<{ success: boolean; data?: { agentCount: number }; error?: string }>;
+    stop(): Promise<{ success: boolean }>;
+    getStatus(): Promise<{ success: boolean; data?: any; error?: string }>;
+    spawn(role: string): Promise<{ success: boolean; data?: any; error?: string }>;
+    retire(role: string): Promise<{ success: boolean; data?: any; error?: string }>;
+    list(): Promise<{ success: boolean; data?: { identities: any[]; agents: any[]; total: number }; error?: string }>;
+    getStats(role: string): Promise<{ success: boolean; data?: any; error?: string }>;
+    submitTask(task: any): Promise<{ success: boolean; data?: { task: any }; error?: string }>;
+    delegateTask(taskId: string, targetAgent: string): Promise<{ success: boolean; data?: { task: any }; error?: string }>;
+    getTask(taskId: string): Promise<{ success: boolean; data?: { task: any }; error?: string }>;
+    listTasks(): Promise<{ success: boolean; data?: { pending: any[]; active: any[]; totalPending: number; totalActive: number }; error?: string }>;
+    setAutonomy(level: string): Promise<{ success: boolean; data?: { level: string }; error?: string }>;
+    getAutonomy(): Promise<{ success: boolean; data?: { level: string }; error?: string }>;
+    vote(proposalId: string, agentRole: string, vote: string, reasoning: string, confidence: number): Promise<{ success: boolean; data?: any; error?: string }>;
+    getProposals(): Promise<{ success: boolean; data?: { proposals: any[]; total: number }; error?: string }>;
+    getProposal(proposalId: string): Promise<{ success: boolean; data?: { proposal: any }; error?: string }>;
+    getVotingStats(): Promise<{ success: boolean; data?: any; error?: string }>;
+    getContextStats(): Promise<{ success: boolean; data?: any; error?: string }>;
+    queryContext(query: string, limit?: number): Promise<{ success: boolean; data?: { results: any[]; total: number }; error?: string }>;
+    getRecentMessages(limit?: number): Promise<{ success: boolean; data?: { messages: any[]; total: number }; error?: string }>;
+    getCommStats(): Promise<{ success: boolean; data?: any; error?: string }>;
+    getParallelStats(): Promise<{ success: boolean; data?: any; error?: string }>;
+    getLocks(): Promise<{ success: boolean; data?: { locks: any[] }; error?: string }>;
+    createGoal(title: string, description: string, type: string, priority?: number): Promise<{ success: boolean; data?: { goal: any }; error?: string }>;
+    getGoals(): Promise<{ success: boolean; data?: { goals: any[]; total: number }; error?: string }>;
+    getGoal(goalId: string): Promise<{ success: boolean; data?: { goal: any }; error?: string }>;
+    decomposeGoal(goalId: string): Promise<{ success: boolean; data?: any; error?: string }>;
+    completeGoal(goalId: string): Promise<{ success: boolean; data?: { goal: any }; error?: string }>;
+    abandonGoal(goalId: string, reason: string): Promise<{ success: boolean; data?: { goal: any }; error?: string }>;
+    getLessons(limit?: number): Promise<{ success: boolean; data?: { lessons: any[]; total: number }; error?: string }>;
+    getOrgStats(): Promise<{ success: boolean; data?: any; error?: string }>;
+    getDashboard(): Promise<{ success: boolean; data?: any; error?: string }>;
+    onOrchestratorEvent(callback: (event: any) => void): void;
+    onCommunicationEvent(callback: (event: any) => void): void;
+    onVotingEvent(callback: (event: any) => void): void;
+    onOrganizationEvent(callback: (event: any) => void): void;
+    onContextEvent(callback: (event: any) => void): void;
+    onParallelEvent(callback: (event: any) => void): void;
+  };
 }
-
-// ---- App Views ----
-
-export type AppView = 'home' | 'project-setup' | 'ide';
-
-// ---- AI Project Lifecycle ----
-
-export type ProjectLifecyclePhase =
-  | 'type-selection'
-  | 'objective-definition'
-  | 'architecture-planning'
-  | 'provider-setup'
-  | 'execution-roadmap'
-  | 'workspace-init'
-  | 'task-decomposition'
-  | 'execution-orchestration'
-  | 'progress-tracking'
-  | 'completion-review';
-
-export interface AIProjectObjective {
-  summary: string;
-  requirements: string[];
-  constraints: string[];
-  techPreferences: string[];
-  priority: 'speed' | 'quality' | 'simplicity';
-}
-
-export interface ArchitecturePlan {
-  id: string;
-  title: string;
-  description: string;
-  techStack: TechStackItem[];
-  fileStructure: FileStructureNode[];
-  dependencies: string[];
-  patterns: string[];
-  estimatedComplexity: 'low' | 'medium' | 'high';
-  reasoning: string;
-}
-
-export interface TechStackItem {
-  name: string;
-  version?: string;
-  category: 'framework' | 'language' | 'library' | 'tool' | 'database' | 'service';
-  purpose: string;
-}
-
-export interface FileStructureNode {
-  name: string;
-  type: 'file' | 'directory';
-  description?: string;
-  children?: FileStructureNode[];
-}
-
-export interface ExecutionRoadmap {
-  id: string;
-  phases: ExecutionPhase[];
-  totalSteps: number;
-  estimatedDuration: string;
-  dependencies: PhaseDependency[];
-}
-
-export interface ExecutionPhase {
-  id: string;
-  name: string;
-  description: string;
-  steps: ExecutionPhaseStep[];
-  order: number;
-  status: 'pending' | 'in-progress' | 'completed' | 'failed';
-}
-
-export interface ExecutionPhaseStep {
-  id: string;
-  title: string;
-  description: string;
-  type: StepType;
-  riskLevel: RiskLevel;
-  requiresApproval: boolean;
-  estimatedTime: string;
-}
-
-export interface PhaseDependency {
-  from: string;
-  to: string;
-  type: 'hard' | 'soft';
-}
-
-// ---- Execution Timeline ----
-
-export interface ExecutionTimelineEntry {
-  id: string;
-  planId: string;
-  stepId: string;
-  title: string;
-  description: string;
-  status: ExecutionStatus;
-  type: StepType;
-  riskLevel: RiskLevel;
-  startedAt?: number;
-  completedAt?: number;
-  duration?: number;
-  progress: number; // 0-100
-  diffPreview?: DiffResult;
-  output?: string;
-  error?: string;
-  canRollback: boolean;
-  requiresApproval: boolean;
-  confidence: number; // 0-100 AI confidence score
-}
-
-export interface ExecutionTimeline {
-  planId: string;
-  title: string;
-  entries: ExecutionTimelineEntry[];
-  overallProgress: number; // 0-100
-  startedAt: number;
-  status: ExecutionStatus;
-  checkpointCount: number;
-  canRollbackAll: boolean;
-}
-
-// ---- Project Creation Wizard ----
-
-export type WizardStep =
-  | 'project-type'
-  | 'objective'
-  | 'architecture'
-  | 'provider'
-  | 'workspace'
-  | 'execution-mode'
-  | 'roadmap'
-  | 'review';
-
-export interface WizardState {
-  currentStep: WizardStep;
-  completedSteps: WizardStep[];
-  config: ProjectConfig;
-  objective?: AIProjectObjective;
-  architecture?: ArchitecturePlan;
-  roadmap?: ExecutionRoadmap;
-  isValid: boolean;
-}
-
-export const WIZARD_STEPS: { id: WizardStep; label: string; description: string }[] = [
-  { id: 'project-type', label: 'Project Type', description: 'What are you building?' },
-  { id: 'objective', label: 'Objective', description: 'Define your vision' },
-  { id: 'architecture', label: 'Architecture', description: 'Plan the structure' },
-  { id: 'provider', label: 'AI Provider', description: 'Choose your intelligence' },
-  { id: 'workspace', label: 'Workspace', description: 'Set your workspace' },
-  { id: 'execution-mode', label: 'Execution Mode', description: 'Control AI behavior' },
-  { id: 'roadmap', label: 'Roadmap', description: 'AI execution plan' },
-  { id: 'review', label: 'Review', description: 'Confirm and launch' },
-];
-
-export type ProjectType = 'web-app' | 'api-server' | 'cli-tool' | 'library' | 'data-pipeline' | 'custom';
-
-export type ExecutionMode = 'assisted' | 'semi-autonomous' | 'autonomous';
-
-export type SafetyLevel = 'low' | 'medium' | 'high';
-
-export interface ProjectConfig {
-  name: string;
-  type: ProjectType;
-  providerId: string;
-  model: string;
-  workspacePath: string;
-  executionMode: ExecutionMode;
-  safetyLevel: SafetyLevel;
-  objective: string;
-}
-
-export interface RecentProject {
-  name: string;
-  path: string;
-  type: ProjectType;
-  lastOpened: number;
-  thumbnail?: string;
-}
-
-export interface ProjectTemplate {
-  id: string;
-  name: string;
-  description: string;
-  type: ProjectType;
-  icon: string;
-}
-
-// ---- Activity Bar ----
-
-export type ActivityTab = 'files' | 'search' | 'ai' | 'terminal' | 'memory' | 'settings';
 
 // ---- Chat ----
 
@@ -380,8 +237,6 @@ export interface ChatOptions {
   streaming: boolean;
   model?: string;
 }
-
-export type AIMode = 'chat' | 'edit' | 'agent' | 'architect';
 
 // ---- Memory ----
 
@@ -419,7 +274,7 @@ export interface Provider {
   chatOptions?: ChatOptions;
 }
 
-export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'lmstudio' | 'openrouter' | 'groq' | 'deepseek' | 'custom';
+export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'lmstudio' | 'custom';
 
 export interface ProviderConfig {
   name: string;
@@ -439,9 +294,6 @@ export interface ModelInfo {
   supportsTools: boolean;
   supportsVision: boolean;
 }
-
-/** Alias for ModelInfo – used throughout UI code */
-export type Model = ModelInfo;
 
 // ---- Execution ----
 
@@ -472,7 +324,7 @@ export interface ExecutionStep {
   requiresApproval: boolean;
 }
 
-export type StepType = 'file_create' | 'file_edit' | 'file_delete' | 'command' | 'analysis' | 'review' | 'test' | 'code_generation';
+export type StepType = 'file_create' | 'file_edit' | 'file_delete' | 'command' | 'analysis' | 'review' | 'test';
 export type ExecutionStatus = 'pending' | 'planning' | 'approved' | 'executing' | 'completed' | 'failed' | 'cancelled';
 export type RiskLevel = 'low' | 'medium' | 'high';
 
@@ -493,6 +345,8 @@ export interface FileStats {
   modified: number;
   created: number;
 }
+
+// ---- File Search ----
 
 export interface FileSearchResult {
   path: string;
@@ -516,6 +370,7 @@ export interface ProposalCard {
 
 export type ProposalStatus = 'pending' | 'approved' | 'rejected' | 'executing' | 'completed' | 'failed';
 
+/** Enhanced proposal card data generated from AI responses */
 export interface ProposalCardData {
   id: string;
   type: 'file_create' | 'file_edit' | 'command' | 'analysis' | 'multi_step';
@@ -547,6 +402,7 @@ export interface ProposalStepData {
   dependsOn?: string[];
 }
 
+/** Intent extracted from an LLM response */
 export interface ExecutionIntent {
   id: string;
   type: 'file_create' | 'file_edit' | 'command' | 'analysis' | 'multi_step';
@@ -559,6 +415,7 @@ export interface ExecutionIntent {
   canRollback: boolean;
 }
 
+/** Modification input for proposal:modify IPC */
 export interface ProposalModification {
   title?: string;
   description?: string;
@@ -573,6 +430,7 @@ export interface ProposalModification {
   }>;
 }
 
+/** Event sent via proposal:onUpdate */
 export interface ProposalUpdateEvent {
   event: string;
   planIds: string[];
@@ -680,10 +538,12 @@ export interface LayoutState {
   sidebarWidth: number;
   aiPanelOpen: boolean;
   aiPanelWidth: number;
-  activeSidebarTab: ActivityTab;
-  bottomPanelOpen: boolean;
-  bottomPanelHeight: number;
+  activeSidebarTab: SidebarTab;
 }
+
+// ---- Sidebar ----
+
+export type SidebarTab = 'files' | 'terminal' | 'memory' | 'settings' | 'agents';
 
 // ---- Workspace ----
 
@@ -696,6 +556,7 @@ export interface WorkspaceAnalysis {
   totalSize: number;
 }
 
+/** Full workspace info returned by workspace:open and workspace:analyze */
 export interface WorkspaceInfo {
   rootPath: string;
   name: string;
@@ -710,6 +571,7 @@ export interface WorkspaceInfo {
   totalSize: number;
 }
 
+/** Current workspace info (lighter version) */
 export interface CurrentWorkspaceInfo {
   rootPath: string;
   name: string;
@@ -719,6 +581,7 @@ export interface CurrentWorkspaceInfo {
   languages: Record<string, number>;
 }
 
+/** Recent workspace entry from workspace store */
 export interface RecentWorkspaceInfo {
   path: string;
   name: string;
@@ -750,11 +613,8 @@ export interface OnboardingStep {
 export interface TerminalInstance {
   id: string;
   cwd: string;
-  shell: string;
   history: string[];
   active: boolean;
-  exitCode: number | null;
-  isRunning: boolean;
 }
 
 // ---- Diff Engine ----
@@ -763,7 +623,9 @@ export interface DiffLine {
   type: 'add' | 'remove' | 'context';
   content: string;
   lineNumber: number;
+  /** Line number in the "before" file for remove/context lines */
   oldLineNumber?: number;
+  /** Line number in the "after" file for add/context lines */
   newLineNumber?: number;
 }
 
@@ -951,74 +813,6 @@ export interface UsageMetrics {
   averageSessionLength: number;
   totalSessions: number;
   crashFrequency: number;
-}
-
-// ---- Safety & Trust ----
-
-export interface StepRiskAssessment {
-  stepId: string;
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
-  confidence: number;
-  factors: RiskFactor[];
-  canAutoApprove: boolean;
-  requiresManualReview: boolean;
-}
-
-export interface RiskFactor {
-  type: 'file_delete' | 'file_overwrite' | 'command_execution' | 'dependency_change' | 'config_change' | 'large_change';
-  description: string;
-  severity: 'info' | 'warning' | 'danger';
-  affectedPaths: string[];
-}
-
-export interface SafetyWarning {
-  id: string;
-  type: 'high_risk_operation' | 'destructive_action' | 'unreviewed_change' | 'dependency_conflict' | 'config_modification';
-  message: string;
-  stepId: string;
-  timestamp: number;
-  dismissed: boolean;
-}
-
-export interface SafeExecutionResult {
-  success: boolean;
-  approvedSteps: number;
-  skippedSteps: number;
-  failedSteps: number;
-  rolledBack: boolean;
-  safetyScore: number;
-}
-
-export interface ExecutionPreview {
-  planId: string;
-  totalSteps: number;
-  safeSteps: number;
-  riskySteps: number;
-  affectedFiles: string[];
-  estimatedImpact: 'minimal' | 'moderate' | 'significant' | 'major';
-  diffSummary: {
-    additions: number;
-    deletions: number;
-    filesChanged: number;
-  };
-  rollbackAvailable: boolean;
-}
-
-export interface RollbackPreview {
-  stepId: string;
-  canRollback: boolean;
-  originalContent?: string;
-  newContent?: string;
-  affectedFiles: string[];
-  snapshotTimestamp: number;
-}
-
-// ---- Streaming Metrics ----
-
-export interface StreamingMetrics {
-  tokenCount: number;
-  tokensPerSecond: number;
-  durationMs: number;
 }
 
 // ---- Global Window Declaration ----

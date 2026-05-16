@@ -370,6 +370,7 @@ const vibecode = {
     getPendingEvents: () => ipcRenderer.invoke('analytics:getPendingEvents'),
     trackFeature: (feature: string) => ipcRenderer.invoke('analytics:trackFeature', feature),
   },
+<<<<<<< HEAD
 
   // ── ARC 20 + ARC 21: AI Intelligence + Autonomy ────────────────────
   // Workspace context, agent runtime, autonomy loop, self-improvement,
@@ -525,6 +526,72 @@ const vibecode = {
     // ── Events ─────────────────────────────────────────────────────────
     onEvent: (callback: (event: any) => void) => {
       ipcRenderer.on('sm:event', (_event, event) => callback(event));
+=======
+  // ── ARC 22: Multi-Agent Orchestration System ──────────────────────────
+  agent: {
+    // Orchestrator control
+    start: () => ipcRenderer.invoke('agent:start'),
+    stop: () => ipcRenderer.invoke('agent:stop'),
+    getStatus: () => ipcRenderer.invoke('agent:getStatus'),
+    // Agent management
+    spawn: (role: string) => ipcRenderer.invoke('agent:spawn', role),
+    retire: (role: string) => ipcRenderer.invoke('agent:retire', role),
+    list: () => ipcRenderer.invoke('agent:list'),
+    getStats: (role: string) => ipcRenderer.invoke('agent:getStats', role),
+    // Task management
+    submitTask: (task: any) => ipcRenderer.invoke('agent:submitTask', task),
+    delegateTask: (taskId: string, targetAgent: string) => ipcRenderer.invoke('agent:delegateTask', taskId, targetAgent),
+    getTask: (taskId: string) => ipcRenderer.invoke('agent:getTask', taskId),
+    listTasks: () => ipcRenderer.invoke('agent:listTasks'),
+    // Autonomy control
+    setAutonomy: (level: string) => ipcRenderer.invoke('agent:setAutonomy', level),
+    getAutonomy: () => ipcRenderer.invoke('agent:getAutonomy'),
+    // Voting
+    vote: (proposalId: string, agentRole: string, vote: string, reasoning: string, confidence: number) =>
+      ipcRenderer.invoke('agent:vote', proposalId, agentRole, vote, reasoning, confidence),
+    getProposals: () => ipcRenderer.invoke('agent:getProposals'),
+    getProposal: (proposalId: string) => ipcRenderer.invoke('agent:getProposal', proposalId),
+    getVotingStats: () => ipcRenderer.invoke('agent:getVotingStats'),
+    // Context
+    getContextStats: () => ipcRenderer.invoke('agent:getContextStats'),
+    queryContext: (query: string, limit?: number) => ipcRenderer.invoke('agent:queryContext', query, limit),
+    // Communication
+    getRecentMessages: (limit?: number) => ipcRenderer.invoke('agent:getRecentMessages', limit),
+    getCommStats: () => ipcRenderer.invoke('agent:getCommStats'),
+    // Parallel execution
+    getParallelStats: () => ipcRenderer.invoke('agent:getParallelStats'),
+    getLocks: () => ipcRenderer.invoke('agent:getLocks'),
+    // Organization goals
+    createGoal: (title: string, description: string, type: string, priority?: number) =>
+      ipcRenderer.invoke('agent:createGoal', title, description, type, priority),
+    getGoals: () => ipcRenderer.invoke('agent:getGoals'),
+    getGoal: (goalId: string) => ipcRenderer.invoke('agent:getGoal', goalId),
+    decomposeGoal: (goalId: string) => ipcRenderer.invoke('agent:decomposeGoal', goalId),
+    completeGoal: (goalId: string) => ipcRenderer.invoke('agent:completeGoal', goalId),
+    abandonGoal: (goalId: string, reason: string) => ipcRenderer.invoke('agent:abandonGoal', goalId, reason),
+    getLessons: (limit?: number) => ipcRenderer.invoke('agent:getLessons', limit),
+    getOrgStats: () => ipcRenderer.invoke('agent:getOrgStats'),
+    // Dashboard
+    getDashboard: () => ipcRenderer.invoke('agent:getDashboard'),
+    // Real-time events
+    onOrchestratorEvent: (callback: (event: any) => void) => {
+      ipcRenderer.on('agent:orchestrator:event', (_event, data) => callback(data));
+    },
+    onCommunicationEvent: (callback: (event: any) => void) => {
+      ipcRenderer.on('agent:communication:event', (_event, data) => callback(data));
+    },
+    onVotingEvent: (callback: (event: any) => void) => {
+      ipcRenderer.on('agent:voting:event', (_event, data) => callback(data));
+    },
+    onOrganizationEvent: (callback: (event: any) => void) => {
+      ipcRenderer.on('agent:organization:event', (_event, data) => callback(data));
+    },
+    onContextEvent: (callback: (event: any) => void) => {
+      ipcRenderer.on('agent:context:event', (_event, data) => callback(data));
+    },
+    onParallelEvent: (callback: (event: any) => void) => {
+      ipcRenderer.on('agent:parallel:event', (_event, data) => callback(data));
+>>>>>>> c950cf3 (ARC 22: Multi-Agent Orchestration + AI Operating System Layer)
     },
   },
 };
