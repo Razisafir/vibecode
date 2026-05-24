@@ -12,13 +12,10 @@ import { registerProposalHandlers } from './proposal-handlers';
 import { registerTelemetryHandlers } from './telemetry-handlers';
 import { registerUpdaterHandlers } from './updater-handlers';
 import { registerAnalyticsHandlers } from './analytics-handlers';
-<<<<<<< HEAD
 import { registerStateMachineHandlers } from './state-machine-handlers';
 import { registerARC20Handlers } from './arc20-handlers';
 import { registerARC21Handlers } from './arc21-handlers';
-=======
 import { registerAgentHandlers } from './agent-handlers';
->>>>>>> c950cf3 (ARC 22: Multi-Agent Orchestration + AI Operating System Layer)
 import { telemetry } from '../services/telemetry';
 import { rateLimiter } from '../utils/rate-limiter';
 
@@ -114,7 +111,6 @@ export function registerAllIpcHandlers(): void {
   // Analytics (opt-in, privacy-first)
   registerAnalyticsHandlers();
 
-<<<<<<< HEAD
   // Execution State Machine (ARC 12 — ONLY execution system)
   registerStateMachineHandlers(null);
 
@@ -123,10 +119,9 @@ export function registerAllIpcHandlers(): void {
 
   // ARC 21: Real-Time Autonomy + Self-Improving Agent Loop
   registerARC21Handlers();
-=======
+
   // ARC 22: Multi-Agent Orchestration System
   registerAgentHandlers();
->>>>>>> c950cf3 (ARC 22: Multi-Agent Orchestration + AI Operating System Layer)
 
   console.log('[IPC] All IPC handlers registered successfully');
 }

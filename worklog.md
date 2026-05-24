@@ -55,3 +55,42 @@ Stage Summary:
 - Pushed to GitHub: main branch
 - All 244 tests pass (226 existing + 18 new)
 - Full TypeScript compilation clean
+
+---
+Task ID: Phase2-Bravo
+Agent: Agent Bravo — The Extractor
+Task: Phase 2 — Extract supervision modules from src/main/services/ to src/system/supervision/
+
+Work Log:
+- Fixed merge conflict markers in src/main/ipc/index.ts (6 markers resolved)
+- Created branch: refactor/phase2-supervision-extraction
+- Step 1: Extracted crash-dump.ts → src/system/supervision/crash-dump.ts (216 lines)
+  - Class → module-level functions (initializeCrashDump, generateCrashDump, etc.)
+  - Created backward-compatible shim at src/main/services/crash-dump.ts
+- Step 2: Extracted session-recovery.ts → src/system/supervision/session-recovery.ts (399 lines)
+  - Extracted 6 recovery methods from SessionManager class
+  - Session-manager.ts delegates recovery methods to new module
+  - CRUD methods remain in session-manager.ts
+- Step 3: Extracted crash-recovery.ts → src/system/supervision/crash-recovery.ts (131 lines)
+  - Moved render-process-gone, unresponsive/responsive, GPU crash handlers from window.ts
+  - Uses setRecreateWindowCallback() to avoid circular dependency with window.ts
+  - lifecycle.ts calls registerCrashHandlers() after createWindow()
+  - window.ts reduced from 169 lines to 97 lines
+- Step 4: Extracted watchdog.ts → src/system/supervision/watchdog.ts (209 lines)
+  - Class (extends EventEmitter) → module-level functions + internal emitter
+  - Created backward-compatible shim with EventEmitter bridge
+- Step 5: Extracted auto-updater.ts → src/system/supervision/auto-updater.ts (384 lines)
+  - Class → module-level functions
+  - IPC registration REMOVED from new module (was duplicate with updater-handlers.ts)
+  - Created backward-compatible shim (autoUpdateService object)
+- Step 6: Created index.ts barrel export (64 lines)
+- Verified: 0 new TypeScript errors introduced (124 pre-existing errors unchanged)
+
+Stage Summary:
+- 5 modules extracted to src/system/supervision/ (1403 lines total)
+- 3 shim files created in src/main/services/ (139 lines total)
+- window.ts reduced from 169 → 97 lines (crash recovery extracted)
+- lifecycle.ts updated: imports registerCrashHandlers, setRecreateWindowCallback
+- IPC duplication fixed: auto-updater registerIpcHandlers() removed from new module
+- Circular dependencies: NONE
+- Compilation: CLEAN (no new errors vs baseline)

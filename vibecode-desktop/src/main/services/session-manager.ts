@@ -10,6 +10,8 @@ import {
 import * as path from 'path';
 import * as os from 'os';
 import { v4 as uuidv4 } from 'uuid';
+// Phase 2: Recovery methods delegate to session-recovery module
+import * as sessionRecovery from '../../system/supervision/session-recovery';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -333,81 +335,29 @@ export class SessionManager {
     }
   }
 
-  /** Mark that a crash occurred (called from main process crash handler) */
+  /** Mark that a crash occurred — delegates to session-recovery module */
   markCrash(reason: string): void {
-    const latest = this.getLatestEnhanced();
-    if (!latest) {
-      // No session to mark — create a minimal crash record
-      console.warn('[SessionManager] No session to mark as crashed');
-      return;
-    }
-
-    latest.recovery = {
-      lastCrashed: true,
-      crashCount: (latest.recovery?.crashCount ?? 0) + 1,
-      lastCrashReason: reason,
-      safeShutdown: false,
-    };
-
-    this.saveEnhanced(latest);
-    console.log(`[SessionManager] Session ${latest.id} marked as crashed: ${reason}`);
+    sessionRecovery.markCrash(reason);
   }
 
-  /** Mark that the app shut down cleanly */
+  /** Mark that the app shut down cleanly — delegates to session-recovery module */
   markSafeShutdown(): void {
-    const latest = this.getLatestEnhanced();
-    if (!latest) return;
-
-    latest.recovery = {
-      ...latest.recovery,
-      lastCrashed: false,
-      safeShutdown: true,
-    };
-
-    this.saveEnhanced(latest);
-    console.log(`[SessionManager] Session ${latest.id} marked as safe shutdown`);
+    sessionRecovery.markSafeShutdown();
   }
 
-  /** Check if the last session crashed */
+  /** Check if the last session crashed — delegates to session-recovery module */
   wasCrashed(): boolean {
-    const latest = this.getLatestEnhanced();
-    if (!latest) return false;
-    // If the session file exists but safeShutdown is false/not set, it was a crash
-    return latest.recovery?.safeShutdown === false;
+    return sessionRecovery.wasCrashed();
   }
 
-  /** Get the session to recover (latest, or the crashed one) */
+  /** Get the session to recover — delegates to session-recovery module */
   getRecoverySession(): EnhancedSessionState | null {
-    return this.getLatestEnhanced();
+    return sessionRecovery.getRecoverySession();
   }
 
-  /** Get recovery info for the UI */
+  /** Get recovery info for the UI — delegates to session-recovery module */
   getRecoveryInfo(): RecoveryInfo {
-    const latest = this.getLatestEnhanced();
-    if (!latest) {
-      return { hasCrashedSession: false };
-    }
-
-    const crashed = latest.recovery?.safeShutdown === false;
-
-    if (crashed) {
-      return {
-        hasCrashedSession: true,
-        crashInfo: {
-          sessionId: latest.id,
-          reason: latest.recovery?.lastCrashReason ?? 'Unknown',
-          timestamp: latest.lastSaved,
-          activePlans: latest.execution?.activePlans ?? [],
-          unsavedChanges: latest.recovery?.safeShutdown === false,
-        },
-        sessionId: latest.id,
-      };
-    }
-
-    return {
-      hasCrashedSession: false,
-      sessionId: latest.id,
-    };
+    return sessionRecovery.getRecoveryInfo();
   }
 
   /** Auto-save with full enhanced state */
@@ -557,23 +507,13 @@ export class SessionManager {
     return latest;
   }
 
-  /** Archive a crashed session (rename with .archived suffix) */
+  /** Archive a crashed session — delegates to session-recovery module */
   archiveCrashedSession(sessionId: string): boolean {
-    const filePath = this.getFilePath(sessionId);
-    if (!kernelFsExistsInternal(filePath)) return false;
-
-    try {
-      const archivePath = this.getFilePath(`${sessionId}.archived-${Date.now()}`);
-      kernelFsRenameInternalSync(filePath, archivePath);
-      this.stopAutoSave(sessionId);
-      this.stopWorkspaceSave(sessionId);
-      this.currentEnhancedState.delete(sessionId);
-      console.log(`[SessionManager] Archived crashed session ${sessionId}`);
-      return true;
-    } catch (err) {
-      console.error(`[SessionManager] Failed to archive session ${sessionId}:`, err);
-      return false;
-    }
+    // Clean up local timers before archiving
+    this.stopAutoSave(sessionId);
+    this.stopWorkspaceSave(sessionId);
+    this.currentEnhancedState.delete(sessionId);
+    return sessionRecovery.archiveCrashedSession(sessionId);
   }
 
   /** Dispose — stop all auto-save timers and flush */

@@ -14,6 +14,7 @@ import { setIsSafeMode, getIsSafeMode, getMainWindow, getIsDev, setIsQuitting, s
 import { setupContentSecurityPolicy } from './csp';
 import { detectSafeMode, applySafeModeRestrictions, showSafeModeDialog } from './safe-mode';
 import { createWindow, destroyWindow } from './window';
+import { registerCrashHandlers, setRecreateWindowCallback } from '../supervision/crash-recovery';
 import { setupTray, destroyTray, setTrayQuitHandler } from './tray';
 import { setupMenu, setMenuQuitHandler } from './menu';
 import { registerAllIpcHandlers } from '../../main/ipc/index';
@@ -186,6 +187,18 @@ export function boot(): void {
     setupContentSecurityPolicy();
 
     createWindow();
+
+    // Register crash recovery handlers on the new window
+    // (extracted from window.ts in Phase 2 — avoids circular dependency)
+    const crashWin = getMainWindow();
+    if (crashWin) {
+      setRecreateWindowCallback(() => {
+        destroyWindow();
+        createWindow();
+      });
+      registerCrashHandlers(crashWin);
+    }
+
     registerAllIpcHandlers();
     setupMenu();
     setupTray();

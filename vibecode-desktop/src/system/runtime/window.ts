@@ -3,26 +3,29 @@
 // ============================================================
 //
 // Extracted from main.ts during Phase 1 refactoring.
-// Creates the main BrowserWindow with all event handlers
-// including crash recovery logic.
+// Creates the main BrowserWindow with core event handlers.
+//
+// Phase 2: Crash recovery handlers extracted to
+// src/system/supervision/crash-recovery.ts.
+// lifecycle.ts calls registerCrashHandlers() after createWindow().
 //
 // This is a VS Code fork competing with Cursor — not "an Electron app."
 // ============================================================
 
-import { BrowserWindow, shell, app } from 'electron';
+import { BrowserWindow, shell } from 'electron';
 import * as path from 'path';
 import { getMainWindow, setMainWindow, getIsDev } from '../kernel/state';
-import { crashDumpService } from '../../main/services/crash-dump';
-import { sessionManager } from '../../main/ipc/session-handlers';
-import { logger } from '../../main/utils/logger';
 
 const VITE_DEV_SERVER_URL = 'http://localhost:5173';
 
 /**
- * Create the main BrowserWindow with all event handlers.
- * Handles: ready-to-show, closed, external links,
- * render-process-gone (crash recovery), unresponsive/responsive,
- * and GPU process crash.
+ * Create the main BrowserWindow with core event handlers.
+ * Handles: ready-to-show, closed, external links.
+ *
+ * Crash recovery handlers (render-process-gone, unresponsive/responsive,
+ * GPU crash) are registered separately by registerCrashHandlers() in
+ * src/system/supervision/crash-recovery.ts — called from lifecycle.ts
+ * after this function returns.
  */
 export function createWindow(): void {
   const win = new BrowserWindow({
@@ -80,80 +83,6 @@ export function createWindow(): void {
     }
     return { action: 'deny' };
   });
-
-  // ─── Crash Recovery ───────────────────────────────────────────────────
-
-  win.webContents.on('render-process-gone', (_event, details) => {
-    logger.error('general', 'Render process gone', {
-      reason: details.reason,
-      exitCode: details.exitCode,
-    });
-
-    // Generate crash dump
-    const error = new Error(`render-process-gone: ${details.reason || 'unknown'}`);
-    crashDumpService.generateCrashDump(error, {
-      source: 'render-process-gone',
-      reason: details.reason,
-      exitCode: details.exitCode,
-    }).catch(() => {
-      // Best-effort crash dump
-    });
-
-    // Mark the session as crashed
-    try {
-      sessionManager.markCrash(`render-process-gone: ${details.reason}`);
-    } catch (err) {
-      logger.error('general', 'Failed to mark crash', { error: String(err) });
-    }
-
-    if (details.reason === 'crashed' || details.reason === 'oom') {
-      // Attempt recovery by reloading
-      const recoveryDelay = 2000;
-      logger.info('general', `Attempting crash recovery in ${recoveryDelay}ms...`);
-
-      setTimeout(() => {
-        const currentWin = getMainWindow();
-        if (currentWin && !currentWin.isDestroyed()) {
-          try {
-            currentWin.reload();
-            logger.info('general', 'Crash recovery: window reloaded');
-          } catch (err) {
-            logger.error('general', 'Crash recovery failed', { error: String(err) });
-            // Last resort: recreate window
-            createWindow();
-          }
-        } else {
-          // Window was destroyed, recreate
-          createWindow();
-        }
-      }, recoveryDelay);
-    }
-  });
-
-  // Handle unresponsive renderer
-  win.on('unresponsive', () => {
-    logger.warn('general', 'Renderer is unresponsive');
-  });
-
-  win.on('responsive', () => {
-    logger.info('general', 'Renderer is responsive again');
-  });
-
-  // Handle GPU process crash (Electron 33+ uses 'child-process-gone' instead)
-  try {
-    app.on('child-process-gone', (_event, details) => {
-      if (details.type === 'GPU' && details.reason !== 'killed') {
-        logger.error('general', 'GPU process crashed', { reason: details.reason });
-        try {
-          sessionManager.markCrash(`gpu-process-crashed: ${details.reason}`);
-        } catch {
-          // Best-effort
-        }
-      }
-    });
-  } catch {
-    // Older Electron versions may not support this event
-  }
 }
 
 /**
