@@ -3,8 +3,8 @@
     "target": "ES2020",
     "module": "CommonJS",
     "lib": ["ES2020"],
-    "outDir": "dist/main",
-    "rootDir": "src/main",
+    "outDir": "dist/system",
+    "rootDir": "src/system",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -14,6 +14,6 @@
     "composite": true,
     "moduleResolution": "node"
   },
-  "include": ["src/main/**/*"],
-  "references": [{ "path": "./tsconfig.system.json" }]
+  "include": ["src/system/**/*"],
+  "references": []
 }
