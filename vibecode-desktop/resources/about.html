@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About VibeCode</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 420px;
+      overflow: hidden;
+      background: #0a0a0f;
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 32px 32px;
+      user-select: none;
+      -webkit-app-region: drag;
+      color: #ffffff;
+    }
+    .logo {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 20px;
+    }
+    .logo svg { width: 100%; height: 100%; }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .version { color: #6366f1; font-size: 13px; font-weight: 500; margin-bottom: 20px; }
+    .description {
+      color: #9ca3af;
+      font-size: 13px;
+      text-align: center;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .info-table tr { border-bottom: 1px solid #1a1a2e; }
+    .info-table td { padding: 8px 0; font-size: 12px; }
+    .info-table td:first-child { color: #6b7280; }
+    .info-table td:last-child { color: #d1d5db; text-align: right; }
+    .links {
+      margin-top: 24px;
+      display: flex;
+      gap: 16px;
+    }
+    .links a {
+      color: #6366f1;
+      font-size: 12px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .links a:hover { text-decoration: underline; }
+    .copyright {
+      margin-top: 20px;
+      color: #4a4a6a;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="logo">
+    <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#6366f1"/>
+          <stop offset="100%" style="stop-color:#8b5cf6"/>
+        </linearGradient>
+        <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#818cf8"/>
+          <stop offset="100%" style="stop-color:#a78bfa"/>
+        </linearGradient>
+      </defs>
+      <path d="M256 120 L396 320 L356 320 L256 180 L156 320 L116 320 Z" fill="url(#glow)" opacity="0.3"/>
+      <path d="M256 140 L386 320 L346 320 L256 200 L166 320 L126 320 Z" fill="url(#accent)"/>
+      <path d="M256 200 L326 320 L296 320 L256 260 L216 320 L186 320 Z" fill="url(#glow)" opacity="0.5"/>
+      <circle cx="256" cy="340" r="16" fill="#6366f1"/>
+      <circle cx="256" cy="340" r="8" fill="#818cf8"/>
+    </svg>
+  </div>
+  <h1>VibeCode</h1>
+  <div class="version">Version 0.2.0</div>
+  <p class="description">
+    AI-Native Desktop Operating Environment.<br>
+    Build software with intelligent code generation, real-time execution, and contextual memory.
+  </p>
+  <table class="info-table">
+    <tr><td>Electron</td><td>33.4.0</td></tr>
+    <tr><td>Chrome</td><td>130.x</td></tr>
+    <tr><td>Node.js</td><td>20.x</td></tr>
+    <tr><td>V8</td><td>13.x</td></tr>
+  </table>
+  <div class="links">
+    <a onclick="window.open('https://vibecode.dev')">Website</a>
+    <a onclick="window.open('https://github.com/Razisafir/vibecode')">GitHub</a>
+    <a onclick="window.open('https://vibecode.dev/docs')">Docs</a>
+    <a onclick="window.open('https://github.com/Razisafir/vibecode/issues')">Report Issue</a>
+  </div>
+  <p class="copyright">&copy; 2024-2026 VibeCode. All rights reserved.</p>
+</body>
+</html>

@@ -1,0 +1,212 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: Install Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibecode-desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+  typecheck:
+    name: TypeScript Type Check
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibecode-desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+      - name: Typecheck renderer
+        working-directory: vibecode-desktop
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Typecheck main process
+        working-directory: vibecode-desktop
+        run: npx tsc --noEmit -p tsconfig.main.json
+
+      - name: Typecheck preload
+        working-directory: vibecode-desktop
+        run: npx tsc --noEmit -p tsconfig.preload.json
+
+  lint:
+    name: ESLint
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibecode-desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+      - name: Lint
+        working-directory: vibecode-desktop
+        run: npm run lint
+
+  test:
+    name: Tests
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibecode-desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+      - name: Run tests
+        working-directory: vibecode-desktop
+        run: npm test
+
+  build-main:
+    name: Build Main Process
+    needs: [typecheck, lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibecode-desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+      - name: Build main process
+        working-directory: vibecode-desktop
+        run: npm run build:main
+
+      - name: Build preload
+        working-directory: vibecode-desktop
+        run: npm run build:preload
+
+  build-renderer:
+    name: Build Renderer
+    needs: [typecheck, lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibecode-desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+      - name: Build renderer
+        working-directory: vibecode-desktop
+        run: npm run build:renderer
+
+  verify-no-secrets:
+    name: Verify No Secrets in Build Output
+    needs: [build-main, build-renderer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibecode-desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vibecode-desktop
+        run: npm ci
+
+      - name: Full build
+        working-directory: vibecode-desktop
+        run: npm run build
+
+      - name: Check for .env files in build output
+        working-directory: vibecode-desktop
+        run: |
+          if find dist/ dist-electron/ -name '.env*' -not -name '.env.example' 2>/dev/null | grep -q .; then
+            echo "::error::Found .env files in build output!"
+            find dist/ dist-electron/ -name '.env*' -not -name '.env.example'
+            exit 1
+          fi
+          echo "No .env files found in build output."
+
+      - name: Check for secret patterns in build output
+        working-directory: vibecode-desktop
+        run: |
+          if grep -rE '(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{82}|AKIA[0-9A-Z]{16})' dist/ dist-electron/ 2>/dev/null; then
+            echo "::error::Found secret patterns in build output!"
+            exit 1
+          fi
+          echo "No secret patterns found in build output."
+
+  release-gate:
+    name: Release Approval Gate
+    needs: [typecheck, lint, test, build-main, build-renderer, verify-no-secrets]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Release gate passed
+        run: |
+          echo "✓ All CI checks passed"
+          echo "✓ Typecheck: PASSED"
+          echo "✓ Lint: PASSED"
+          echo "✓ Tests: PASSED"
+          echo "✓ Build: PASSED"
+          echo "✓ No secrets in output: PASSED"
+          echo ""
+          echo "Release is approved for deployment."

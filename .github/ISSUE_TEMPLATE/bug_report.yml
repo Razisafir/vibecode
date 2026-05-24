@@ -1,0 +1,109 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in VibeCode
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug. Please fill out all sections below.
+        Incomplete reports may be closed without investigation.
+
+  - type: input
+    id: version
+    attributes:
+      label: VibeCode Version
+      description: Find this in Help > About or check package.json
+      placeholder: "0.1.0-alpha.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows 10
+        - Windows 11
+        - Linux (Ubuntu/Debian)
+        - Linux (Fedora/RHEL)
+        - Linux (Arch)
+        - Other (specify below)
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS Version / Distro
+      placeholder: "macOS 14.4, Ubuntu 22.04, Windows 11 23H2"
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: What happened? What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Numbered steps to trigger the bug
+      placeholder: |
+        1. Open VibeCode
+        2. Create a new workspace
+        3. Send a message to the AI panel
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should have happened?
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs or Screenshots
+      description: Paste any error messages, console output, or screenshots
+      render: shell
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: AI Provider in Use
+      description: Which AI provider were you using when the bug occurred?
+      options:
+        - OpenAI (GPT-4)
+        - OpenAI (GPT-3.5)
+        - Anthropic (Claude)
+        - Google (Gemini)
+        - Ollama (Local)
+        - LM Studio (Local)
+        - Multiple / Switching
+        - N/A (not AI-related)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I am running the latest version of VibeCode
+          required: true
+        - label: I searched existing issues and this is not a duplicate
+          required: true
+        - label: I have provided all required information above
+          required: true

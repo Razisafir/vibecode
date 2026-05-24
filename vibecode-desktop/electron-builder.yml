@@ -1,0 +1,233 @@
+# ═══════════════════════════════════════════════════════════════
+# VibeCode Desktop — Electron Builder Configuration
+# Production packaging pipeline for cross-platform distribution
+# ═══════════════════════════════════════════════════════════════
+
+appId: com.vibecode.desktop
+productName: VibeCode
+copyright: "Copyright © 2024-2026 VibeCode. All rights reserved."
+
+# ── Directory Configuration ────────────────────────────────────────
+directories:
+  output: dist-electron
+  buildResources: resources
+
+# ── File Patterns ──────────────────────────────────────────────────
+files:
+  - dist/**/*
+  - resources/**/*
+  - "!dist-electron/**/*"
+  - "!**/.git/**"
+  - "!**/.env"
+  - "!**/.env.*"
+  - "!**/node_modules/.cache/**"
+  - "!**/__tests__/**"
+  - "!**/*.test.*"
+  - "!**/*.spec.*"
+  - "!**/coverage/**"
+
+extraResources:
+  - from: resources
+    to: resources
+    filter:
+      - "**/*"
+
+# ── Asar Archive ──────────────────────────────────────────────────
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "**/node_modules/sharp/**/*"
+  - "**/node_modules/node-pty/**/*"
+
+# ── Environment ───────────────────────────────────────────────────
+extraMetadata:
+  main: dist/main/main.js
+
+# ── Code Signing Preparation ──────────────────────────────────────
+# These are hooks — certificate configuration must be provided
+# via environment variables during CI/CD builds:
+#   CSC_LINK          — Base64-encoded .p12/.pfx certificate (macOS/Windows)
+#   CSC_KEY_PASSWORD  — Certificate password
+#   WIN_CSC_LINK      — Windows-specific certificate
+#   APPLE_ID          — Apple Developer ID email
+#   APPLE_ID_PASSWORD — App-specific password for notarization
+#   APPLE_TEAM_ID     — Apple Developer Team ID
+
+# ── macOS ─────────────────────────────────────────────────────────
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - universal
+    - target: zip
+      arch:
+        - universal
+  icon: resources/icons/icon.icns
+  type: distribution
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
+  # Notarization requires Apple Developer credentials in CI
+  notarize: false
+  # Minimum macOS version
+  minimumSystemVersion: "10.15.0"
+  extendInfo:
+    NSDocumentsFolderUsageDescription: "VibeCode needs access to your Documents folder to open projects."
+    NSDownloadsFolderUsageDescription: "VibeCode needs access to your Downloads folder to open projects."
+    CFBundleURLTypes:
+      - CFBundleURLSchemes:
+          - vibecode
+
+dmg:
+  title: "VibeCode ${version}"
+  artifactName: "VibeCode-${version}-mac.${ext}"
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# ── Windows ───────────────────────────────────────────────────────
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: resources/icons/icon.ico
+  # Publisher name for digital signature — set via env WIN_CSC_LINK
+  publisherName: "VibeCode"
+  # Verify update integrity
+  verifyUpdateCodeSignature: true
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  installerIcon: resources/icons/icon.ico
+  uninstallerIcon: resources/icons/icon.ico
+  installerHeaderIcon: resources/icons/icon.ico
+  installerSidebar: resources/icons/installer-sidebar.bmp
+  artifactName: "VibeCode-Setup-${version}-win.${ext}"
+  shortcutName: VibeCode
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  # License agreement shown during install
+  license: LICENSE
+  # Include in PATH for CLI access
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+
+portable:
+  artifactName: "VibeCode-Portable-${version}-win.${ext}"
+
+# ── Linux ─────────────────────────────────────────────────────────
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: snap
+      arch:
+        - x64
+  icon: resources/icons
+  category: Development
+  synopsis: "AI-Native Desktop Operating Environment"
+  description: "VibeCode is an AI-native desktop workspace that transforms how developers build software — combining intelligent code generation, real-time execution, and contextual memory into a single cohesive environment."
+  maintainer: "VibeCode <hello@vibecode.dev>"
+  vendor: VibeCode
+  # Desktop integration
+  desktop:
+    Name: VibeCode
+    Comment: AI-Native Desktop Operating Environment
+    Categories: Development;IDE;GTK;
+    StartupWMClass: vibecode
+    MimeType: x-scheme-handler/vibecode;
+
+appImage:
+  artifactName: "VibeCode-${version}-linux.AppImage"
+
+deb:
+  artifactName: "VibeCode-${version}-amd64.deb"
+  depends:
+    - libnotify4
+    - libxtst6
+    - libnss3
+    - libxss1
+    - libasound2
+    - libgbm1
+
+snap:
+  artifactName: "VibeCode-${version}-amd64.snap"
+  confinement: classic
+  grade: stable
+  plugs:
+    - default
+    - system-files
+    - removable-media
+
+# ── Auto Update Configuration ─────────────────────────────────────
+# Integrates with GitHub Releases for update distribution
+publish:
+  provider: github
+  owner: Razisafir
+  repo: vibecode
+  # Release channel: stable | beta | nightly
+  channel: stable
+  # Release type: draft for pre-release validation
+  releaseType: release
+  # Timeout for update checks
+  timeout: 15000
+  # Use VibeCode update server (future)
+  # provider: generic
+  # url: https://updates.vibecode.dev
+
+# ── Build Optimization ────────────────────────────────────────────
+compression: xz
+removePackageScripts: true
+
+# ── After-Pack Hook ───────────────────────────────────────────────
+# Clean up unnecessary files from the build
+afterPack: |
+  const fs = require('fs');
+  const path = require('path');
+  exports.default = async function(context) {
+    // Remove source maps from production builds
+    const appDir = context.appOutDir;
+    if (fs.existsSync(appDir)) {
+      // Remove .map files
+      const { execSync } = require('child_process');
+      try {
+        execSync(`find "${appDir}" -name "*.map" -type f -delete`, { stdio: 'ignore' });
+      } catch {}
+    }
+  };
+
+# ── After-Sign Hook (macOS notarization) ──────────────────────────
+afterSign: |
+  const { notarize } = require('@electron/notarize');
+  exports.default = async function(context) {
+    const { electronPlatformName, appOutDir } = context;
+    if (electronPlatformName === 'darwin' && process.env.APPLE_ID) {
+      const appName = context.packager.appInfo.productFilename;
+      const appPath = `${appOutDir}/${appName}.app`;
+      console.log('[Build] Notarizing macOS app...');
+      await notarize({
+        appPath,
+        appleId: process.env.APPLE_ID,
+        appleIdPassword: process.env.APPLE_ID_PASSWORD,
+        teamId: process.env.APPLE_TEAM_ID,
+      });
+      console.log('[Build] Notarization complete');
+    }
+  };

@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-electron/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+# .env.dev, .env.preview, .env.prod are tracked as TEMPLATES
+# (they contain no real secrets — only placeholder values)
+# Actual .env with real keys is gitignored above
+
+# PM2 / Infrastructure
+logs/
+watchdog.pid
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Cache
+.cache/
+.parcel-cache/
+.vite/
+
+# Secrets (NEVER commit)
+secrets/
+*.key
+*.pem
+*.p12
+
+# Build artifacts
+*.dmg
+*.exe
+*.AppImage
+*.deb
+*.snap
+
+# Coverage
+coverage/
+
+# Testing
+.nyc_output/

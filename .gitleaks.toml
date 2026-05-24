@@ -1,0 +1,28 @@
+# Gitleaks Configuration — VibeCode Repository
+# https://github.com/gitleaks/gitleaks
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "vibecode-env-database-url"
+description = "Database URL in .env"
+regex = '''DATABASE_URL=.*'''
+tags = ["env", "database"]
+
+[[allowlist]]
+paths = [
+  '''vibecode-desktop/\.env\.example$''',
+  '''\.gitleaks\.toml$''',
+  '''SECURITY\.md$''',
+  '''\.github/workflows/.*\.yml$''',
+]
+description = "Global allow list — includes CI workflow files for pattern examples"
+regexes = [
+  '''your-api-key-here''',
+  '''sk-\.\.\.''',
+  '''OPENAI_API_KEY=$''',
+  '''ANTHROPIC_API_KEY=$''',
+  '''GOOGLE_API_KEY=$''',
+  '''\$\{\{\s*secrets\.''',
+]

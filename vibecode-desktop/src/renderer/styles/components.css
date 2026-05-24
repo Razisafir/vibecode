@@ -1,0 +1,604 @@
+/* ============================================================
+   VibeCode Desktop — Component-Specific Styles
+   ARC 8 — Premium AI IDE
+   ============================================================ */
+
+/* ---- Custom Titlebar ---- */
+
+.titlebar {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  height: 36px;
+  background-color: var(--bg-deep);
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.traffic-light {
+  -webkit-app-region: no-drag;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  transition: opacity var(--duration-normal) ease;
+  position: relative;
+}
+
+.traffic-light:hover {
+  opacity: 0.85;
+}
+
+.traffic-light-close {
+  background-color: #ff5f57;
+}
+
+.traffic-light-minimize {
+  background-color: #febc2e;
+}
+
+.traffic-light-maximize {
+  background-color: #28c840;
+}
+
+.traffic-lights:hover .traffic-light::after {
+  opacity: 1;
+}
+
+.titlebar-action-btn {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--easing-default);
+}
+
+.titlebar-action-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.titlebar-action-btn:active {
+  transform: scale(0.95);
+}
+
+/* ---- Activity Bar ---- */
+
+.activity-bar {
+  width: 48px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+  gap: 2px;
+  background-color: var(--bg-deep);
+  border-right: 1px solid var(--border);
+}
+
+.activity-bar-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  transition: all var(--duration-normal) var(--easing-default);
+  position: relative;
+}
+
+.activity-bar-btn:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-hover);
+}
+
+.activity-bar-btn:active {
+  transform: scale(0.95);
+}
+
+.activity-bar-btn.active {
+  color: var(--text-primary);
+}
+
+.activity-bar-btn.active::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 20px;
+  background-color: var(--accent);
+  border-radius: 0 1px 1px 0;
+}
+
+/* ---- Sidebar Panel ---- */
+
+.sidebar-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+/* ---- File Tree ---- */
+
+.file-tree-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 0;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: all var(--duration-normal) var(--easing-default);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-tree-item:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.file-tree-item.active {
+  background-color: var(--accent-glow);
+  color: var(--text-primary);
+}
+
+.file-tree-chevron {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform var(--duration-normal) var(--easing-default);
+}
+
+.file-tree-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.file-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.file-icon-ts { color: #3178c6; }
+.file-icon-tsx { color: #3178c6; }
+.file-icon-js { color: #f7df1e; }
+.file-icon-py { color: #3776ab; }
+.file-icon-json { color: #f7df1e; }
+.file-icon-md { color: #e4e4e9; }
+.file-icon-css { color: #1572b6; }
+.file-icon-html { color: #e34c26; }
+.file-icon-folder { color: #818cf8; }
+
+/* ---- AI Panel ---- */
+
+.ai-panel {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  transition: width 300ms cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 200ms ease-out;
+}
+
+.ai-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-message {
+  max-width: 88%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  animation: slideUp 200ms var(--easing-default) forwards;
+}
+
+.ai-message-user {
+  align-self: flex-end;
+  background-color: var(--accent);
+  color: white;
+  border-bottom-right-radius: 2px;
+}
+
+.ai-message-assistant {
+  align-self: flex-start;
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 2px;
+}
+
+.ai-message-system {
+  align-self: center;
+  background-color: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+  padding: 4px 12px;
+}
+
+/* Streaming text cursor */
+.streaming-cursor::after {
+  content: '|';
+  animation: blink 1s step-end infinite;
+  color: var(--accent);
+  margin-left: 1px;
+}
+
+/* Thinking dots animation */
+.thinking-dots {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.thinking-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--text-muted);
+  animation: thinkingBounce 1.4s ease-in-out infinite;
+}
+
+.thinking-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.thinking-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* ---- Editor Tabs ---- */
+
+.editor-tab {
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  transition: all var(--duration-normal) var(--easing-default);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  background-color: var(--bg-deep);
+  height: 35px;
+}
+
+.editor-tab:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-hover);
+}
+
+.editor-tab.active {
+  color: var(--text-primary);
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--accent);
+  margin-bottom: -1px;
+}
+
+.editor-tab-close {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--easing-default);
+}
+
+.editor-tab:hover .editor-tab-close {
+  opacity: 0.6;
+}
+
+.editor-tab-close:hover {
+  background-color: var(--bg-active);
+  opacity: 1;
+}
+
+/* ---- Terminal ---- */
+
+.terminal-container {
+  background-color: var(--bg-deep);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  height: 100%;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.terminal-line {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.terminal-line-error { color: var(--danger); }
+.terminal-line-success { color: var(--success); }
+.terminal-line-warning { color: var(--warning); }
+.terminal-line-info { color: #3b82f6; }
+.terminal-line-dim { color: var(--text-muted); }
+
+/* ---- xterm.js overrides ---- */
+
+.xterm {
+  padding: 4px 8px;
+  height: 100%;
+}
+
+.xterm-viewport {
+  /* Use our custom scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.06) transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
+.xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Terminal tab styles (VS Code inspired) */
+.terminal-tab {
+  position: relative;
+  border-bottom: 2px solid transparent;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.terminal-tab.active {
+  border-bottom-color: var(--accent);
+}
+
+.terminal-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: var(--accent);
+}
+
+/* ---- Context Menu ---- */
+
+.context-menu {
+  position: fixed;
+  z-index: 1500;
+  min-width: 180px;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  animation: fadeIn 80ms ease-out, scaleIn 100ms ease-out;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: all var(--duration-normal) var(--easing-default);
+}
+
+.context-menu-item:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.context-menu-item-danger {
+  color: var(--danger);
+}
+
+.context-menu-item-danger:hover {
+  background-color: var(--danger-muted);
+  color: var(--danger);
+}
+
+.context-menu-separator {
+  height: 1px;
+  background-color: var(--border);
+  margin: 4px 8px;
+}
+
+/* ---- Command Palette ---- */
+
+.command-palette-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 20vh;
+  animation: fadeIn 100ms ease-out;
+}
+
+.command-palette {
+  width: 560px;
+  max-height: 420px;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  animation: slideDown 200ms var(--easing-decelerate) forwards;
+  display: flex;
+  flex-direction: column;
+}
+
+.command-palette-input {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.command-palette-list {
+  overflow-y: auto;
+  max-height: 360px;
+  padding: 8px;
+}
+
+.command-palette-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--easing-default);
+  color: var(--text-secondary);
+}
+
+.command-palette-item:hover,
+.command-palette-item.selected {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.command-palette-item.selected {
+  background-color: var(--accent-glow);
+}
+
+/* ---- Proposal Card ---- */
+
+.proposal-card {
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--border);
+  transition: all var(--duration-normal) var(--easing-default);
+  animation: slideUp 200ms var(--easing-default) forwards;
+}
+
+.proposal-card-risk-low {
+  border-left-color: var(--success);
+}
+
+.proposal-card-risk-medium {
+  border-left-color: var(--warning);
+}
+
+.proposal-card-risk-high {
+  border-left-color: var(--danger);
+}
+
+/* ---- Status Bar ---- */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  padding: 0 8px;
+  background-color: var(--bg-deep);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.status-bar-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+  padding: 0 4px;
+  border-radius: 2px;
+  transition: background-color var(--duration-normal) var(--easing-default);
+}
+
+.status-bar-item:hover {
+  background-color: var(--bg-hover);
+}
+
+/* ---- Performance Hints ---- */
+
+.sidebar-panel,
+.ai-panel {
+  will-change: width, opacity;
+}
+
+.ai-message {
+  will-change: transform, opacity;
+}
+
+.command-palette {
+  will-change: transform, opacity;
+}
+
+.thinking-dots span {
+  will-change: transform, opacity;
+}
+
+.spinner {
+  will-change: transform;
+}
+
+.ai-messages,
+.terminal-container {
+  -webkit-overflow-scrolling: touch;
+  contain: layout;
+}

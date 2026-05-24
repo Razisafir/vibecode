@@ -1,0 +1,28 @@
+# CODEOWNERS — VibeCode
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything
+* @Razisafir
+
+# Application source code
+/vibecode-desktop/src/main/ @Razisafir
+/vibecode-desktop/src/renderer/ @Razisafir
+/vibecode-desktop/src/preload/ @Razisafir
+
+# Security-sensitive code
+/vibecode-desktop/src/main/services/path-sandbox.ts @Razisafir
+/vibecode-desktop/src/main/services/execution-engine.ts @Razisafir
+/vibecode-desktop/src/main/services/provider-manager.ts @Razisafir
+/vibecode-desktop/src/main/ipc/ @Razisafir
+
+# Infrastructure and CI/CD
+/.github/ @Razisafir
+/docs/ @Razisafir
+LICENSE @Razisafir
+EULA.md @Razisafir
+SECURITY.md @Razisafir
+PRIVACY.md @Razisafir
+
+# Build configuration
+/vibecode-desktop/package.json @Razisafir
+/vibecode-desktop/tsconfig*.json @Razisafir

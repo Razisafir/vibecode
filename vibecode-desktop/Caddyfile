@@ -1,0 +1,141 @@
+# ============================================================
+# VibeCode Desktop — Caddy Reverse Proxy Configuration
+# ============================================================
+#
+# SAFETY: This Caddyfile does NOTHING unless Caddy is explicitly
+# configured to use it. It does not affect the Vite dev server,
+# the Electron app, or any existing workflow.
+#
+# Architecture:
+#   Caddy (port 80/443) → PM2-managed VibeCode (port 9876)
+#   OR fallback → Vite dev server (port 5173)
+#
+# Usage:
+#   caddy run --config Caddyfile
+#   caddy validate --config Caddyfile
+#
+# Environment variables:
+#   VIBECODE_PREVIEW_PORT  → PM2/health server port (default: 9876)
+#   VIBECODE_DEV_PORT      → Vite dev server port (default: 5173)
+#   VIBECODE_DOMAIN        → Domain name (default: localhost)
+# ============================================================
+
+# ─── Global Options ──────────────────────────────────────────────────────────
+{
+    # Admin API — off by default for security
+    admin off
+
+    # Graceful shutdown timeout
+    grace_period 10s
+
+    # Log level
+    log {
+        level INFO
+        format json
+        output file /var/log/caddy/vibecode-access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+}
+
+# ─── VibeCode Site ───────────────────────────────────────────────────────────
+{$VIBECODE_DOMAIN:localhost} {
+    # ─── Health Check Endpoint (always available) ────────────────────────
+    handle /api/health* {
+        # Try PM2 health server first, fall back to 502
+        reverse_proxy localhost:{$VIBECODE_PREVIEW_PORT:9876} {
+            # If PM2 is not running, Caddy returns 502 Bad Gateway
+            # This is intentional — the health endpoint only exists
+            # when the app is running under PM2 supervision.
+            fail_duration 5s
+        }
+    }
+
+    # ─── Static Assets (built renderer) ─────────────────────────────────
+    handle /assets/* {
+        # Serve built Vite assets directly for performance
+        @pm2Running {
+            expression {http.reverse_proxy.upstream.status_code} > 0
+        }
+        # Try PM2-served content first, then static files
+        try_files {path} /index.html
+        file_server {
+            root ./dist/renderer
+        }
+    }
+
+    # ─── Main Application ───────────────────────────────────────────────
+    handle {
+        # Primary: Proxy to PM2-managed app (when running)
+        reverse_proxy localhost:{$VIBECODE_PREVIEW_PORT:9876} {
+            # Connection settings
+            transport http {
+                read_timeout 30s
+                write_timeout 30s
+                dial_timeout 5s
+            }
+
+            # Health check for upstream
+            health_uri /api/health/live
+            health_interval 10s
+            health_timeout 3s
+
+            # Headers
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-VibeCode-Proxy caddy
+
+            # If upstream is down, serve a maintenance page
+            @upstreamDown status 502 503
+            handle_response @upstreamDown {
+                respond "VibeCode is starting up... Please retry in a few seconds." 503 {
+                    close
+                }
+            }
+        }
+    }
+
+    # ─── Compression ────────────────────────────────────────────────────
+    encode gzip zstd
+
+    # ─── Security Headers ───────────────────────────────────────────────
+    header {
+        # Prevent clickjacking
+        X-Frame-Options "DENY"
+        # Prevent MIME-type sniffing
+        X-Content-Type-Options "nosniff"
+        # Referrer policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Content Security Policy (strict for API)
+        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+        # Permissions policy
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+
+    # ─── Logging ────────────────────────────────────────────────────────
+    log {
+        output file /var/log/caddy/vibecode-access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+        format json
+    }
+}
+
+# ─── Dev Mode Server (optional, used for development) ────────────────────────
+# This block is commented out by default. Uncomment ONLY if you want
+# Caddy to proxy to the Vite dev server during development.
+#
+# dev.{$VIBECODE_DOMAIN:localhost}:8080 {
+#     reverse_proxy localhost:{$VIBECODE_DEV_PORT:5173}
+#
+#     # Dev-friendly headers (less restrictive)
+#     header {
+#         X-Frame-Options "SAMEORIGIN"
+#         Access-Control-Allow-Origin "*"
+#     }
+#
+#     # Disable compression for hot-reload speed
+#     encode off
+# }

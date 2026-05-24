@@ -1,0 +1,318 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   VibeCode Desktop — Base Styles
+   ARC 8 — Premium AI IDE Design System
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* ── Primary Backgrounds (depth layers) ── */
+    --bg-deep: #050507;
+    --bg-base: #0a0a0f;
+    --bg-surface: #0f0f15;
+    --bg-elevated: #14141c;
+    --bg-hover: #1a1a25;
+    --bg-active: #22222f;
+
+    /* ── Borders ── */
+    --border: rgba(255, 255, 255, 0.06);
+    --border-subtle: rgba(255, 255, 255, 0.03);
+    --border-emphasis: rgba(255, 255, 255, 0.1);
+    --border-active: rgba(99, 102, 241, 0.3);
+
+    /* ── Text ── */
+    --text-primary: #e4e4e9;
+    --text-secondary: #a0a0ae;
+    --text-muted: #65657a;
+
+    /* ── Accent ── */
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
+    --accent-glow: rgba(99, 102, 241, 0.15);
+    --accent-subtle: rgba(99, 102, 241, 0.08);
+    --accent-strong: #4f46e5;
+
+    /* ── Semantic Colors ── */
+    --success: #22c55e;
+    --success-muted: rgba(34, 197, 94, 0.15);
+    --warning: #f59e0b;
+    --warning-muted: rgba(245, 158, 11, 0.15);
+    --danger: #ef4444;
+    --danger-muted: rgba(239, 68, 68, 0.15);
+
+    /* ── Typography ── */
+    --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+
+    /* ── Motion ── */
+    --duration-fast: 75ms;
+    --duration-normal: 150ms;
+    --duration-slow: 250ms;
+    --easing-default: cubic-bezier(0.4, 0, 0.2, 1);
+    --easing-decelerate: cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* ── Focus Ring ── */
+    --focus-ring: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--accent);
+
+    /* ── Shadows ── */
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 6px 12px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.4);
+    --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #root {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    border-radius: 4px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  ::selection {
+    background-color: rgba(99, 102, 241, 0.3);
+    color: var(--text-primary);
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select {
+    transition: all var(--duration-normal) var(--easing-default);
+  }
+
+  code,
+  pre {
+    font-family: var(--font-mono);
+  }
+}
+
+/* ============================================================
+   Custom Scrollbar
+   ============================================================ */
+
+@layer utilities {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.06) transparent;
+  }
+
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  .no-select {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* ============================================================
+   Component Base Styles
+   ============================================================ */
+
+@layer components {
+  /* ── Button System ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--duration-normal) var(--easing-default);
+    white-space: nowrap;
+  }
+
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background-color: var(--accent);
+    color: white;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--accent-hover);
+  }
+
+  .btn-primary:active:not(:disabled) {
+    transform: scale(0.98);
+    background-color: var(--accent-strong);
+  }
+
+  .btn-secondary {
+    background-color: var(--bg-elevated);
+    color: var(--text-primary);
+    border-color: var(--border);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--bg-hover);
+    border-color: var(--border-emphasis);
+  }
+
+  .btn-secondary:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .btn-danger {
+    background-color: var(--danger);
+    color: white;
+  }
+
+  .btn-sm {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .btn-lg {
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+
+  .btn-icon {
+    padding: 4px;
+    min-width: 28px;
+    min-height: 28px;
+  }
+
+  /* ── Input System ── */
+  .input {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 4px;
+    background-color: var(--bg-deep);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: var(--font-sans);
+    transition: all var(--duration-normal) var(--easing-default);
+  }
+
+  .input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+
+  .input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .input-mono {
+    font-family: var(--font-mono);
+  }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  /* ── Spinner ── */
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  .spinner-sm {
+    width: 12px;
+    height: 12px;
+    border-width: 1.5px;
+  }
+
+  .spinner-lg {
+    width: 24px;
+    height: 24px;
+    border-width: 3px;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

@@ -1,0 +1,71 @@
+name: First Impressions
+description: Share your initial experience with VibeCode
+labels: ["feedback", "first-impressions"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tell us about your first experience with VibeCode. This feedback
+        helps us understand how new users perceive the product and where
+        we can improve onboarding and first-use experience.
+
+  - type: dropdown
+    id: experience
+    attributes:
+      label: Overall First Impression
+      options:
+        - Excellent — Immediately useful
+        - Good — Promising but needs polish
+        - Mixed — Some things worked, some didn't
+        - Poor — Too many issues to be useful
+        - Could not evaluate — Could not get it running
+    validations:
+      required: true
+
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup Experience
+      description: How was the installation and configuration process?
+      placeholder: "Was it easy to install? Did you have trouble configuring API keys?"
+
+  - type: textarea
+    id: first-use
+    attributes:
+      label: First Use Experience
+      description: What happened when you tried to use VibeCode for the first time?
+      placeholder: "What was the first thing you tried? Did it work as expected?"
+
+  - type: textarea
+    id: confusing
+    attributes:
+      label: What Was Confusing
+      description: What was unclear, unexpected, or frustrating?
+
+  - type: textarea
+    id: impressive
+    attributes:
+      label: What Was Impressive
+      description: What worked well or exceeded expectations?
+
+  - type: textarea
+    id: missing
+    attributes:
+      label: What Was Missing
+      description: What did you expect to find that wasn't there?
+
+  - type: input
+    id: previous-tool
+    attributes:
+      label: Previous Tool Used
+      description: What tool were you using before VibeCode?
+      placeholder: "Cursor, Copilot, VS Code, Replit, etc."
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS
+        - Windows
+        - Linux
