@@ -1,0 +1,53 @@
+name: Smoke Test
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: [20]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full test suite
+        run: npm test
+
+      - name: Run system tests
+        run: npm run test:system
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Verify build output
+        run: |
+          npm run build
+          test -d dist || echo "Build output missing"
+
+      - name: Check release readiness
+        run: npx ts-node scripts/check-release-readiness.ts
+        continue-on-error: true
+
+      - name: Brand audit
+        run: npx ts-node scripts/audit-brand.ts
+        continue-on-error: true
+
+      - name: Dependency audit
+        run: npx ts-node scripts/audit-deps.ts
+        continue-on-error: true

@@ -283,3 +283,147 @@ No `src/system/` → `src/main/` import violations found. The only documented ex
 ### Import Wall Verification
 
 No `src/system/` → `src/main/` import violations found.
+
+## Phase 10: Integration & Release Readiness Verification (FINAL)
+**Result**: PASS_WITH_FIXES
+**Verifier**: Agent Charlie
+**Date**: 2026-05-25
+
+### Summary
+
+40-point final release gate audit completed. 36/40 checks passed immediately, 4 required fixes (integration test state transitions, ESM __dirname compatibility, brand audit false positives, coverage dependency version). All fixes verified. Final result: **351 tests pass** (138 Phase 10 + 213 Phase 1-9), **89.42% code coverage** for src/system/, **0 new TS errors**, **release readiness score: 100/100**.
+
+### Fixes Applied by Charlie
+
+1. **Integration test state transition**: `state-consistency.test.ts` attempted invalid transition path. Fixed by transitioning properly before testing rejection.
+2. **ESM __dirname compatibility**: All three release scripts used `__dirname` which doesn't exist in ESM scope. Fixed with `import.meta.url` + `fileURLToPath`.
+3. **Brand audit false positives**: `audit-brand.ts` flagged its own patterns and README negations. Fixed by excluding self and making patterns context-aware.
+4. **Coverage dependency version**: `@vitest/coverage-v8@4.1.7` incompatible with `vitest@1.6.1`. Fixed by installing matching version.
+5. **Missing `afterEach` import**: Added vitest import to state-consistency.test.ts.
+
+---
+
+### Verification Checklist (40 Points)
+
+#### Integration Tests (10/10) — ALL PASS
+
+| # | Check | Result | Evidence |
+|---|-------|--------|----------|
+| 1 | Plugin + Window integration test passes | ✅ PASS | 5 tests: plugin creates window, independent lifecycle, multiple plugins, close safety, session recovery |
+| 2 | Performance + Plugin integration test passes | ✅ PASS | 5 tests: telemetry captures plugin events, sampling integration |
+| 3 | Safety + Plugin integration test passes | ✅ PASS | 6 tests: capability restriction, prototype pollution, memory monitoring, IPC rate limit, revocation, crash isolation |
+| 4 | Session + Window + Plugin integration test passes | ✅ PASS | Crash recovery with session persistence verified |
+| 5 | IPC end-to-end integration test passes | ✅ PASS | 7 tests: routing, broadcast, rate limiting, enrichment, fallback, priority, cleanup |
+| 6 | State consistency integration test passes | ✅ PASS | 6 tests: propagation, independence, atomicity, rejection, history |
+| 7 | Boot sequence integration test passes | ✅ PASS | 8 tests: full startup, reverse shutdown, init ordering, markers, lazy init, partial failure |
+| 8 | Service init ordering verified | ✅ PASS | Eager → Deferred → Lazy ordering verified |
+| 9 | All startup markers emitted in correct order | ✅ PASS | 9 markers from boot:start to boot:complete |
+| 10 | Integration tests work without Electron runtime | ✅ PASS | All 37 integration tests run in vitest node environment |
+
+#### CI/CD Pipeline (8/8) — ALL PASS
+
+| # | Check | Result | Evidence |
+|---|-------|--------|----------|
+| 11 | ci.yml valid YAML, triggers on push/PR | ✅ PASS | Valid YAML; push to main/develop, PRs to main |
+| 12 | release.yml valid YAML, triggers on tag | ✅ PASS | Valid YAML; triggers on tag v* |
+| 13 | smoke-test.yml valid YAML, triggers after release | ✅ PASS | Valid YAML; triggers on release:published |
+| 14 | All workflows have proper caching | ✅ PASS | cache: 'npm' in setup-node |
+| 15 | Matrix testing configured | ✅ PASS | 3 OS × 3 Node versions |
+| 16 | Build artifacts for all 3 platforms | ✅ PASS | ubuntu, macos, windows |
+| 17 | Code signing steps for macOS and Windows | ✅ PASS | Sign steps with secrets |
+| 18 | Auto-update channel configuration | ✅ PASS | provider: github, channel: stable |
+
+#### Build & Packaging (6/6) — ALL PASS
+
+| # | Check | Result | Evidence |
+|---|-------|--------|----------|
+| 19 | electron-builder.yml valid configuration | ✅ PASS | Valid YAML with all sections |
+| 20 | App ID, product name, branding correct | ✅ PASS | dev.vibecode.desktop, VibeCode |
+| 21 | macOS: hardenedRuntime, entitlements, category | ✅ PASS | All configured |
+| 22 | Windows: NSIS, certificate, publisher | ✅ PASS | NSIS target, publisherName set |
+| 23 | Linux: AppImage + deb + rpm | ✅ PASS | All three targets configured |
+| 24 | Build output directories configured | ✅ PASS | dist/packages, build resources |
+
+#### Release Readiness (8/8) — ALL PASS
+
+| # | Check | Result | Evidence |
+|---|-------|--------|----------|
+| 25 | check-release-readiness.ts valid JSON | ✅ PASS | 20 checks, score: 100, status: READY |
+| 26 | audit-brand.ts zero violations | ✅ PASS | totalViolations: 0 |
+| 27 | audit-deps.ts zero critical/high | ✅ PASS | critical: 0, high: 0 |
+| 28 | Hard gates programmatically checkable | ✅ PASS | All scripts exit 0/1 |
+| 29 | Release runbook exists | ✅ PASS | 69 lines, step-by-step |
+| 30 | README.md exists | ✅ PASS | Architecture, setup, structure |
+| 31 | Phase 1-9 deliverables present | ✅ PASS | 22 source modules verified |
+| 32 | CHANGELOG covers all 10 phases | ✅ PASS | 10 version entries |
+
+#### Architecture Audit (4/4) — ALL PASS
+
+| # | Check | Result | Evidence |
+|---|-------|--------|----------|
+| 33 | Import wall enforced | ✅ PASS | No src/system/ → src/main/ violations |
+| 34 | All modules have test files | ✅ PASS | 29 modules, 28 test files (some cover multiple) |
+| 35 | TypeScript: 0 errors in src/system/ | ✅ PASS | Only pre-existing electron error in main.ts |
+| 36 | Brand audit: zero violations | ✅ PASS | Zero "VS Code fork" or "Electron app" refs |
+
+#### Final Gate (4/4) — ALL PASS
+
+| # | Check | Result | Evidence |
+|---|-------|--------|----------|
+| 37 | Total test count > 250 | ✅ PASS | **351 tests** |
+| 38 | Code coverage > 80% | ✅ PASS | **89.42%** |
+| 39 | All Phase 1-9 reports PASS | ✅ PASS | 9 phases all PASS or PASS_WITH_FIXES |
+| 40 | Release readiness ≥ 90/100 | ✅ PASS | **100/100** |
+
+---
+
+### Test Summary
+
+| Test File | Tests | Status |
+|-----------|-------|--------|
+| **Phase 10 Integration** | | |
+| plugin-window.test.ts | 5 | ✅ |
+| telemetry-plugin.test.ts | 5 | ✅ |
+| safety-plugin.test.ts | 6 | ✅ |
+| ipc-e2e.test.ts | 7 | ✅ |
+| state-consistency.test.ts | 6 | ✅ |
+| boot-sequence.test.ts | 8 | ✅ |
+| **Phase 10 Unit Tests** | | |
+| kernel-providers.test.ts | 27 | ✅ |
+| status-provider.test.ts | 12 | ✅ |
+| auto-updater.test.ts | 9 | ✅ |
+| watchdog-extended.test.ts | 8 | ✅ |
+| menu.test.ts | 12 | ✅ |
+| tray.test.ts | 12 | ✅ |
+| window.test.ts | 21 | ✅ |
+| **Phase 1-9 Tests** | | |
+| plugin-manager.test.ts | 26 | ✅ |
+| plugin-sandbox.test.ts | 17 | ✅ |
+| plugin-api.test.ts | 21 | ✅ |
+| plugin-registry.test.ts | 22 | ✅ |
+| plugin-security.test.ts | 11 | ✅ |
+| window-manager.test.ts | 33 | ✅ |
+| ipc-router.test.ts | 15 | ✅ |
+| window-session.test.ts | 29 | ✅ |
+| state.test.ts | 8 | ✅ |
+| kernel-lifecycle.test.ts | 4 | ✅ |
+| csp.test.ts | 7 | ✅ |
+| safe-mode.test.ts | 7 | ✅ |
+| crash-recovery.test.ts | 6 | ✅ |
+| session-recovery.test.ts | 4 | ✅ |
+| crash-dump.test.ts | 3 | ✅ |
+| **Total** | **351** | **All Pass** |
+
+### Coverage Report
+
+| Layer | Stmts | Branch | Funcs | Lines |
+|-------|-------|--------|-------|-------|
+| kernel | 89.94% | 90.9% | 82.6% | 89.94% |
+| observability | 73.93% | 76.47% | 52% | 73.93% |
+| runtime | 76.85% | 85.26% | 85.1% | 76.85% |
+| supervision | 83.42% | 81.66% | 72.34% | 83.42% |
+| **Overall** | **89.42%** | **86.86%** | **81.49%** | **89.42%** |
+
+### Release Readiness Score
+
+**100/100 — READY**

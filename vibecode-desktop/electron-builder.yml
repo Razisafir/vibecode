@@ -1,0 +1,115 @@
+# VibeCode Desktop - Electron Builder Configuration
+# Phase 10: Build & Packaging
+
+appId: dev.vibecode.desktop
+productName: VibeCode
+copyright: Copyright © 2024-2026 VibeCode Project
+
+# Directory settings
+directories:
+  output: dist/packages
+  buildResources: build
+
+# File patterns to include
+files:
+  - dist/**/*
+  - package.json
+  - "!node_modules/**/*"
+  - "!src/**/*"
+  - "!test/**/*"
+  - "!scripts/**/*"
+  - "!.github/**/*"
+
+# Auto-update configuration
+publish:
+  provider: github
+  owner: Razisafir
+  repo: vibecode-desktop
+  releaseType: release
+  channel: stable
+
+# macOS configuration
+mac:
+  category: public.app-category.developer-tools
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  gatekeeperAssess: false
+  target:
+    - target: dmg
+      arch:
+        - universal
+    - target: zip
+      arch:
+        - universal
+  icon: build/icon.icns
+  extendInfo:
+    NSHighResolutionCapable: true
+    NSRequiresAquaSystemAppearance: false
+
+dmg:
+  title: "${productName} ${version}"
+  artifactName: "${productName}-${version}-mac.${ext}"
+
+# Windows configuration
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.ico
+  publisherName: VibeCode Project
+  verifyUpdateCodeSignature: false
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  artifactName: "${productName}-Setup-${version}.${ext}"
+
+# Linux configuration
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: rpm
+      arch:
+        - x64
+  icon: build/icons
+  category: Development
+  maintainer: VibeCode Project
+  vendor: VibeCode Project
+  synopsis: AI-Native Desktop Operating Environment
+  description: VibeCode is an AI-native desktop operating environment for modern development workflows.
+
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+
+rpm:
+  depends:
+    - gtk3
+    - libnotify
+    - nss
+    - libXScrnSaver
+
+appImage:
+  artifactName: "${productName}-${version}-linux.${ext}"
+
+# Extra metadata
+extraMetadata:
+  main: dist/main/main.js

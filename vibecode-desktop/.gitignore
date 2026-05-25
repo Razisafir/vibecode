@@ -1,5 +1,10 @@
 node_modules/
 dist/
+coverage/
 *.log
 .DS_Store
 .vite/
+window-sessions/
+audit-logs/
+crash-dumps/
+session-state/
