@@ -1,0 +1,47 @@
+{
+  "nameShort": "VibeCode",
+  "nameLong": "VibeCode - AI-Native Desktop Operating Environment",
+  "applicationName": "vibecode",
+  "version": "0.8.0",
+  "quality": "stable",
+  "commit": "phase11",
+  "date": "2026-05-25",
+  "protocol": "vibecode",
+  "extensionsGallery": {
+    "serviceUrl": "https://marketplace.vibecode.dev/api",
+    "itemUrl": "https://marketplace.vibecode.dev/item",
+    "controlUrl": "https://marketplace.vibecode.dev/control",
+    "recommendationsUrl": "https://marketplace.vibecode.dev/recommendations"
+  },
+  "extensionAllowedProposedApi": [],
+  "extensionEnabledApiProposals": {},
+  "productConfiguration": {
+    "enabledFeatures": {
+      "aiAssistant": true,
+      "multiWindow": true,
+      "pluginSystem": true,
+      "telemetry": true,
+      "crashRecovery": true,
+      "autoUpdate": true
+    },
+    "branding": {
+      "aboutDialog": {
+        "productName": "VibeCode",
+        "copyright": "Copyright 2026 VibeCode Project",
+        "runtimeLabel": "Chromium 130.x",
+        "description": "AI-Native Desktop Operating Environment"
+      },
+      "FORBIDDEN_TERMS": [
+        "Electron app",
+        "Electron-based",
+        "built on Electron"
+      ],
+      "ACCEPTABLE_TERMS": [
+        "AI-Native Desktop Operating Environment",
+        "desktop runtime",
+        "VS Code fork"
+      ]
+    }
+  },
+  "checksums": {}
+}

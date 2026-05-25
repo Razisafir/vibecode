@@ -27,3 +27,20 @@ export async function executeShutdown(): Promise<void> {
 export function clearLifecycleHooks(): void {
   lifecycleHooks = [];
 }
+
+/**
+ * Boot the lifecycle system. Called at application startup.
+ * Initializes all registered hooks and executes their onStartup callbacks.
+ */
+export async function boot(): Promise<void> {
+  await executeStartup();
+}
+
+/**
+ * Gracefully shut down the lifecycle system and quit.
+ * Executes all shutdown hooks in reverse order, then clears them.
+ */
+export async function cleanupAndQuit(): Promise<void> {
+  await executeShutdown();
+  clearLifecycleHooks();
+}

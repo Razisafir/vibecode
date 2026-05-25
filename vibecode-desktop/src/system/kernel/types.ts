@@ -1,6 +1,7 @@
-// VibeCode System Kernel Types v9.0
+// VibeCode System Kernel Types v11.0
 // Phase 8: Plugin Architecture types
 // Phase 9: Multi-Window Architecture types
+// Phase 11: VS Code Fork Integration types
 
 export type ServiceState = 'uninitialized' | 'initializing' | 'ready' | 'degraded' | 'failed' | 'shutting_down';
 
@@ -151,3 +152,8 @@ export interface BootConfig {
   };
   [key: string]: unknown;
 }
+
+// Phase 11: Log Category for structured logging
+export type LogCategory =
+  | 'general' | 'kernel' | 'runtime' | 'observability' | 'supervision'
+  | 'plugin' | 'window' | 'ipc' | 'network' | 'security' | 'integration';

@@ -1,5 +1,5 @@
 // VibeCode System Kernel State v8.0
-export type { ServiceState, FailureCategory, PluginState, PluginManifest, PluginCapability, PluginPermission, PluginTransitionResult, PluginEvent, ServiceRegistry, PluginConsentRecord } from './types';
+export type { ServiceState, FailureCategory, PluginState, PluginManifest, PluginCapability, PluginPermission, PluginTransitionResult, PluginEvent, ServiceRegistry, PluginConsentRecord, LogCategory } from './types';
 
 import type { ServiceState } from './types';
 

@@ -7,5 +7,5 @@ export { WindowManager } from './window-manager';
 export { WindowHandle } from './window-handle';
 export { IPCRouter } from './ipc-router';
 export { WindowSession } from './window-session';
-export { registerLifecycleHook, executeStartup, executeShutdown, clearLifecycleHooks } from './lifecycle';
+export { registerLifecycleHook, executeStartup, executeShutdown, clearLifecycleHooks, boot, cleanupAndQuit } from './lifecycle';
 export type { LifecycleHook } from './lifecycle';
