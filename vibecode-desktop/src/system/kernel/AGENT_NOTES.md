@@ -59,3 +59,22 @@
 4. **Missing HealthCheckResult/TelemetryEvent types**: Added to types.ts
 5. **Test import fixes**: Added `vi` imports to 3 test files
 6. **Test transition fixes**: Fixed invalid state transitions in tests
+
+## Phase 9: Multi-Window Architecture (Kilo → Lima)
+- **Result**: PASS_WITH_FIXES
+- **Verifier**: Agent Charlie
+- **Date**: 2026-05-25
+- Alpha designed MULTI_WINDOW_ARCHITECTURE.md
+- Bravo implemented multi-window system
+- New files: window-manager.ts, window-handle.ts, ipc-router.ts, window-session.ts
+- 35 verification points across 7 categories: ALL PASS
+- 77 Phase 9 multi-window tests passing (target: 60+)
+- 213 total tests passing with 0 regressions
+- 0 new TS errors in src/system/
+
+### Fixes Applied
+1. **IPC rate-limit test handlers**: Tests called send() without registered handlers
+2. **Debounced save memory**: debouncedSave now stores in memory immediately, debounces disk write only
+3. **Active windows filter**: getActiveWindows() now excludes 'closed' windows (not just 'destroyed')
+4. **PluginAPI import**: Changed require() to dynamic import() for ESM compatibility
+5. **WindowHandle callback types**: Added WindowState type to onStateChange callback

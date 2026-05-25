@@ -1,5 +1,6 @@
-// VibeCode System Kernel Types v8.0
-// Phase 8: Plugin Architecture types added
+// VibeCode System Kernel Types v9.0
+// Phase 8: Plugin Architecture types
+// Phase 9: Multi-Window Architecture types
 
 export type ServiceState = 'uninitialized' | 'initializing' | 'ready' | 'degraded' | 'failed' | 'shutting_down';
 
@@ -82,4 +83,71 @@ export interface TelemetryEvent {
   properties?: Record<string, unknown>;
   measurements?: Record<string, number>;
   sampling?: boolean;
+}
+
+// Phase 9: Multi-Window Architecture Types
+export type WindowState = 'creating' | 'ready' | 'minimized' | 'maximized' | 'closed' | 'destroyed';
+
+export type WindowRole = 'main' | 'secondary' | 'panel' | 'dialog' | 'popup';
+
+export interface WindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface WindowConfig {
+  id: string;
+  role: WindowRole;
+  title: string;
+  bounds?: Partial<WindowBounds>;
+  url?: string;
+  parentId?: string;
+  sessionAware?: boolean;
+  devTools?: boolean;
+}
+
+export interface WindowStateEvent {
+  windowId: string;
+  fromState: WindowState;
+  toState: WindowState;
+  timestamp: number;
+}
+
+export interface WindowSessionData {
+  windowId: string;
+  role: WindowRole;
+  bounds: WindowBounds;
+  url: string;
+  globalState: Record<string, unknown>;
+  lastActive: number;
+  isMaximized: boolean;
+  isMinimized: boolean;
+}
+
+export interface IPCMessage {
+  channel: string;
+  data?: unknown;
+  windowId?: string;
+  windowRole?: WindowRole;
+  timestamp: number;
+  sourceWindowId: string;
+}
+
+export interface IPCRouteConfig {
+  channel: string;
+  handler: (msg: IPCMessage) => unknown;
+  windowId?: string; // If set, only handles for that window
+}
+
+export interface BootConfig {
+  multiWindow: {
+    maxWindows: number;
+    saveSessionsOnClose: boolean;
+    autoRestoreOnBoot: boolean;
+    sessionDirectory: string;
+    debounceMs: number;
+  };
+  [key: string]: unknown;
 }
