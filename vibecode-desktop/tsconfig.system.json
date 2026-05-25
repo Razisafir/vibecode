@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/system",
+    "rootDir": "./src/system",
+    "types": ["node"]
+  },
+  "include": ["src/system/**/*"]
+}

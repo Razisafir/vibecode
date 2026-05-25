@@ -1,0 +1,19 @@
+{
+  "name": "vibecode-desktop",
+  "version": "0.8.0",
+  "description": "VibeCode - AI-Native Desktop Operating Environment",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "echo dev",
+    "build": "echo build",
+    "test": "vitest run",
+    "test:system": "vitest run src/tests/",
+    "lint": "echo lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}
