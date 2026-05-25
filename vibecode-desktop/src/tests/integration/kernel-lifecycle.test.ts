@@ -42,8 +42,13 @@ describe('Kernel Lifecycle Integration', () => {
   it('should integrate with state manager during lifecycle', async () => {
     const stateManager = getStateManager();
     registerLifecycleHook({
-      onStartup: async () => { stateManager.setState('lifecycle-test', 'ready'); },
-      onShutdown: async () => { stateManager.setState('lifecycle-test', 'shutting_down'); },
+      onStartup: async () => {
+        stateManager.setState('lifecycle-test', 'initializing');
+        stateManager.setState('lifecycle-test', 'ready');
+      },
+      onShutdown: async () => {
+        stateManager.setState('lifecycle-test', 'shutting_down');
+      },
     });
     await executeStartup();
     expect(stateManager.getState('lifecycle-test')).toBe('ready');

@@ -1,5 +1,5 @@
 // Crash Recovery Test Suite (Phase 3)
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CrashRecovery } from '../../system/supervision/crash-recovery';
 
 describe('CrashRecovery', () => {

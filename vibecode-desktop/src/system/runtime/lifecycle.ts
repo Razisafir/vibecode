@@ -23,3 +23,7 @@ export async function executeShutdown(): Promise<void> {
     await hook.onShutdown();
   }
 }
+
+export function clearLifecycleHooks(): void {
+  lifecycleHooks = [];
+}

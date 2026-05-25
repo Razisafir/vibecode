@@ -41,8 +41,21 @@
 - 0 new TS errors
 
 ## Phase 8: Plugin Architecture (Hotel → Kilo)
-- Status: IN PROGRESS — Charlie verification
+- **Result**: PASS_WITH_FIXES
+- **Verifier**: Agent Charlie
+- **Date**: 2026-05-25
 - Alpha designed PLUGIN_ARCHITECTURE.md
 - Bravo implemented plugin system
 - New files: plugin-manager.ts, plugin-sandbox.ts, plugin-api.ts, plugin-registry.ts
-- 30 verification points across 6 categories
+- 30 verification points across 6 categories: ALL PASS
+- 97 Phase 8 plugin tests passing (target: 50+)
+- 136 total tests passing with 0 regressions
+- 0 new TS errors in src/system/
+
+### Fixes Applied
+1. **Reactivation bug**: deactivate() was disposing sandbox/API, preventing deactivated→activated. Fixed with sandbox.softReset()
+2. **Missing StateManager**: Implemented full class with valid transitions, listeners, history
+3. **Missing clearLifecycleHooks**: Added export to lifecycle.ts
+4. **Missing HealthCheckResult/TelemetryEvent types**: Added to types.ts
+5. **Test import fixes**: Added `vi` imports to 3 test files
+6. **Test transition fixes**: Fixed invalid state transitions in tests

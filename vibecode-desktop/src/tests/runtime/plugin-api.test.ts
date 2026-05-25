@@ -59,7 +59,7 @@ describe('PluginAPI - API & Capabilities', () => {
     it('error is thrown, not swallowed', () => {
       try {
         api.requireCapability('network.request');
-        fail('Should have thrown');
+        expect(true).toBe(false); // Should not reach here
       } catch (e: any) {
         expect(e).toBeInstanceOf(Error);
         expect(e.message).toContain('network.request');

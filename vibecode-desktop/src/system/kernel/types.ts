@@ -67,3 +67,19 @@ export interface PluginConsentRecord {
   granted: boolean;
   timestamp: number;
 }
+
+// Re-exports for backward compatibility (Phase 6-7 types)
+export interface HealthCheckResult {
+  healthy: boolean;
+  latency?: number;
+  timestamp?: number;
+  details?: Record<string, unknown>;
+}
+
+export interface TelemetryEvent {
+  name: string;
+  timestamp: number;
+  properties?: Record<string, unknown>;
+  measurements?: Record<string, number>;
+  sampling?: boolean;
+}

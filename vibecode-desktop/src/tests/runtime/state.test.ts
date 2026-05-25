@@ -1,5 +1,5 @@
 // State Manager Test Suite (Phase 1)
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StateManager, getStateManager, resetStateManager } from '../../system/kernel/state';
 
 describe('StateManager', () => {
@@ -47,6 +47,7 @@ describe('StateManager', () => {
   });
 
   it('should provide service info', () => {
+    stateManager.setState('test', 'initializing');
     stateManager.setState('test', 'ready');
     stateManager.setVersion('test', '1.0.0');
     const info = stateManager.getServiceInfo('test');
@@ -55,6 +56,7 @@ describe('StateManager', () => {
   });
 
   it('should reset state', () => {
+    stateManager.setState('test', 'initializing');
     stateManager.setState('test', 'ready');
     stateManager.reset('test');
     expect(stateManager.getState('test')).toBe('uninitialized');

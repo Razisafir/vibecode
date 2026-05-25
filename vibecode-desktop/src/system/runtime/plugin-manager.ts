@@ -115,8 +115,16 @@ export class PluginManager extends EventEmitter {
       }
 
       // Initialize sandbox with plugin code
+      // If sandbox was soft-reset (deactivated), re-initialize it
       const manifestDef = this.registry.getManifest(pluginId);
-      await sandbox.initialize(manifestDef!.main, api);
+      if (sandbox.isDisposed()) {
+        // Sandbox was fully disposed, need to recreate
+        const newSandbox = new PluginSandbox(pluginId, manifestDef!);
+        this.sandboxes.set(pluginId, newSandbox);
+        await newSandbox.initialize(manifestDef!.main, api);
+      } else {
+        await sandbox.initialize(manifestDef!.main, api);
+      }
 
       this.setState(pluginId, 'activated');
       this.emitEvent('plugin:activated', pluginId);
@@ -144,13 +152,12 @@ export class PluginManager extends EventEmitter {
     }
 
     try {
+      // Deactivate stops plugin execution but preserves sandbox/API
+      // so the plugin can be reactivated without reloading
       const sandbox = this.sandboxes.get(pluginId);
       if (sandbox) {
-        await sandbox.dispose();
-      }
-      const api = this.apis.get(pluginId);
-      if (api) {
-        api.dispose();
+        // Clear timers but don't fully dispose sandbox
+        await sandbox.softReset();
       }
 
       this.setState(pluginId, 'deactivated');

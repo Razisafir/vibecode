@@ -62,6 +62,21 @@ export class PluginSandbox {
     this.pluginModule = null;
   }
 
+  async softReset(): Promise<void> {
+    // Soft reset for deactivation: clear timers and module but keep sandbox usable
+    for (const [, timer] of this.trackedTimers) {
+      if (timer.type === 'timeout') {
+        clearTimeout(timer.id as any);
+      } else {
+        clearInterval(timer.id as any);
+      }
+    }
+    this.trackedTimers.clear();
+    this.memoryUsage = 0;
+    this.pluginModule = null;
+    // Do NOT set disposed = true — sandbox remains usable for reactivation
+  }
+
   getMemoryUsage(): number {
     return this.memoryUsage;
   }

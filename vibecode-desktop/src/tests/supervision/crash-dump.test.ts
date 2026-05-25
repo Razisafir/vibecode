@@ -1,5 +1,5 @@
 // Crash Dump Test Suite (Phase 3)
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { CrashDump } from '../../system/supervision/crash-dump';
 import { existsSync, rmSync } from 'fs';
 
